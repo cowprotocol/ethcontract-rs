@@ -4,6 +4,12 @@ version = "0.1.0"
 authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+members = [
+  "runtime",
+  "derive",
+]
 
 [dependencies]
+ethcontract-runtime = { path = "./runtime" }
+ethcontract-derive = { path = "./derive" }
