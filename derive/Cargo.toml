@@ -8,7 +8,8 @@ edition = "2018"
 proc-macro = true
 
 [dependencies]
-ethcontract-runtime = { path = "../runtime" }
+anyhow = "1.0"
+ethcontract-common = { path = "../common" }
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = "1.0"

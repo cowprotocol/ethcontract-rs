@@ -1,7 +1,4 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+//! Crate for common times shared between the `ethcontract` runtime crate as and
+//! the `ethcontract-derive` crate.
+
+pub mod truffle;

@@ -1,5 +1,6 @@
 //! Module for reading and examining data produced by truffle.
 
+use ethereum_types::Address;
 use serde::Deserialize;
 use serde_json::Error as JsonError;
 use std::collections::HashMap;
@@ -7,7 +8,6 @@ use std::fs::File;
 use std::io::Error as IoError;
 use std::path::Path;
 use thiserror::Error;
-use web3::types::Address;
 
 pub use ethabi::Contract as Abi;
 

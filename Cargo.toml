@@ -13,3 +13,14 @@ members = [
 [dependencies]
 ethcontract-common = { path = "./common" }
 ethcontract-derive = { path = "./derive" }
+ethabi = "8.0"
+ethsign = "0.7"
+futures-preview = { version = "0.3.0-alpha.19", features = ["compat"] }
+lazy_static = "1.4"
+rlp = "0.4"
+thiserror = "1.0"
+tiny-keccak = "1.5"
+web3 = "0.8"
+
+[dev-dependencies]
+serde_json = "1.0"
