@@ -6,10 +6,10 @@ edition = "2018"
 
 [workspace]
 members = [
-  "runtime",
+  "common",
   "derive",
 ]
 
 [dependencies]
-ethcontract-runtime = { path = "./runtime" }
+ethcontract-common = { path = "./common" }
 ethcontract-derive = { path = "./derive" }

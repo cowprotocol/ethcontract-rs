@@ -14,6 +14,9 @@ pub use ethabi::Contract as Abi;
 /// Represents a truffle artifact.
 #[derive(Debug, Deserialize)]
 pub struct Artifact {
+    /// The contract name
+    #[serde(rename = "contractName")]
+    pub contract_name: String,
     /// The contract ABI
     pub abi: Abi,
     /// The configured networks by network ID for the contract.
