@@ -2,10 +2,12 @@
 //! for sending transactions to contracts as well as querying current contract
 //! state.
 
+use crate::sign::TransactionData;
 use crate::truffle::{Abi, Artifact};
 use ethabi::{Function, Result as AbiResult};
-use ethsign::SecretKey;
+use ethsign::{Error as EthsignError, SecretKey};
 use futures::compat::Future01CompatExt;
+use std::num::ParseIntError;
 use thiserror::Error;
 use web3::api::{Eth, Namespace, Net};
 use web3::contract::tokens::{Detokenize, Tokenize};
@@ -40,11 +42,7 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
     pub async fn deployed(eth: Eth<T>, artifact: Artifact) -> Result<Instance<T>, DeployedError> {
-        // in `web3js` the `net` is a sub-namespace of `eth`; so do this dance
-        // to make us a little more similar to `web3js` API
-        let net = Net::new(eth.transport().clone());
-
-        let network_id = net.version().compat().await?;
+        let network_id = eth.net().version().compat().await?;
         let address = match artifact.networks.get(&network_id) {
             Some(network) => network.address,
             None => return Err(DeployedError::NotFound(network_id)),
@@ -59,16 +57,27 @@ impl<T: Transport> Instance<T> {
         })
     }
 
+    /// Create a clone of the `web3::api::Eth` namespace using the current web3
+    /// provider.
     fn eth(&self) -> Eth<T> {
         self.eth.clone()
     }
 
+    /// Returns a call builder to setup a query to a smart contract that just
+    /// gets evaluated on a node but does not actually commit anything to the
+    /// block chain.
     pub fn call<S, P>(&self, name: S, params: P) -> AbiResult<CallBuilder<T>>
     where
         S: AsRef<str>,
         P: Tokenize,
     {
         let (function, data) = self.encode_abi(name, params)?;
+
+        // take ownership here as it greatly simplifies dealing with futures
+        // lifetime as it would require the contract Instance to live until
+        // the end of the future
+        let function = function.clone();
+
         Ok(CallBuilder {
             eth: self.eth(),
             function,
@@ -79,28 +88,29 @@ impl<T: Transport> Instance<T> {
         })
     }
 
+    /// Returns a transaction builder to setup a transaction
     pub fn send<S, P>(&self, name: S, params: P) -> AbiResult<TransactionBuilder<T>>
     where
         S: AsRef<str>,
         P: Tokenize,
     {
-        let (function, data) = self.encode_abi(name, params)?;
+        let (_, data) = self.encode_abi(name, params)?;
         Ok(TransactionBuilder {
             eth: self.eth(),
-            function,
             address: self.address,
             data,
             gas: None,
             gas_price: None,
             value: None,
             nonce: None,
-            condition: None,
             sign: None,
         })
     }
 
+    /// Utility function to locate a function by name and encode the function
+    /// signature and parameters into data bytes to be sent to a contract.
     #[inline(always)]
-    fn encode_abi<S, P>(&self, name: S, params: P) -> AbiResult<(Function, Bytes)>
+    fn encode_abi<S, P>(&self, name: S, params: P) -> AbiResult<(&Function, Bytes)>
     where
         S: AsRef<str>,
         P: Tokenize,
@@ -108,7 +118,7 @@ impl<T: Transport> Instance<T> {
         let function = self.abi.function(name.as_ref())?;
         let data = function.encode_input(&params.into_tokens())?;
 
-        Ok((function.clone(), data.into()))
+        Ok((function, data.into()))
     }
 }
 
@@ -174,34 +184,50 @@ impl<T: Transport> CallBuilder<T> {
         )
         .compat()
         .await?;
+
         Ok(result)
     }
 }
 
 /// Data used for building a contract transaction that modifies the blockchain.
 /// These transactions can either be sent to be signed locally by the node or can
-/// be signed remotely.
+/// be signed offline.
 pub struct TransactionBuilder<T: Transport> {
     eth: Eth<T>,
-    function: Function,
     address: Address,
     data: Bytes,
-    pub gas: Option<U256>,
-    pub gas_price: Option<U256>,
-    pub value: Option<U256>,
-    pub nonce: Option<U256>,
-    pub condition: Option<TransactionCondition>,
+    /// The signing strategy to use. Defaults to locally signing on the node with
+    /// the default acount.
     pub sign: Option<Sign>,
+    /// Optional gas amount to use for transaction. Defaults to estimated gas.
+    pub gas: Option<U256>,
+    /// Optional gas price to use for transaction. Defaults to estimated gas
+    /// price.
+    pub gas_price: Option<U256>,
+    /// The ETH value to send with the transaction. Defaults to 0.
+    pub value: Option<U256>,
+    /// Optional nonce to use. Defaults to the signing account's current
+    /// transaction count.
+    pub nonce: Option<U256>,
 }
 
 /// How the transaction should be signed
 #[derive(Clone, Debug)]
 pub enum Sign {
-    Local(Address),
-    Remote(SecretKey),
+    /// Let the node locally sign for address
+    Local(Address, Option<TransactionCondition>),
+    /// Do offline signing with private key and optionally specify chain ID
+    Offline(SecretKey, Option<u64>),
 }
 
 impl<T: Transport> TransactionBuilder<T> {
+    /// Specify the signing method to use for the transaction, if not specified
+    /// the the transaction will be locally signed with the default user.
+    pub fn sign(mut self, value: Sign) -> TransactionBuilder<T> {
+        self.sign = Some(value);
+        self
+    }
+
     /// Secify amount of gas to use, if not specified then a gas estimate will
     /// be used.
     pub fn gas(mut self, value: U256) -> TransactionBuilder<T> {
@@ -230,31 +256,20 @@ impl<T: Transport> TransactionBuilder<T> {
         self
     }
 
-    /// Specify a condition for executing a transaction.
-    pub fn condition(mut self, value: TransactionCondition) -> TransactionBuilder<T> {
-        self.condition = Some(value);
-        self
-    }
-
-    /// Specify the signing method to use for the transaction, if not specified
-    /// the the transaction will be locally signed with the default user.
-    pub fn sign(mut self, value: Sign) -> TransactionBuilder<T> {
-        self.sign = Some(value);
-        self
-    }
-
-    /// Sign (if required) and execute the transaction.
+    /// Sign (if required) and execute the transaction. Returns the transaction
+    /// hash that can be used to retrieve transaction information.
     pub async fn execute(mut self) -> Result<H256, ExecutionError> {
         let sign = match self.sign.take() {
             Some(s) => s,
             None => {
                 let accounts = self.eth.accounts().compat().await?;
-                Sign::Local(accounts[0])
+                let account = accounts.get(0).cloned().unwrap_or_else(Address::zero);
+                Sign::Local(account, None)
             }
         };
 
         let tx = match sign {
-            Sign::Local(from) => {
+            Sign::Local(from, condition) => {
                 self.eth
                     .send_transaction(TransactionRequest {
                         from,
@@ -264,15 +279,15 @@ impl<T: Transport> TransactionBuilder<T> {
                         value: self.value,
                         data: Some(self.data),
                         nonce: self.nonce,
-                        condition: self.condition,
+                        condition: condition,
                     })
                     .compat()
                     .await?
             }
-            Sign::Remote(key) => {
+            Sign::Offline(key, chain_id) => {
                 let from: Address = key.public().address().into();
 
-                // for remote signing we need to finalize all transaction values
+                // for offline signing we need to finalize all transaction values
                 // required for signing
                 let gas = match self.gas.take() {
                     Some(g) => g,
@@ -302,7 +317,27 @@ impl<T: Transport> TransactionBuilder<T> {
                     None => self.eth.transaction_count(from, None).compat().await?,
                 };
 
-                Default::default()
+                // it looks like web3 defaults chain ID to network ID, although
+                // this is not 'correct' in all cases it does work for most cases
+                // like mainnet and various testnets and provides better safety
+                // against replay attacks then just using no chain ID; so lets
+                // reproduce that behaviour here
+                let chain_id = match chain_id {
+                    Some(id) => id,
+                    None => self.eth.net().version().compat().await?.parse()?,
+                };
+
+                let tx = TransactionData {
+                    nonce,
+                    gas_price,
+                    gas,
+                    to: self.address,
+                    value: self.value.unwrap_or_else(U256::zero),
+                    data: &self.data,
+                };
+                let raw = tx.sign(key, Some(chain_id))?;
+
+                self.eth.send_raw_transaction(raw).compat().await?
             }
         };
 
@@ -320,4 +355,25 @@ pub enum ExecutionError {
     /// An error occured while performing a web3 contract call.
     #[error("web3 contract error: {0}")]
     Web3Contract(#[from] Web3ContractError),
+
+    /// An error occured while parsing numbers received from Web3 calls.
+    #[error("parse error: {0}")]
+    Parse(#[from] ParseIntError),
+
+    /// An error occured while signing a transaction offline.
+    #[error("offline sign error: {0}")]
+    Sign(#[from] EthsignError),
+}
+
+/// Extension trait to add `net` sub-namespace to the `eth` namespace to more
+/// closely match the `web3js` API.
+trait EthExt<T: Transport> {
+    fn net(&self) -> Net<T>;
+}
+
+impl<T: Transport> EthExt<T> for Eth<T> {
+    fn net(&self) -> Net<T> {
+        // do a little dance...
+        Net::new(self.transport().clone())
+    }
 }

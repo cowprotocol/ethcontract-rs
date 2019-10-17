@@ -1,3 +1,5 @@
+//! Module for reading and examining data produced by truffle.
+
 use serde::Deserialize;
 use serde_json::Error as JsonError;
 use std::collections::HashMap;
@@ -9,13 +11,17 @@ use web3::types::Address;
 
 pub use ethabi::Contract as Abi;
 
+/// Represents a truffle artifact.
 #[derive(Debug, Deserialize)]
 pub struct Artifact {
+    /// The contract ABI
     pub abi: Abi,
+    /// The configured networks by network ID for the contract.
     pub networks: HashMap<String, Network>,
 }
 
 impl Artifact {
+    /// Parse a truffle artifact from JSON.
     pub fn from_json<S>(json: S) -> Result<Artifact, ArtifactError>
     where
         S: AsRef<str>,
@@ -24,6 +30,7 @@ impl Artifact {
         Ok(artifact)
     }
 
+    /// Loads a truffle artifact from disk.
     pub fn load<P>(path: P) -> Result<Artifact, ArtifactError>
     where
         P: AsRef<Path>,
@@ -34,16 +41,21 @@ impl Artifact {
     }
 }
 
+/// A contract's network configuration.
 #[derive(Debug, Deserialize)]
 pub struct Network {
+    /// The address at which the contract is deployed on this network.
     pub address: Address,
 }
 
+/// An error in loading or parsing a truffle artifact.
 #[derive(Debug, Error)]
 pub enum ArtifactError {
+    /// An IO error occurred when loading a truffle artifact from disk.
     #[error("failed to open contract artifact file")]
     Io(#[from] IoError),
 
+    /// A JSON error occurred while parsing a truffle artifact.
     #[error("failed to parse contract artifact JSON")]
     Json(#[from] JsonError),
 }
