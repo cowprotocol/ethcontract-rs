@@ -7,6 +7,8 @@ use crate::truffle::{Abi, Artifact};
 use ethabi::{Function, Result as AbiResult};
 use ethsign::{Error as EthsignError, SecretKey};
 use futures::compat::Future01CompatExt;
+use std::future::Future;
+use std::marker::PhantomData;
 use std::num::ParseIntError;
 use thiserror::Error;
 use web3::api::{Eth, Namespace, Net};
@@ -66,10 +68,11 @@ impl<T: Transport> Instance<T> {
     /// Returns a call builder to setup a query to a smart contract that just
     /// gets evaluated on a node but does not actually commit anything to the
     /// block chain.
-    pub fn call<S, P>(&self, name: S, params: P) -> AbiResult<CallBuilder<T>>
+    pub fn call<S, P, R>(&self, name: S, params: P) -> AbiResult<CallBuilder<T, R>>
     where
         S: AsRef<str>,
         P: Tokenize,
+        R: Detokenize,
     {
         let (function, data) = self.encode_abi(name, params)?;
 
@@ -85,7 +88,22 @@ impl<T: Transport> Instance<T> {
             data,
             from: None,
             block: None,
+            _result: PhantomData,
         })
+    }
+
+    /// Returns a transaction builder to setup an unpayable transaction
+    pub fn send_unpayable<S, P>(
+        &self,
+        name: S,
+        params: P,
+    ) -> AbiResult<UnpayableTransactionBuilder<T>>
+    where
+        S: AsRef<str>,
+        P: Tokenize,
+    {
+        let tx_builder = self.send(name, params)?;
+        Ok(UnpayableTransactionBuilder { inner: tx_builder })
     }
 
     /// Returns a transaction builder to setup a transaction
@@ -139,7 +157,7 @@ pub enum DeployedError {
 /// modify the blockchain and as such do not require gas, signing and cannot
 /// accept value.
 #[derive(Clone, Debug)]
-pub struct CallBuilder<T: Transport> {
+pub struct CallBuilder<T: Transport, R: Detokenize> {
     eth: Eth<T>,
     function: Function,
     address: Address,
@@ -148,26 +166,24 @@ pub struct CallBuilder<T: Transport> {
     pub from: Option<Address>,
     /// optional block number
     pub block: Option<BlockNumber>,
+    _result: PhantomData<R>,
 }
 
-impl<T: Transport> CallBuilder<T> {
+impl<T: Transport, R: Detokenize> CallBuilder<T, R> {
     /// Specify from address for the contract call.
-    pub fn from(mut self, address: Address) -> CallBuilder<T> {
+    pub fn from(mut self, address: Address) -> CallBuilder<T, R> {
         self.from = Some(address);
         self
     }
 
     /// Specify block number to use for the contract call.
-    pub fn block(mut self, n: BlockNumber) -> CallBuilder<T> {
+    pub fn block(mut self, n: BlockNumber) -> CallBuilder<T, R> {
         self.block = Some(n);
         self
     }
 
     /// Execute the call to the contract and retuen the data
-    pub async fn execute<R>(self) -> Result<R, ExecutionError>
-    where
-        R: Detokenize,
-    {
+    pub async fn execute(self) -> Result<R, ExecutionError> {
         let result = QueryResult::new(
             self.eth.call(
                 CallRequest {
@@ -342,6 +358,44 @@ impl<T: Transport> TransactionBuilder<T> {
         };
 
         Ok(tx)
+    }
+}
+
+/// Data used for building a contract unpayable transaction. See
+/// `TransactionBuilder` for more information.
+pub struct UnpayableTransactionBuilder<T: Transport> {
+    inner: TransactionBuilder<T>,
+}
+
+impl<T: Transport> UnpayableTransactionBuilder<T> {
+    /// See `TransportBuilder::sign` for more information.
+    pub fn sign(mut self, value: Sign) -> UnpayableTransactionBuilder<T> {
+        self.inner = self.inner.sign(value);
+        self
+    }
+
+    /// See `TransportBuilder::gas` for more information.
+    pub fn gas(mut self, value: U256) -> UnpayableTransactionBuilder<T> {
+        self.inner = self.inner.gas(value);
+        self
+    }
+
+    /// See `TransportBuilder::gas_price` for more information.
+    pub fn gas_price(mut self, value: U256) -> UnpayableTransactionBuilder<T> {
+        self.inner = self.inner.gas_price(value);
+        self
+    }
+
+    /// See `TransportBuilder::nonce` for more information.
+    pub fn nonce(mut self, value: U256) -> UnpayableTransactionBuilder<T> {
+        self.inner = self.inner.nonce(value);
+        self
+    }
+
+    /// Sign (if required) and execute the transaction. Returns the transaction
+    /// hash that can be used to retrieve transaction information.
+    pub fn execute(self) -> impl Future<Output = Result<H256, ExecutionError>> {
+        self.inner.execute()
     }
 }
 

@@ -12,7 +12,7 @@ use thiserror::Error;
 pub use ethabi::Contract as Abi;
 
 /// Represents a truffle artifact.
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Artifact {
     /// The contract name
     #[serde(rename = "contractName")]
@@ -45,7 +45,7 @@ impl Artifact {
 }
 
 /// A contract's network configuration.
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Network {
     /// The address at which the contract is deployed on this network.
     pub address: Address,

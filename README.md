@@ -9,3 +9,4 @@ based on the contract ABI.
 - [ ] Setup contract events as `futures::future::Stream`
 - [ ] Generate documentation based on the truffle artifact `devdocs`
 - [ ] Add options for converting ident cases to be more idomatic
+- [ ] Add options for creating generic structs (instead of DynTransport)
