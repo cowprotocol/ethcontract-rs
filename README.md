@@ -16,3 +16,4 @@ based on the contract ABI.
 - [ ] Add options for creating generic structs (instead of DynTransport)
 - [ ] Strategy for name collision
 - [ ] Verify `ethabi` deals with solidity return value packing
+- [ ] Move back to async/await once stabalized

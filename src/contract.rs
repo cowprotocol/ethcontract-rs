@@ -7,6 +7,7 @@ use crate::truffle::{Abi, Artifact};
 use ethabi::{Function, Result as AbiResult};
 use ethsign::{Error as EthsignError, SecretKey};
 use futures::compat::Future01CompatExt;
+use futures::future::{self, Either, FutureExt, TryFutureExt};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::num::ParseIntError;
@@ -43,19 +44,24 @@ impl<T: Transport> Instance<T> {
     ///
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
-    pub async fn deployed(eth: Eth<T>, artifact: Artifact) -> Result<Instance<T>, DeployedError> {
-        let network_id = eth.net().version().compat().await?;
-        let address = match artifact.networks.get(&network_id) {
-            Some(network) => network.address,
-            None => return Err(DeployedError::NotFound(network_id)),
-        };
+    pub fn deployed(
+        eth: Eth<T>,
+        artifact: Artifact,
+    ) -> impl Future<Output = Result<Instance<T>, DeployedError>> {
+        eth.net().version().compat().map(|network_id| {
+            let network_id = network_id?;
+            let address = match artifact.networks.get(&network_id) {
+                Some(network) => network.address,
+                None => return Err(DeployedError::NotFound(network_id)),
+            };
 
-        // TODO(nlordell): validate that the contract @address is actually valid
+            // TODO(nlordell): validate that the contract @address is actually valid
 
-        Ok(Instance {
-            eth,
-            abi: artifact.abi,
-            address,
+            Ok(Instance {
+                eth,
+                abi: artifact.abi,
+                address,
+            })
         })
     }
 
@@ -183,8 +189,8 @@ impl<T: Transport, R: Detokenize> CallBuilder<T, R> {
     }
 
     /// Execute the call to the contract and retuen the data
-    pub async fn execute(self) -> Result<R, ExecutionError> {
-        let result = QueryResult::new(
+    pub fn execute(self) -> impl Future<Output = Result<R, ExecutionError>> {
+        QueryResult::new(
             self.eth.call(
                 CallRequest {
                     from: self.from,
@@ -199,9 +205,7 @@ impl<T: Transport, R: Detokenize> CallBuilder<T, R> {
             self.function,
         )
         .compat()
-        .await?;
-
-        Ok(result)
+        .map_err(ExecutionError::from)
     }
 }
 
@@ -274,18 +278,25 @@ impl<T: Transport> TransactionBuilder<T> {
 
     /// Sign (if required) and execute the transaction. Returns the transaction
     /// hash that can be used to retrieve transaction information.
-    pub async fn execute(mut self) -> Result<H256, ExecutionError> {
+    pub fn execute(mut self) -> impl Future<Output = Result<H256, ExecutionError>> {
+        use Either::*;
+
         let sign = match self.sign.take() {
-            Some(s) => s,
-            None => {
-                let accounts = self.eth.accounts().compat().await?;
-                let account = accounts.get(0).cloned().unwrap_or_else(Address::zero);
-                Sign::Local(account, None)
-            }
+            Some(s) => Left(future::ok(s)),
+            None => Right(
+                self.eth
+                    .accounts()
+                    .compat()
+                    .map_ok(|accounts| {
+                        let account = accounts.get(0).cloned().unwrap_or_else(Address::zero);
+                        Sign::Local(account, None)
+                    })
+                    .map_err(ExecutionError::from),
+            ),
         };
 
-        let tx = match sign {
-            Sign::Local(from, condition) => {
+        sign.and_then(move |sign| match sign {
+            Sign::Local(from, condition) => Left(
                 self.eth
                     .send_transaction(TransactionRequest {
                         from,
@@ -298,16 +309,16 @@ impl<T: Transport> TransactionBuilder<T> {
                         condition: condition,
                     })
                     .compat()
-                    .await?
-            }
+                    .map_err(ExecutionError::from),
+            ),
             Sign::Offline(key, chain_id) => {
                 let from: Address = key.public().address().into();
 
                 // for offline signing we need to finalize all transaction values
                 // required for signing
                 let gas = match self.gas.take() {
-                    Some(g) => g,
-                    None => {
+                    Some(g) => Left(future::ok(g)),
+                    None => Right(
                         self.eth
                             .estimate_gas(
                                 CallRequest {
@@ -321,16 +332,21 @@ impl<T: Transport> TransactionBuilder<T> {
                                 None,
                             )
                             .compat()
-                            .await?
-                    }
+                            .map_err(ExecutionError::from),
+                    ),
                 };
                 let gas_price = match self.gas_price.take() {
-                    Some(p) => p,
-                    None => self.eth.gas_price().compat().await?,
+                    Some(p) => Left(future::ok(p)),
+                    None => Right(self.eth.gas_price().compat().map_err(ExecutionError::from)),
                 };
                 let nonce = match self.nonce.take() {
-                    Some(n) => n,
-                    None => self.eth.transaction_count(from, None).compat().await?,
+                    Some(n) => Left(future::ok(n)),
+                    None => Right(
+                        self.eth
+                            .transaction_count(from, None)
+                            .compat()
+                            .map_err(ExecutionError::from),
+                    ),
                 };
 
                 // it looks like web3 defaults chain ID to network ID, although
@@ -339,25 +355,39 @@ impl<T: Transport> TransactionBuilder<T> {
                 // against replay attacks then just using no chain ID; so lets
                 // reproduce that behaviour here
                 let chain_id = match chain_id {
-                    Some(id) => id,
-                    None => self.eth.net().version().compat().await?.parse()?,
+                    Some(id) => Left(future::ok(id)),
+                    None => Right(
+                        self.eth
+                            .net()
+                            .version()
+                            .compat()
+                            .map(|chain_id| Ok(chain_id?.parse()?)),
+                    ),
                 };
 
-                let tx = TransactionData {
-                    nonce,
-                    gas_price,
-                    gas,
-                    to: self.address,
-                    value: self.value.unwrap_or_else(U256::zero),
-                    data: &self.data,
-                };
-                let raw = tx.sign(key, Some(chain_id))?;
+                Right(future::try_join4(gas, gas_price, nonce, chain_id).and_then(
+                    move |(gas, gas_price, nonce, chain_id)| {
+                        let tx = TransactionData {
+                            nonce,
+                            gas_price,
+                            gas,
+                            to: self.address,
+                            value: self.value.unwrap_or_else(U256::zero),
+                            data: &self.data,
+                        };
+                        let raw = match tx.sign(key, Some(chain_id)) {
+                            Ok(r) => r,
+                            Err(e) => return Left(future::err(e.into())),
+                        };
 
-                self.eth.send_raw_transaction(raw).compat().await?
+                        Right(self.eth
+                            .send_raw_transaction(raw)
+                            .compat()
+                            .map_err(ExecutionError::from))
+                    },
+                ))
             }
-        };
-
-        Ok(tx)
+        })
     }
 }
 

@@ -101,13 +101,16 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
             ///
             /// Note that this does not verify that a contract with a maching
             /// `Abi` is actually deployed at the given address.
-            pub async fn deployed<F, T>(
+            pub fn deployed<F, T>(
                 eth: ethcontract::web3::api::Eth<T>,
-            ) -> std::result::Result<#contract_name, ethcontract::contract::DeployedError>
+            ) -> impl std::future::Future<Output = std::result::Result<#contract_name, ethcontract::contract::DeployedError>>
             where
                 F: ethcontract::web3::futures::Future<Item = ethcontract::json::Value, Error = ethcontract::web3::Error> + Send + 'static,
                 T: ethcontract::web3::Transport<Out = F> + 'static,
             {
+                // TODO(nlordell): use async/await once 1.39.0 lands
+
+                use futures::future::{self, TryFutureExt};
                 use ethcontract::contract::Instance;
                 use ethcontract::transport::DynTransport;
                 use ethcontract::web3::api::{Eth, Namespace};
@@ -115,9 +118,8 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
                 let transport = DynTransport::new(eth.transport().clone());
                 let eth = Eth::new(transport);
                 let artifact = #contract_name ::artifact().clone();
-                let instance = Instance::deployed(eth, artifact).await?;
-
-                Ok(#contract_name { instance })
+                Instance::deployed(eth, artifact)
+                    .and_then(move |instance| future::ok(#contract_name { instance }))
             }
 
             /// Retrieve the undelying `DynInstance` being used by this contract.
