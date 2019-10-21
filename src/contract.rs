@@ -366,10 +366,12 @@ impl<T: Transport> TransactionBuilder<T> {
                             Err(e) => return Left(future::err(e.into())),
                         };
 
-                        Right(self.eth
-                            .send_raw_transaction(raw)
-                            .compat()
-                            .map_err(ExecutionError::from))
+                        Right(
+                            self.eth
+                                .send_raw_transaction(raw)
+                                .compat()
+                                .map_err(ExecutionError::from),
+                        )
                     },
                 ))
             }
