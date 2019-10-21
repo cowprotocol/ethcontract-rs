@@ -14,3 +14,5 @@ based on the contract ABI.
 - [ ] Setup contract events as `futures::future::Stream`
 - [ ] Add options for preserving ident cases (we idiomatically convert them ATM)
 - [ ] Add options for creating generic structs (instead of DynTransport)
+- [ ] Strategy for name collision
+- [ ] Verify `ethabi` deals with solidity return value packing
