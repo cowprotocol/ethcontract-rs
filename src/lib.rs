@@ -42,7 +42,7 @@ pub mod example {
         #[test]
         fn example_loads_artifact() {
             // just make sure this does not panic!
-            WETH9::artifact();
+            Weth9::artifact();
         }
     }
 }

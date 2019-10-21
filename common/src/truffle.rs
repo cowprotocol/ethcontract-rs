@@ -21,6 +21,10 @@ pub struct Artifact {
     pub abi: Abi,
     /// The configured networks by network ID for the contract.
     pub networks: HashMap<String, Network>,
+    /// The developer documentation.
+    pub devdoc: Documentation,
+    /// The user documentation.
+    pub userdoc: Documentation,
 }
 
 impl Artifact {
@@ -49,6 +53,13 @@ impl Artifact {
 pub struct Network {
     /// The address at which the contract is deployed on this network.
     pub address: Address,
+}
+
+/// A contract's documentation.
+#[derive(Clone, Debug, Deserialize)]
+pub struct Documentation {
+    /// Contract method documentation.
+    pub methods: HashMap<String, String>,
 }
 
 /// An error in loading or parsing a truffle artifact.
