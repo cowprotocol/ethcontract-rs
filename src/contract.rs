@@ -98,20 +98,6 @@ impl<T: Transport> Instance<T> {
         })
     }
 
-    /// Returns a transaction builder to setup an unpayable transaction
-    pub fn send_unpayable<S, P>(
-        &self,
-        name: S,
-        params: P,
-    ) -> AbiResult<UnpayableTransactionBuilder<T>>
-    where
-        S: AsRef<str>,
-        P: Tokenize,
-    {
-        let tx_builder = self.send(name, params)?;
-        Ok(UnpayableTransactionBuilder { inner: tx_builder })
-    }
-
     /// Returns a transaction builder to setup a transaction
     pub fn send<S, P>(&self, name: S, params: P) -> AbiResult<TransactionBuilder<T>>
     where
@@ -388,44 +374,6 @@ impl<T: Transport> TransactionBuilder<T> {
                 ))
             }
         })
-    }
-}
-
-/// Data used for building a contract unpayable transaction. See
-/// `TransactionBuilder` for more information.
-pub struct UnpayableTransactionBuilder<T: Transport> {
-    inner: TransactionBuilder<T>,
-}
-
-impl<T: Transport> UnpayableTransactionBuilder<T> {
-    /// See `TransportBuilder::sign` for more information.
-    pub fn sign(mut self, value: Sign) -> UnpayableTransactionBuilder<T> {
-        self.inner = self.inner.sign(value);
-        self
-    }
-
-    /// See `TransportBuilder::gas` for more information.
-    pub fn gas(mut self, value: U256) -> UnpayableTransactionBuilder<T> {
-        self.inner = self.inner.gas(value);
-        self
-    }
-
-    /// See `TransportBuilder::gas_price` for more information.
-    pub fn gas_price(mut self, value: U256) -> UnpayableTransactionBuilder<T> {
-        self.inner = self.inner.gas_price(value);
-        self
-    }
-
-    /// See `TransportBuilder::nonce` for more information.
-    pub fn nonce(mut self, value: U256) -> UnpayableTransactionBuilder<T> {
-        self.inner = self.inner.nonce(value);
-        self
-    }
-
-    /// Sign (if required) and execute the transaction. Returns the transaction
-    /// hash that can be used to retrieve transaction information.
-    pub fn execute(self) -> impl Future<Output = Result<H256, ExecutionError>> {
-        self.inner.execute()
     }
 }
 
