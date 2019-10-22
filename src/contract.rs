@@ -487,19 +487,3 @@ pub enum ExecutionError {
     #[error("offline sign error: {0}")]
     Sign(#[from] EthsignError),
 }
-
-/// Extension trait to add `web3` parent namespace to the `eth` namespace as well
-/// as the `net` sub-namespace so that our contract API can more closely match
-/// that of `web3js`.
-trait EthExt<T: Transport> {
-    fn web3(&self) -> Web3<T>;
-    fn net(&self) -> Net<T> {
-        self.web3().net()
-    }
-}
-
-impl<T: Transport> EthExt<T> for Eth<T> {
-    fn web3(&self) -> Web3<T> {
-        Web3::new(self.transport().clone())
-    }
-}
