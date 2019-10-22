@@ -3,6 +3,7 @@
 //! TODO(nlordell): documentation with examples.
 
 pub mod contract;
+mod future;
 pub mod sign;
 pub mod transport;
 

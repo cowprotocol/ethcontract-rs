@@ -24,7 +24,7 @@ pub struct TransactionData<'a> {
 
 impl<'a> TransactionData<'a> {
     /// Sign and return a raw transaction.
-    pub fn sign(&self, key: SecretKey, chain_id: Option<u64>) -> Result<Bytes, EthsignError> {
+    pub fn sign(&self, key: &SecretKey, chain_id: Option<u64>) -> Result<Bytes, EthsignError> {
         let mut rlp = RlpStream::new();
         self.rlp_append_unsigned(&mut rlp, chain_id);
         let hash = tiny_keccak::keccak256(&rlp.as_raw());
@@ -102,7 +102,7 @@ mod tests {
             .parse()
             .expect("valid bytes");
         let raw = tx
-            .sign(SecretKey::from_raw(&key[..]).expect("valid key"), Some(1))
+            .sign(&SecretKey::from_raw(&key[..]).expect("valid key"), Some(1))
             .expect("can sign");
 
         let expected: Bytes = serde_json::from_str(r#""0xf86a8086d55698372431831e848094f0109fc8df283027b6285cc889f5aa624eac1f55843b9aca008025a009ebb6ca057a0535d6186462bc0b465b561c94a295bdb0621fc19208ab149a9ca0440ffd775ce91a833ab410777204d5341a6f9fa91216a6f3ee2c051fea6a0428""#).expect("valid raw transaction");

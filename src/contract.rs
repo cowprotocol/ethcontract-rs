@@ -2,12 +2,13 @@
 //! for sending transactions to contracts as well as querying current contract
 //! state.
 
+use crate::future::MaybeReady;
 use crate::sign::TransactionData;
 use crate::truffle::{Abi, Artifact};
 use ethabi::{ErrorKind as AbiErrorKind, Function, Result as AbiResult};
 use ethsign::{Error as EthsignError, SecretKey};
 use futures::compat::{Compat01As03, Future01CompatExt};
-use futures::future::{self, Either, FutureExt, MaybeDone, TryFutureExt};
+use futures::future::{self, TryFutureExt, TryJoin4};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::num::ParseIntError;
@@ -49,10 +50,7 @@ impl<T: Transport> Instance<T> {
     ///
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
-    pub fn deployed(
-        web3: Web3<T>,
-        artifact: Artifact,
-    ) -> DeployedFuture<T> {
+    pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T> {
         DeployedFuture::from_args(web3, artifact)
     }
 
@@ -167,6 +165,9 @@ impl<T: Transport> Instance<T> {
     }
 }
 
+/// Type alias for Compat01As03<CallFuture<...>> since it is used a lot.
+type CompatCallFuture<T, R> = Compat01As03<CallFuture<R, <T as Transport>::Out>>;
+
 /// Helper type for wrapping `Web3` as `Unpin`.
 struct Web3Unpin<T: Transport>(Web3<T>);
 
@@ -189,8 +190,10 @@ impl<T: Transport> Unpin for Web3Unpin<T> {}
 
 /// Future for creating a deployed contract instance.
 pub struct DeployedFuture<T: Transport> {
+    /// Deployed arguments: `web3` provider and artifact.
     args: Option<(Web3Unpin<T>, Artifact)>,
-    network_id: Compat01As03<CallFuture<String, T::Out>>,
+    /// Underlying future for retrieving the network ID.
+    network_id: CompatCallFuture<T, String>,
 }
 
 impl<T: Transport> DeployedFuture<T> {
@@ -201,10 +204,11 @@ impl<T: Transport> DeployedFuture<T> {
             network_id: net.version().compat(),
         }
     }
-    
+
     /// Take value of our passed in `web3` provider.
     fn args(self: Pin<&mut Self>) -> (Web3<T>, Artifact) {
-        let (web3, artifact) = self.get_mut()
+        let (web3, artifact) = self
+            .get_mut()
             .args
             .take()
             .expect("should be called only once");
@@ -213,7 +217,7 @@ impl<T: Transport> DeployedFuture<T> {
 
     /// Get a pinned reference to the inner `CallFuture` for retrieving the
     /// current network ID.
-    fn network_id(self: Pin<&mut Self>) -> Pin<&mut Compat01As03<CallFuture<String, T::Out>>> {
+    fn network_id(self: Pin<&mut Self>) -> Pin<&mut CompatCallFuture<T, String>> {
         Pin::new(&mut self.get_mut().network_id)
     }
 }
@@ -409,119 +413,8 @@ impl<T: Transport> TransactionBuilder<T> {
     }
 
     /// Prepares a transaction for execution.
-    fn prepare(mut self) -> impl Future<Output = Result<Request, ExecutionError>> {
-        use Either::*;
-
-        let sign = match self.sign.take() {
-            Some(s) => Left(future::ok(s)),
-            None => Right(
-                self.web3
-                    .eth()
-                    .accounts()
-                    .compat()
-                    .map_ok(|accounts| {
-                        let account = accounts.get(0).cloned().unwrap_or_else(Address::zero);
-                        Sign::Local(account, None)
-                    })
-                    .map_err(ExecutionError::from),
-            ),
-        };
-
-        sign.and_then(move |sign| match sign {
-            Sign::Local(from, condition) => {
-                let tx = TransactionRequest {
-                    from,
-                    to: Some(self.address),
-                    gas: self.gas,
-                    gas_price: self.gas_price,
-                    value: self.value,
-                    data: Some(self.data),
-                    nonce: self.nonce,
-                    condition: condition,
-                };
-                Left(future::ok(Request::Tx(tx)))
-            }
-            Sign::Offline(key, chain_id) => {
-                let from: Address = key.public().address().into();
-
-                // for offline signing we need to finalize all transaction values
-                // required for signing
-                let gas = match self.gas.take() {
-                    Some(g) => Left(future::ok(g)),
-                    None => Right(
-                        self.web3
-                            .eth()
-                            .estimate_gas(
-                                CallRequest {
-                                    from: Some(from),
-                                    to: self.address,
-                                    gas: None,
-                                    gas_price: None,
-                                    value: self.value,
-                                    data: Some(self.data.clone()),
-                                },
-                                None,
-                            )
-                            .compat()
-                            .map_err(ExecutionError::from),
-                    ),
-                };
-                let gas_price = match self.gas_price.take() {
-                    Some(p) => Left(future::ok(p)),
-                    None => Right(
-                        self.web3
-                            .eth()
-                            .gas_price()
-                            .compat()
-                            .map_err(ExecutionError::from),
-                    ),
-                };
-                let nonce = match self.nonce.take() {
-                    Some(n) => Left(future::ok(n)),
-                    None => Right(
-                        self.web3
-                            .eth()
-                            .transaction_count(from, None)
-                            .compat()
-                            .map_err(ExecutionError::from),
-                    ),
-                };
-
-                // it looks like web3 defaults chain ID to network ID, although
-                // this is not 'correct' in all cases it does work for most cases
-                // like mainnet and various testnets and provides better safety
-                // against replay attacks then just using no chain ID; so lets
-                // reproduce that behaviour here
-                let chain_id = match chain_id {
-                    Some(id) => Left(future::ok(id)),
-                    None => Right(
-                        self.web3
-                            .net()
-                            .version()
-                            .compat()
-                            .map(|chain_id| Ok(chain_id?.parse()?)),
-                    ),
-                };
-
-                Right(future::try_join4(gas, gas_price, nonce, chain_id).and_then(
-                    move |(gas, gas_price, nonce, chain_id)| {
-                        let tx = TransactionData {
-                            nonce,
-                            gas_price,
-                            gas,
-                            to: self.address,
-                            value: self.value.unwrap_or_else(U256::zero),
-                            data: &self.data,
-                        };
-                        let raw = match tx.sign(key, Some(chain_id)) {
-                            Ok(r) => r,
-                            Err(e) => return future::err(e.into()),
-                        };
-                        future::ok(Request::Raw(raw))
-                    },
-                ))
-            }
-        })
+    fn prepare(self) -> PrepareTransactionFuture<T> {
+        PrepareTransactionFuture::from_builder(self)
     }
 
     /// Sign (if required) and execute the transaction. Returns the transaction
@@ -556,6 +449,179 @@ impl<T: Transport> TransactionBuilder<T> {
             };
             send.compat().map_err(ExecutionError::from)
         })
+    }
+}
+
+/// Internal future for preparing a transaction for sending.
+enum PrepareTransactionFuture<T: Transport> {
+    /// Waiting for list of accounts in order to determine from address so that
+    /// we can return a `Request::Tx`.
+    TxDefaultAccount {
+        /// The transaction request being built.
+        request: Option<TransactionRequest>,
+
+        /// The inner future for retrieving the list of accounts on the node.
+        inner: CompatCallFuture<T, Vec<Address>>,
+    },
+
+    /// Ready to produce a `Request::Tx` result.
+    Tx {
+        /// The ready transaction request.
+        request: Option<TransactionRequest>,
+    },
+
+    /// Waiting for missing transaction parameters needed to sign and produce a
+    /// `Request::Raw` result.
+    Raw {
+        /// The private key to use for signing.
+        key: SecretKey,
+
+        /// The contract address.
+        address: Address,
+
+        /// The ETH value to be sent with the transaction.
+        value: U256,
+
+        /// The ABI encoded call parameters,
+        data: Bytes,
+
+        /// Future for retrieving gas, gas price, nonce and chain ID when they
+        /// where not specified.
+        params: TryJoin4<
+            MaybeReady<CompatCallFuture<T, U256>>,
+            MaybeReady<CompatCallFuture<T, U256>>,
+            MaybeReady<CompatCallFuture<T, U256>>,
+            MaybeReady<CompatCallFuture<T, String>>,
+        >,
+    },
+}
+
+impl<T: Transport> PrepareTransactionFuture<T> {
+    /// Create a `PrepareTransactionFuture` from a `PrepareTransactionBuilder`
+    fn from_builder(builder: TransactionBuilder<T>) -> PrepareTransactionFuture<T> {
+        match builder.sign {
+            None => PrepareTransactionFuture::TxDefaultAccount {
+                request: Some(TransactionRequest {
+                    from: Address::zero(),
+                    to: Some(builder.address),
+                    gas: builder.gas,
+                    gas_price: builder.gas_price,
+                    value: builder.value,
+                    data: Some(builder.data),
+                    nonce: builder.nonce,
+                    condition: None,
+                }),
+                inner: builder.web3.eth().accounts().compat(),
+            },
+            Some(Sign::Local(from, condition)) => PrepareTransactionFuture::Tx {
+                request: Some(TransactionRequest {
+                    from,
+                    to: Some(builder.address),
+                    gas: builder.gas,
+                    gas_price: builder.gas_price,
+                    value: builder.value,
+                    data: Some(builder.data),
+                    nonce: builder.nonce,
+                    condition,
+                }),
+            },
+            Some(Sign::Offline(key, chain_id)) => {
+                macro_rules! maybe {
+                    ($o:expr, $c:expr) => {
+                        match $o {
+                            Some(v) => MaybeReady::ready(Ok(v)),
+                            None => MaybeReady::future($c.compat()),
+                        }
+                    };
+                }
+
+                let from = key.public().address().into();
+                let eth = builder.web3.eth();
+                let net = builder.web3.net();
+
+                let gas = maybe!(
+                    builder.gas,
+                    eth.estimate_gas(
+                        CallRequest {
+                            from: Some(from),
+                            to: builder.address,
+                            gas: None,
+                            gas_price: None,
+                            value: builder.value,
+                            data: Some(builder.data.clone()),
+                        },
+                        None
+                    )
+                );
+
+                let gas_price = maybe!(builder.gas_price, eth.gas_price());
+                let nonce = maybe!(builder.nonce, eth.transaction_count(from, None));
+
+                // it looks like web3 defaults chain ID to network ID, although
+                // this is not 'correct' in all cases it does work for most cases
+                // like mainnet and various testnets and provides better safety
+                // against replay attacks then just using no chain ID; so lets
+                // reproduce that behaviour here
+                // TODO(nlordell): don't convert to and from string here
+                let chain_id = maybe!(chain_id.map(|id| id.to_string()), net.version());
+
+                PrepareTransactionFuture::Raw {
+                    key,
+                    address: builder.address,
+                    value: builder.value.unwrap_or_else(U256::zero),
+                    data: builder.data,
+                    params: future::try_join4(gas, gas_price, nonce, chain_id),
+                }
+            }
+        }
+    }
+}
+
+impl<T: Transport> Future for PrepareTransactionFuture<T> {
+    type Output = Result<Request, ExecutionError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let unpinned = self.get_mut();
+        match unpinned {
+            PrepareTransactionFuture::TxDefaultAccount { request, inner } => {
+                Pin::new(inner).poll(cx).map(|accounts| {
+                    let accounts = accounts?;
+                    let mut request = request.take().expect("should be called only once");
+
+                    if let Some(from) = accounts.get(0) {
+                        request.from = *from;
+                    }
+
+                    Ok(Request::Tx(request))
+                })
+            }
+            PrepareTransactionFuture::Tx { request } => {
+                let request = request.take().expect("should be called only once");
+                Poll::Ready(Ok(Request::Tx(request)))
+            }
+            PrepareTransactionFuture::Raw {
+                key,
+                address,
+                value,
+                data,
+                params,
+            } => Pin::new(params).poll(cx).map(|result| {
+                let (gas, gas_price, nonce, chain_id) = result?;
+                let chain_id = chain_id.parse()?;
+
+                let tx = TransactionData {
+                    nonce,
+                    gas_price,
+                    gas,
+                    to: *address,
+                    value: *value,
+                    data: data,
+                };
+                let raw = tx.sign(key, Some(chain_id))?;
+
+                Ok(Request::Raw(raw))
+            }),
+        }
     }
 }
 
