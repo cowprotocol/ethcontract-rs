@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 use std::num::ParseIntError;
 use std::time::Duration;
 use thiserror::Error;
-use web3::api::{Eth, Namespace, Net, Web3};
+use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::contract::{Error as Web3ContractError, QueryResult};
 use web3::error::Error as Web3Error;
