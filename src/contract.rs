@@ -4,7 +4,7 @@
 
 use crate::sign::TransactionData;
 use crate::truffle::{Abi, Artifact};
-use ethabi::{Function, Result as AbiResult};
+use ethabi::{ErrorKind as AbiErrorKind, Function, Result as AbiResult};
 use ethsign::{Error as EthsignError, SecretKey};
 use futures::compat::Future01CompatExt;
 use futures::future::{self, Either, FutureExt, TryFutureExt};
@@ -65,10 +65,51 @@ impl<T: Transport> Instance<T> {
         })
     }
 
+    /// Deploys a contract with the specified `web3` provider with the given
+    /// `Artifact` byte code.
+    pub fn deploy<P>(eth: Eth<T>, artifact: Artifact, params: P) -> AbiResult<TransactionBuilder<T>>
+    where
+        P: Tokenize,
+    {
+        // NOTE(nlordell): we can't just use `web3` implementation here as it
+        //   does not support signing
+
+        let tokens = params.into_tokens();
+        let data = match artifact.abi.constructor {
+            Some(constructor) => constructor.encode_input(artifact.bytecode.0, &tokens)?,
+            None => {
+                if tokens.len() != 0 {
+                    // what `ethabi` returns when parameters don't match ABI
+                    return Err(AbiErrorKind::InvalidData.into());
+                }
+                artifact.bytecode.0
+            }
+        };
+
+        let _ = (data, eth);
+        unimplemented!()
+        // TODO(nlordell): we need to add confirmation + get contract address
+        // Ok(TransactionBuilder {
+        //     eth: self.eth(),
+        //     address: self.address,
+        //     data,
+        //     gas: None,
+        //     gas_price: None,
+        //     value: None,
+        //     nonce: None,
+        //     sign: None,
+        // })
+    }
+
     /// Create a clone of the `web3::api::Eth` namespace using the current web3
     /// provider.
     fn eth(&self) -> Eth<T> {
         self.eth.clone()
+    }
+
+    /// Returns the contract address being used by this instance.
+    pub fn address(&self) -> Address {
+        self.address
     }
 
     /// Returns a call builder to setup a query to a smart contract that just

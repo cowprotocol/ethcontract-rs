@@ -17,3 +17,4 @@ based on the contract ABI.
 - [ ] Add options for creating generic structs (instead of DynTransport)
 - [ ] Strategy for name collision
 - [ ] Move back to async/await once stabalized
+- [ ] Transaction confirmation API

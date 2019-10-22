@@ -113,18 +113,31 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
                 use futures::future::{self, TryFutureExt};
                 use ethcontract::contract::Instance;
                 use ethcontract::transport::DynTransport;
+                use ethcontract::truffle::Artifact;
                 use ethcontract::web3::api::{Eth, Namespace};
 
                 let transport = DynTransport::new(eth.transport().clone());
                 let eth = Eth::new(transport);
-                let artifact = #contract_name ::artifact().clone();
+                let artifact = { // only clone the pieces we need
+                    let artifact = #contract_name ::artifact();
+                    Artifact {
+                        abi: artifact.abi.clone(),
+                        networks: artifact.networks.clone(),
+                        ..Artifact::empty()
+                    }
+                };
                 Instance::deployed(eth, artifact)
                     .and_then(move |instance| future::ok(#contract_name { instance }))
             }
 
-            /// Retrieve the undelying `DynInstance` being used by this contract.
+            /// Retrieve the undelying instance being used by this contract.
             pub fn instance(&self) -> &ethcontract::DynInstance {
                 &self.instance
+            }
+
+            /// Returns the contract address being used by this instance.
+            pub fn address(&self) -> ethcontract::web3::types::Address {
+                self.instance.address()
             }
 
             #( #functions )*

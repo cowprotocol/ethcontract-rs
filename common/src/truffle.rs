@@ -1,6 +1,5 @@
 //! Module for reading and examining data produced by truffle.
 
-use ethereum_types::Address;
 use serde::Deserialize;
 use serde_json::Error as JsonError;
 use std::collections::HashMap;
@@ -8,6 +7,7 @@ use std::fs::File;
 use std::io::Error as IoError;
 use std::path::Path;
 use thiserror::Error;
+use web3::types::{Address, Bytes};
 
 pub use ethabi::Contract as Abi;
 
@@ -19,6 +19,8 @@ pub struct Artifact {
     pub contract_name: String,
     /// The contract ABI
     pub abi: Abi,
+    /// The bytecode for deploying the contract in its hex representation.
+    pub bytecode: Bytes,
     /// The configured networks by network ID for the contract.
     pub networks: HashMap<String, Network>,
     /// The developer documentation.
@@ -28,6 +30,23 @@ pub struct Artifact {
 }
 
 impl Artifact {
+    /// Creates an empty artifact instance.
+    pub fn empty() -> Artifact {
+        Artifact {
+            contract_name: String::new(),
+            abi: Abi {
+                constructor: None,
+                functions: HashMap::new(),
+                events: HashMap::new(),
+                fallback: false,
+            },
+            bytecode: Default::default(),
+            networks: HashMap::new(),
+            devdoc: Default::default(),
+            userdoc: Default::default(),
+        }
+    }
+
     /// Parse a truffle artifact from JSON.
     pub fn from_json<S>(json: S) -> Result<Artifact, ArtifactError>
     where
@@ -56,7 +75,7 @@ pub struct Network {
 }
 
 /// A contract's documentation.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct Documentation {
     /// Contract method documentation.
     pub methods: HashMap<String, String>,
