@@ -77,7 +77,7 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
             /// Note that this does not verify that a contract with a maching
             /// `Abi` is actually deployed at the given address.
             pub fn at<F, T>(
-                eth: ethcontract::web3::api::Eth<T>,
+                web3: &ethcontract::web3::api::Web3<T>,
                 address: ethcontract::web3::types::Address,
             ) -> #contract_name
             where
@@ -86,12 +86,12 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
             {
                 use ethcontract::contract::Instance;
                 use ethcontract::transport::DynTransport;
-                use ethcontract::web3::api::{Eth, Namespace};
+                use ethcontract::web3::api::Web3;
 
-                let transport = DynTransport::new(eth.transport().clone());
-                let eth = Eth::new(transport);
+                let transport = DynTransport::new(web3.transport().clone());
+                let web3 = Web3::new(transport);
                 let abi = #contract_name ::artifact().abi.clone();
-                let instance = Instance::at(eth, abi, address);
+                let instance = Instance::at(web3, abi, address);
 
                 #contract_name { instance }
             }
@@ -102,7 +102,7 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
             /// Note that this does not verify that a contract with a maching
             /// `Abi` is actually deployed at the given address.
             pub fn deployed<F, T>(
-                eth: ethcontract::web3::api::Eth<T>,
+                web3: &ethcontract::web3::api::Web3<T>,
             ) -> impl std::future::Future<Output = std::result::Result<#contract_name, ethcontract::contract::DeployedError>>
             where
                 F: ethcontract::web3::futures::Future<Item = ethcontract::json::Value, Error = ethcontract::web3::Error> + Send + 'static,
@@ -114,10 +114,10 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
                 use ethcontract::contract::Instance;
                 use ethcontract::transport::DynTransport;
                 use ethcontract::truffle::Artifact;
-                use ethcontract::web3::api::{Eth, Namespace};
+                use ethcontract::web3::api::Web3;
 
-                let transport = DynTransport::new(eth.transport().clone());
-                let eth = Eth::new(transport);
+                let transport = DynTransport::new(web3.transport().clone());
+                let web3 = Web3::new(transport);
                 let artifact = { // only clone the pieces we need
                     let artifact = #contract_name ::artifact();
                     Artifact {
@@ -126,7 +126,7 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
                         ..Artifact::empty()
                     }
                 };
-                Instance::deployed(eth, artifact)
+                Instance::deployed(web3, artifact)
                     .and_then(move |instance| future::ok(#contract_name { instance }))
             }
 

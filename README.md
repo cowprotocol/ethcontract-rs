@@ -17,4 +17,5 @@ based on the contract ABI.
 - [ ] Add options for creating generic structs (instead of DynTransport)
 - [ ] Strategy for name collision
 - [ ] Move back to async/await once stabalized
+- [ ] Implement future types instead of `impl Future`
 - [ ] Transaction confirmation API

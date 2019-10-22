@@ -11,20 +11,22 @@ use futures::future::{self, Either, FutureExt, TryFutureExt};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::num::ParseIntError;
+use std::time::Duration;
 use thiserror::Error;
-use web3::api::{Eth, Namespace, Net};
+use web3::api::{Eth, Namespace, Net, Web3};
 use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::contract::{Error as Web3ContractError, QueryResult};
 use web3::error::Error as Web3Error;
 use web3::types::{
-    Address, BlockNumber, Bytes, CallRequest, TransactionCondition, TransactionRequest, H256, U256,
+    Address, BlockNumber, Bytes, CallRequest, TransactionCondition, TransactionReceipt,
+    TransactionRequest, H256, U256,
 };
 use web3::Transport;
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
 pub struct Instance<T: Transport> {
-    eth: Eth<T>,
+    web3: Web3<T>,
     abi: Abi,
     address: Address,
 }
@@ -35,8 +37,8 @@ impl<T: Transport> Instance<T> {
     ///
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
-    pub fn at(eth: Eth<T>, abi: Abi, address: Address) -> Instance<T> {
-        Instance { eth, abi, address }
+    pub fn at(web3: Web3<T>, abi: Abi, address: Address) -> Instance<T> {
+        Instance { web3, abi, address }
     }
 
     /// Locates a deployed contract based on the current network ID reported by
@@ -45,10 +47,10 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
     pub fn deployed(
-        eth: Eth<T>,
+        web3: Web3<T>,
         artifact: Artifact,
     ) -> impl Future<Output = Result<Instance<T>, DeployedError>> {
-        eth.net().version().compat().map(|network_id| {
+        web3.net().version().compat().map(|network_id| {
             let network_id = network_id?;
             let address = match artifact.networks.get(&network_id) {
                 Some(network) => network.address,
@@ -58,7 +60,7 @@ impl<T: Transport> Instance<T> {
             // TODO(nlordell): validate that the contract @address is actually valid
 
             Ok(Instance {
-                eth,
+                web3,
                 abi: artifact.abi,
                 address,
             })
@@ -67,7 +69,11 @@ impl<T: Transport> Instance<T> {
 
     /// Deploys a contract with the specified `web3` provider with the given
     /// `Artifact` byte code.
-    pub fn deploy<P>(eth: Eth<T>, artifact: Artifact, params: P) -> AbiResult<TransactionBuilder<T>>
+    pub fn deploy<P>(
+        web3: Web3<T>,
+        artifact: Artifact,
+        params: P,
+    ) -> AbiResult<TransactionBuilder<T>>
     where
         P: Tokenize,
     {
@@ -86,11 +92,11 @@ impl<T: Transport> Instance<T> {
             }
         };
 
-        let _ = (data, eth);
+        let _ = (data, web3);
         unimplemented!()
         // TODO(nlordell): we need to add confirmation + get contract address
         // Ok(TransactionBuilder {
-        //     eth: self.eth(),
+        //     web3: self.web3(),
         //     address: self.address,
         //     data,
         //     gas: None,
@@ -101,10 +107,9 @@ impl<T: Transport> Instance<T> {
         // })
     }
 
-    /// Create a clone of the `web3::api::Eth` namespace using the current web3
-    /// provider.
-    fn eth(&self) -> Eth<T> {
-        self.eth.clone()
+    /// Create a clone of the handle to our current `web3` provider.
+    fn web3(&self) -> Web3<T> {
+        self.web3.clone()
     }
 
     /// Returns the contract address being used by this instance.
@@ -129,7 +134,7 @@ impl<T: Transport> Instance<T> {
         let function = function.clone();
 
         Ok(CallBuilder {
-            eth: self.eth(),
+            web3: self.web3(),
             function,
             address: self.address,
             data,
@@ -147,7 +152,7 @@ impl<T: Transport> Instance<T> {
     {
         let (_, data) = self.encode_abi(name, params)?;
         Ok(TransactionBuilder {
-            eth: self.eth(),
+            web3: self.web3(),
             address: self.address,
             data,
             gas: None,
@@ -191,7 +196,7 @@ pub enum DeployedError {
 /// accept value.
 #[derive(Clone, Debug)]
 pub struct CallBuilder<T: Transport, R: Detokenize> {
-    eth: Eth<T>,
+    web3: Web3<T>,
     function: Function,
     address: Address,
     data: Bytes,
@@ -218,7 +223,7 @@ impl<T: Transport, R: Detokenize> CallBuilder<T, R> {
     /// Execute the call to the contract and retuen the data
     pub fn execute(self) -> impl Future<Output = Result<R, ExecutionError>> {
         QueryResult::new(
-            self.eth.call(
+            self.web3.eth().call(
                 CallRequest {
                     from: self.from,
                     to: self.address,
@@ -239,8 +244,9 @@ impl<T: Transport, R: Detokenize> CallBuilder<T, R> {
 /// Data used for building a contract transaction that modifies the blockchain.
 /// These transactions can either be sent to be signed locally by the node or can
 /// be signed offline.
+#[derive(Clone, Debug)]
 pub struct TransactionBuilder<T: Transport> {
-    eth: Eth<T>,
+    web3: Web3<T>,
     address: Address,
     data: Bytes,
     /// The signing strategy to use. Defaults to locally signing on the node with
@@ -265,6 +271,14 @@ pub enum Sign {
     Local(Address, Option<TransactionCondition>),
     /// Do offline signing with private key and optionally specify chain ID
     Offline(SecretKey, Option<u64>),
+}
+
+/// Represents either a structured or raw transaction request.
+enum Request {
+    /// A structured transaction request to be signed locally by the node.
+    Tx(TransactionRequest),
+    /// A signed raw transaction request.
+    Raw(Bytes),
 }
 
 impl<T: Transport> TransactionBuilder<T> {
@@ -303,15 +317,15 @@ impl<T: Transport> TransactionBuilder<T> {
         self
     }
 
-    /// Sign (if required) and execute the transaction. Returns the transaction
-    /// hash that can be used to retrieve transaction information.
-    pub fn execute(mut self) -> impl Future<Output = Result<H256, ExecutionError>> {
+    /// Prepares a transaction for execution.
+    fn prepare(mut self) -> impl Future<Output = Result<Request, ExecutionError>> {
         use Either::*;
 
         let sign = match self.sign.take() {
             Some(s) => Left(future::ok(s)),
             None => Right(
-                self.eth
+                self.web3
+                    .eth()
                     .accounts()
                     .compat()
                     .map_ok(|accounts| {
@@ -323,21 +337,19 @@ impl<T: Transport> TransactionBuilder<T> {
         };
 
         sign.and_then(move |sign| match sign {
-            Sign::Local(from, condition) => Left(
-                self.eth
-                    .send_transaction(TransactionRequest {
-                        from,
-                        to: Some(self.address),
-                        gas: self.gas,
-                        gas_price: self.gas_price,
-                        value: self.value,
-                        data: Some(self.data),
-                        nonce: self.nonce,
-                        condition: condition,
-                    })
-                    .compat()
-                    .map_err(ExecutionError::from),
-            ),
+            Sign::Local(from, condition) => {
+                let tx = TransactionRequest {
+                    from,
+                    to: Some(self.address),
+                    gas: self.gas,
+                    gas_price: self.gas_price,
+                    value: self.value,
+                    data: Some(self.data),
+                    nonce: self.nonce,
+                    condition: condition,
+                };
+                Left(future::ok(Request::Tx(tx)))
+            }
             Sign::Offline(key, chain_id) => {
                 let from: Address = key.public().address().into();
 
@@ -346,7 +358,8 @@ impl<T: Transport> TransactionBuilder<T> {
                 let gas = match self.gas.take() {
                     Some(g) => Left(future::ok(g)),
                     None => Right(
-                        self.eth
+                        self.web3
+                            .eth()
                             .estimate_gas(
                                 CallRequest {
                                     from: Some(from),
@@ -364,12 +377,19 @@ impl<T: Transport> TransactionBuilder<T> {
                 };
                 let gas_price = match self.gas_price.take() {
                     Some(p) => Left(future::ok(p)),
-                    None => Right(self.eth.gas_price().compat().map_err(ExecutionError::from)),
+                    None => Right(
+                        self.web3
+                            .eth()
+                            .gas_price()
+                            .compat()
+                            .map_err(ExecutionError::from),
+                    ),
                 };
                 let nonce = match self.nonce.take() {
                     Some(n) => Left(future::ok(n)),
                     None => Right(
-                        self.eth
+                        self.web3
+                            .eth()
                             .transaction_count(from, None)
                             .compat()
                             .map_err(ExecutionError::from),
@@ -384,7 +404,7 @@ impl<T: Transport> TransactionBuilder<T> {
                 let chain_id = match chain_id {
                     Some(id) => Left(future::ok(id)),
                     None => Right(
-                        self.eth
+                        self.web3
                             .net()
                             .version()
                             .compat()
@@ -404,18 +424,46 @@ impl<T: Transport> TransactionBuilder<T> {
                         };
                         let raw = match tx.sign(key, Some(chain_id)) {
                             Ok(r) => r,
-                            Err(e) => return Left(future::err(e.into())),
+                            Err(e) => return future::err(e.into()),
                         };
-
-                        Right(
-                            self.eth
-                                .send_raw_transaction(raw)
-                                .compat()
-                                .map_err(ExecutionError::from),
-                        )
+                        future::ok(Request::Raw(raw))
                     },
                 ))
             }
+        })
+    }
+
+    /// Sign (if required) and execute the transaction. Returns the transaction
+    /// hash that can be used to retrieve transaction information.
+    pub fn execute(self) -> impl Future<Output = Result<H256, ExecutionError>> {
+        let eth = self.web3.eth();
+        self.prepare().and_then(move |request| {
+            let send = match request {
+                Request::Tx(tx) => eth.send_transaction(tx),
+                Request::Raw(tx) => eth.send_raw_transaction(tx),
+            };
+            send.compat().map_err(ExecutionError::from)
+        })
+    }
+
+    /// Execute a transaction and wait for confirmation. Returns the transaction
+    /// receipt for inspection.
+    pub fn execute_and_confirm(
+        self,
+        poll_interval: Duration,
+        confirmations: usize,
+    ) -> impl Future<Output = Result<TransactionReceipt, ExecutionError>> {
+        let web3 = self.web3.clone();
+        self.prepare().and_then(move |request| {
+            let send = match request {
+                Request::Tx(tx) => {
+                    web3.send_transaction_with_confirmation(tx, poll_interval, confirmations)
+                }
+                Request::Raw(tx) => {
+                    web3.send_raw_transaction_with_confirmation(tx, poll_interval, confirmations)
+                }
+            };
+            send.compat().map_err(ExecutionError::from)
         })
     }
 }
@@ -440,15 +488,18 @@ pub enum ExecutionError {
     Sign(#[from] EthsignError),
 }
 
-/// Extension trait to add `net` sub-namespace to the `eth` namespace to more
-/// closely match the `web3js` API.
+/// Extension trait to add `web3` parent namespace to the `eth` namespace as well
+/// as the `net` sub-namespace so that our contract API can more closely match
+/// that of `web3js`.
 trait EthExt<T: Transport> {
-    fn net(&self) -> Net<T>;
+    fn web3(&self) -> Web3<T>;
+    fn net(&self) -> Net<T> {
+        self.web3().net()
+    }
 }
 
 impl<T: Transport> EthExt<T> for Eth<T> {
-    fn net(&self) -> Net<T> {
-        // do a little dance...
-        Net::new(self.transport().clone())
+    fn web3(&self) -> Web3<T> {
+        Web3::new(self.transport().clone())
     }
 }
