@@ -6,17 +6,20 @@ use crate::sign::TransactionData;
 use crate::truffle::{Abi, Artifact};
 use ethabi::{ErrorKind as AbiErrorKind, Function, Result as AbiResult};
 use ethsign::{Error as EthsignError, SecretKey};
-use futures::compat::Future01CompatExt;
-use futures::future::{self, Either, FutureExt, TryFutureExt};
+use futures::compat::{Compat01As03, Future01CompatExt};
+use futures::future::{self, Either, FutureExt, MaybeDone, TryFutureExt};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::num::ParseIntError;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 use thiserror::Error;
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::contract::{Error as Web3ContractError, QueryResult};
 use web3::error::Error as Web3Error;
+use web3::helpers::CallFuture;
 use web3::types::{
     Address, BlockNumber, Bytes, CallRequest, TransactionCondition, TransactionReceipt,
     TransactionRequest, H256, U256,
@@ -49,22 +52,8 @@ impl<T: Transport> Instance<T> {
     pub fn deployed(
         web3: Web3<T>,
         artifact: Artifact,
-    ) -> impl Future<Output = Result<Instance<T>, DeployedError>> {
-        web3.net().version().compat().map(|network_id| {
-            let network_id = network_id?;
-            let address = match artifact.networks.get(&network_id) {
-                Some(network) => network.address,
-                None => return Err(DeployedError::NotFound(network_id)),
-            };
-
-            // TODO(nlordell): validate that the contract @address is actually valid
-
-            Ok(Instance {
-                web3,
-                abi: artifact.abi,
-                address,
-            })
-        })
+    ) -> DeployedFuture<T> {
+        DeployedFuture::from_args(web3, artifact)
     }
 
     /// Deploys a contract with the specified `web3` provider with the given
@@ -178,6 +167,79 @@ impl<T: Transport> Instance<T> {
     }
 }
 
+/// Helper type for wrapping `Web3` as `Unpin`.
+struct Web3Unpin<T: Transport>(Web3<T>);
+
+impl<T: Transport> Into<Web3<T>> for Web3Unpin<T> {
+    fn into(self) -> Web3<T> {
+        self.0
+    }
+}
+
+impl<T: Transport> From<Web3<T>> for Web3Unpin<T> {
+    fn from(web3: Web3<T>) -> Self {
+        Web3Unpin(web3)
+    }
+}
+
+// It is safe to mark this type as `Unpin` since `Web3<T>` *should be* `Unpin`
+// even if T is not.
+// TODO(nlordell): verify this is safe
+impl<T: Transport> Unpin for Web3Unpin<T> {}
+
+/// Future for creating a deployed contract instance.
+pub struct DeployedFuture<T: Transport> {
+    args: Option<(Web3Unpin<T>, Artifact)>,
+    network_id: Compat01As03<CallFuture<String, T::Out>>,
+}
+
+impl<T: Transport> DeployedFuture<T> {
+    fn from_args(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T> {
+        let net = web3.net();
+        DeployedFuture {
+            args: Some((web3.into(), artifact)),
+            network_id: net.version().compat(),
+        }
+    }
+    
+    /// Take value of our passed in `web3` provider.
+    fn args(self: Pin<&mut Self>) -> (Web3<T>, Artifact) {
+        let (web3, artifact) = self.get_mut()
+            .args
+            .take()
+            .expect("should be called only once");
+        (web3.into(), artifact)
+    }
+
+    /// Get a pinned reference to the inner `CallFuture` for retrieving the
+    /// current network ID.
+    fn network_id(self: Pin<&mut Self>) -> Pin<&mut Compat01As03<CallFuture<String, T::Out>>> {
+        Pin::new(&mut self.get_mut().network_id)
+    }
+}
+
+impl<T: Transport> Future for DeployedFuture<T> {
+    type Output = Result<Instance<T>, DeployedError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        self.as_mut().network_id().poll(cx).map(|network_id| {
+            let network_id = network_id?;
+            let (web3, artifact) = self.args();
+
+            let address = match artifact.networks.get(&network_id) {
+                Some(network) => network.address,
+                None => return Err(DeployedError::NotFound(network_id)),
+            };
+
+            Ok(Instance {
+                web3,
+                abi: artifact.abi,
+                address,
+            })
+        })
+    }
+}
+
 /// Error that can occur while locating a deployed contract.
 #[derive(Debug, Error)]
 pub enum DeployedError {
@@ -220,24 +282,53 @@ impl<T: Transport, R: Detokenize> CallBuilder<T, R> {
         self
     }
 
-    /// Execute the call to the contract and retuen the data
-    pub fn execute(self) -> impl Future<Output = Result<R, ExecutionError>> {
-        QueryResult::new(
-            self.web3.eth().call(
-                CallRequest {
-                    from: self.from,
-                    to: self.address,
-                    gas: None,
-                    gas_price: None,
-                    value: None,
-                    data: Some(self.data),
-                },
-                self.block,
-            ),
-            self.function,
+    /// Execute the call to the contract and return the data
+    pub fn execute(self) -> ExecuteCallFuture<T, R> {
+        ExecuteCallFuture::from_builder(self)
+    }
+}
+
+/// Future representing a pending contract call (i.e. query) to be resolved when
+/// the call completes.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct ExecuteCallFuture<T: Transport, R: Detokenize>(Compat01As03<QueryResult<R, T::Out>>);
+
+impl<T: Transport, R: Detokenize> ExecuteCallFuture<T, R> {
+    /// Construct a new `ExecuteCallFuture` from a `CallBuilder`.
+    fn from_builder(builder: CallBuilder<T, R>) -> ExecuteCallFuture<T, R> {
+        ExecuteCallFuture(
+            QueryResult::new(
+                builder.web3.eth().call(
+                    CallRequest {
+                        from: builder.from,
+                        to: builder.address,
+                        gas: None,
+                        gas_price: None,
+                        value: None,
+                        data: Some(builder.data),
+                    },
+                    builder.block,
+                ),
+                builder.function,
+            )
+            .compat(),
         )
-        .compat()
-        .map_err(ExecutionError::from)
+    }
+
+    /// Get a pinned reference to the inner `QueryResult` web3 future taht is
+    /// actually driving the query.
+    fn inner(self: Pin<&mut Self>) -> Pin<&mut Compat01As03<QueryResult<R, T::Out>>> {
+        Pin::new(&mut self.get_mut().0)
+    }
+}
+
+impl<T: Transport, R: Detokenize> Future for ExecuteCallFuture<T, R> {
+    type Output = Result<R, ExecutionError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        self.inner()
+            .poll(cx)
+            .map(|result| result.map_err(ExecutionError::from))
     }
 }
 
