@@ -2,18 +2,19 @@ use crate::contract::errors::ExecutionError;
 use crate::contract::util::{CompatCallFuture, CompatSendTxWithConfirmation, Web3Unpin};
 use crate::future::MaybeReady;
 use crate::sign::TransactionData;
-use ethsign::SecretKey;
+use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
 use futures::future::{self, TryFuture, TryJoin4};
 use futures::ready;
 use std::future::Future;
 use std::pin::Pin;
+use std::str;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use web3::api::{Eth, Web3};
+use web3::api::{Web3};
 use web3::types::{
-    Address, Bytes, CallRequest, TransactionCondition, TransactionReceipt, TransactionRequest,
-    H256, U256,
+    Address, Bytes, CallRequest, RawTransaction, TransactionCondition, TransactionReceipt,
+    TransactionRequest, H256, U256,
 };
 use web3::Transport;
 
@@ -27,7 +28,7 @@ pub struct TransactionBuilder<T: Transport> {
     data: Bytes,
     /// The signing strategy to use. Defaults to locally signing on the node with
     /// the default acount.
-    pub sign: Option<Sign>,
+    pub account: Option<Account>,
     /// Optional gas amount to use for transaction. Defaults to estimated gas.
     pub gas: Option<U256>,
     /// Optional gas price to use for transaction. Defaults to estimated gas
@@ -40,19 +41,23 @@ pub struct TransactionBuilder<T: Transport> {
     pub nonce: Option<U256>,
 }
 
-/// How the transaction should be signed
+/// The account type used for signing the transaction.
 #[derive(Clone, Debug)]
-pub enum Sign {
-    /// Let the node locally sign for address
+pub enum Account {
+    /// Let the node sign for a transaction with an unlocked account.
     Local(Address, Option<TransactionCondition>),
-    /// Do offline signing with private key and optionally specify chain ID
+    /// Do online signing with a locked account with a password.
+    Locked(Address, Protected, Option<TransactionCondition>),
+    /// Do offline signing with private key and optionally specify chain ID.
     Offline(SecretKey, Option<u64>),
 }
 
-/// Represents either a structured or raw transaction request.
-enum Request {
+/// Represents a prepared and optionally signed transaction that is ready for
+/// sending created by a `TransactionBuilder`.
+pub enum Transaction {
     /// A structured transaction request to be signed locally by the node.
-    Tx(TransactionRequest),
+    Request(TransactionRequest),
+
     /// A signed raw transaction request.
     Raw(Bytes),
 }
@@ -64,18 +69,18 @@ impl<T: Transport> TransactionBuilder<T> {
             web3,
             address,
             data,
+            account: None,
             gas: None,
             gas_price: None,
             value: None,
             nonce: None,
-            sign: None,
         }
     }
 
     /// Specify the signing method to use for the transaction, if not specified
     /// the the transaction will be locally signed with the default user.
-    pub fn sign(mut self, value: Sign) -> TransactionBuilder<T> {
-        self.sign = Some(value);
+    pub fn from(mut self, value: Account) -> TransactionBuilder<T> {
+        self.account = Some(value);
         self
     }
 
@@ -107,6 +112,16 @@ impl<T: Transport> TransactionBuilder<T> {
         self
     }
 
+    /// Estimate the gas required for this transaction.
+    pub fn estimate_gas(self) -> EstimateGasFuture<T> {
+        EstimateGasFuture::from_builder(self)
+    }
+
+    /// Build a prepared transaction that is ready to send.
+    pub fn build(self) -> BuildFuture<T> {
+        BuildFuture::from_builder(self)
+    }
+
     /// Sign (if required) and execute the transaction. Returns the transaction
     /// hash that can be used to retrieve transaction information.
     pub fn execute(self) -> ExecuteFuture<T> {
@@ -124,120 +139,78 @@ impl<T: Transport> TransactionBuilder<T> {
     }
 }
 
-/// Future for optionally signing and then executing a transaction.
-pub struct ExecuteFuture<T: Transport> {
-    /// The `web3` provider for sending the prepared transaction.
-    web3: Web3Unpin<T>,
+/// Future for estimating gas for a transaction.
+pub struct EstimateGasFuture<T: Transport>(CompatCallFuture<T, U256>);
 
-    /// Internal execution state.
-    state: ExecutionState<T, CompatCallFuture<T, H256>>,
+impl<T: Transport> EstimateGasFuture<T> {
+    pub fn from_builder(builder: TransactionBuilder<T>) -> EstimateGasFuture<T> {
+        let eth = builder.web3.eth();
+        let from = builder.account.map(|account| match account {
+            Account::Local(from, ..) => from,
+            Account::Locked(from, ..) => from,
+            Account::Offline(key, ..) => key.public().address().into(),
+        });
+
+        EstimateGasFuture(
+            eth.estimate_gas(
+                CallRequest {
+                    from,
+                    to: builder.address,
+                    gas: None,
+                    gas_price: None,
+                    value: builder.value,
+                    data: Some(builder.data),
+                },
+                None,
+            )
+            .compat(),
+        )
+    }
+
+    fn inner(self: Pin<&mut Self>) -> Pin<&mut CompatCallFuture<T, U256>> {
+        Pin::new(&mut self.get_mut().0)
+    }
 }
 
-impl<T: Transport> ExecuteFuture<T> {
-    /// Creates a new future from a `TransactionBuilder`
-    pub fn from_builder(builder: TransactionBuilder<T>) -> ExecuteFuture<T> {
-        let web3 = builder.web3.clone().into();
-        let state = ExecutionState::from_builder(builder);
-
-        ExecuteFuture { web3, state }
-    }
-
-    fn eth(self: Pin<&Self>) -> Eth<T> {
-        self.get_ref().web3.eth()
-    }
-
-    fn state(self: Pin<&mut Self>) -> &mut ExecutionState<T, CompatCallFuture<T, H256>> {
-        &mut self.get_mut().state
-    }
-}
-
-impl<T: Transport> Future for ExecuteFuture<T> {
-    type Output = Result<H256, ExecutionError>;
+impl<T: Transport> Future for EstimateGasFuture<T> {
+    type Output = Result<U256, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let eth = self.as_ref().eth();
-
-        self.state().poll_unpinned(cx, |tx| match tx {
-            Request::Tx(tx) => eth.send_transaction(tx).compat(),
-            Request::Raw(tx) => eth.send_raw_transaction(tx).compat(),
-        })
+        self.inner().poll(cx).map_err(ExecutionError::from)
     }
 }
 
-/// Future for optinally signing and then executing a transaction with
-/// confirmation.
-pub struct ExecuteConfirmFuture<T: Transport> {
-    /// The `web3` provider used for sending
-    web3: Web3Unpin<T>,
-    
-    /// The confirmation parameters to use.
-    confirm: (Duration, usize),
-
-    /// Internal execution state.
-    state: ExecutionState<T, CompatSendTxWithConfirmation<T>>,
+/// Future for preparing a transaction.
+pub struct BuildFuture<T: Transport> {
+    /// The internal build state for preparing the transaction.
+    state: BuildState<T>,
 }
 
-impl<T: Transport> ExecuteConfirmFuture<T> {
-    /// Creates a new future from a `TransactionBuilder`
-    pub fn from_builder_with_confirm(
-        builder: TransactionBuilder<T>,
-        poll_interval: Duration,
-        confirmations: usize,
-    ) -> ExecuteConfirmFuture<T> {
-        let web3 = builder.web3.clone().into();
-        let state = ExecutionState::from_builder(builder);
-
-        ExecuteConfirmFuture {
-            web3,
-            confirm: (poll_interval, confirmations),
-            state,
+impl<T: Transport> BuildFuture<T> {
+    pub fn from_builder(builder: TransactionBuilder<T>) -> BuildFuture<T> {
+        BuildFuture {
+            state: BuildState::from_builder(builder),
         }
     }
 
-    fn web3(self: Pin<&Self>) -> Web3<T> {
-        self.get_ref().web3.clone()
-    }
-
-    fn confirm(self: Pin<&Self>) -> (Duration, usize) {
-        self.get_ref().confirm
-    }
-
-    fn state(self: Pin<&mut Self>) -> &mut ExecutionState<T, CompatSendTxWithConfirmation<T>> {
+    fn state(self: Pin<&mut Self>) -> &mut BuildState<T> {
         &mut self.get_mut().state
     }
 }
 
-impl<T: Transport> Future for ExecuteConfirmFuture<T> {
-    type Output = Result<TransactionReceipt, ExecutionError>;
+impl<T: Transport> Future for BuildFuture<T> {
+    type Output = Result<Transaction, ExecutionError>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let web3 = self.as_ref().web3();
-        let confirm = self.as_ref().confirm();
-
-        self.as_mut().state().poll_unpinned(cx, |tx| {
-            let (poll_interval, confirmations) = confirm;
-            match tx {
-                Request::Tx(tx) => web3
-                    .send_transaction_with_confirmation(tx, poll_interval, confirmations)
-                    .compat(),
-                Request::Raw(tx) => web3
-                    .send_raw_transaction_with_confirmation(tx, poll_interval, confirmations)
-                    .compat(),
-            }
-        })
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        self.state().poll_unpinned(cx)
     }
 }
 
-/// Internal execution state for preparing and executing transactions.
-enum ExecutionState<T, F>
-where
-    T: Transport,
-    F: TryFuture + Unpin,
-    F::Error: Into<ExecutionError>,
-{
+/// Internal build state for preparing transactions.
+enum BuildState<T: Transport> {
     /// Waiting for list of accounts in order to determine from address so that
     /// we can return a `Request::Tx`.
-    Tx {
+    DefaultAccount {
         /// The transaction request being built.
         request: Option<TransactionRequest>,
 
@@ -245,9 +218,20 @@ where
         inner: CompatCallFuture<T, Vec<Address>>,
     },
 
+    /// Ready to resolve imediately to a `Transaction::Request` result.
+    Local {
+        /// The ready transaction request.
+        request: Option<TransactionRequest>,
+    },
+
+    /// Waiting for the node to sign with a locked account.
+    Locked {
+        sign: CompatCallFuture<T, RawTransaction>,
+    },
+
     /// Waiting for missing transaction parameters needed to sign and produce a
     /// `Request::Raw` result.
-    Raw {
+    Offline {
         /// The private key to use for signing.
         key: SecretKey,
 
@@ -269,27 +253,13 @@ where
             MaybeReady<CompatCallFuture<T, String>>,
         >,
     },
-
-    /// Ready to produce a `Request::Tx` result.
-    Ready {
-        /// The ready transaction request.
-        request: Option<Request>,
-    },
-
-    /// Sending the request and waiting for the future to resolve.
-    Send { future: F },
 }
 
-impl<T, F> ExecutionState<T, F>
-where
-    T: Transport,
-    F: TryFuture + Unpin,
-    F::Error: Into<ExecutionError>,
-{
-    /// Create a `ExecutionState` from a `TransactionBuilder`
-    fn from_builder(builder: TransactionBuilder<T>) -> ExecutionState<T, F> {
-        match builder.sign {
-            None => ExecutionState::Tx {
+impl<T: Transport> BuildState<T> {
+    /// Create a `BuildState` from a `TransactionBuilder`
+    fn from_builder(builder: TransactionBuilder<T>) -> BuildState<T> {
+        match builder.account {
+            None => BuildState::DefaultAccount {
                 request: Some(TransactionRequest {
                     from: Address::zero(),
                     to: Some(builder.address),
@@ -302,7 +272,39 @@ where
                 }),
                 inner: builder.web3.eth().accounts().compat(),
             },
-            Some(Sign::Offline(key, chain_id)) => {
+            Some(Account::Local(from, condition)) => BuildState::Local {
+                request: Some(TransactionRequest {
+                    from,
+                    to: Some(builder.address),
+                    gas: builder.gas,
+                    gas_price: builder.gas_price,
+                    value: builder.value,
+                    data: Some(builder.data),
+                    nonce: builder.nonce,
+                    condition,
+                }),
+            },
+            Some(Account::Locked(from, password, condition)) => {
+                let request = TransactionRequest {
+                    from,
+                    to: Some(builder.address),
+                    gas: builder.gas,
+                    gas_price: builder.gas_price,
+                    value: builder.value,
+                    data: Some(builder.data),
+                    nonce: builder.nonce,
+                    condition,
+                };
+                let password = unsafe { str::from_utf8_unchecked(password.as_ref()) };
+                let sign = builder
+                    .web3
+                    .personal()
+                    .sign_transaction(request, password)
+                    .compat();
+
+                BuildState::Locked { sign }
+            }
+            Some(Account::Offline(key, chain_id)) => {
                 macro_rules! maybe {
                     ($o:expr, $c:expr) => {
                         match $o {
@@ -342,7 +344,7 @@ where
                 // TODO(nlordell): don't convert to and from string here
                 let chain_id = maybe!(chain_id.map(|id| id.to_string()), net.version());
 
-                ExecutionState::Raw {
+                BuildState::Offline {
                     key,
                     address: builder.address,
                     value: builder.value.unwrap_or_else(U256::zero),
@@ -350,87 +352,188 @@ where
                     params: future::try_join4(gas, gas_price, nonce, chain_id),
                 }
             }
-            Some(Sign::Local(from, condition)) => ExecutionState::Ready {
-                request: Some(Request::Tx(TransactionRequest {
-                    from,
-                    to: Some(builder.address),
-                    gas: builder.gas,
-                    gas_price: builder.gas_price,
-                    value: builder.value,
-                    data: Some(builder.data),
-                    nonce: builder.nonce,
-                    condition,
-                })),
-            },
         }
     }
 
-    fn poll_unpinned<S>(
-        &mut self,
-        cx: &mut Context,
-        mut send_fn: S,
-    ) -> Poll<Result<F::Ok, ExecutionError>>
-    where
-        S: FnMut(Request) -> F,
-    {
-        macro_rules! ok {
-            ($result:expr) => {
-                match $result {
-                    Ok(value) => value,
-                    Err(err) => return Poll::Ready(Err(err.into())),
-                }
-            };
-        }
-
-        loop {
-            match self {
-                ExecutionState::Tx { request, inner } => {
-                    let accounts = ready!(Pin::new(inner).poll(cx).map_err(ExecutionError::from));
-                    let accounts = ok!(accounts);
+    fn poll_unpinned(&mut self, cx: &mut Context) -> Poll<Result<Transaction, ExecutionError>> {
+        match self {
+            BuildState::DefaultAccount { request, inner } => {
+                Pin::new(inner).poll(cx).map(|accounts| {
+                    let accounts = accounts?;
 
                     let mut request = request.take().expect("called once");
                     if let Some(from) = accounts.get(0) {
                         request.from = *from;
                     }
 
-                    *self = ExecutionState::Ready {
-                        request: Some(Request::Tx(request)),
-                    };
-                }
-                ExecutionState::Raw {
-                    key,
-                    address,
-                    value,
-                    data,
-                    params,
-                } => {
-                    let result = ready!(Pin::new(params).poll(cx).map_err(ExecutionError::from));
-                    let (gas, gas_price, nonce, chain_id) = ok!(result);
-                    let chain_id: u64 = ok!(chain_id.parse());
+                    Ok(Transaction::Request(request))
+                })
+            }
+            BuildState::Local { request } => Poll::Ready(Ok(Transaction::Request(
+                request.take().expect("called once"),
+            ))),
+            BuildState::Locked { sign } => Pin::new(sign)
+                .poll(cx)
+                .map(|raw| Ok(Transaction::Raw(raw?.raw))),
+            BuildState::Offline {
+                key,
+                address,
+                value,
+                data,
+                params,
+            } => Pin::new(params).poll(cx).map(|params| {
+                let (gas, gas_price, nonce, chain_id) = params?;
+                let chain_id = chain_id.parse()?;
 
-                    let tx = TransactionData {
-                        nonce,
-                        gas_price,
-                        gas,
-                        to: *address,
-                        value: *value,
-                        data: data,
-                    };
-                    let raw = ok!(tx.sign(key, Some(chain_id)));
+                let tx = TransactionData {
+                    nonce,
+                    gas_price,
+                    gas,
+                    to: *address,
+                    value: *value,
+                    data: data,
+                };
+                let raw = tx.sign(key, Some(chain_id))?;
 
-                    *self = ExecutionState::Ready {
-                        request: Some(Request::Raw(raw)),
-                    };
-                }
-                ExecutionState::Ready { ref mut request } => {
-                    let request = request.take().expect("called once");
+                Ok(Transaction::Raw(raw))
+            }),
+        }
+    }
+}
 
-                    *self = ExecutionState::Send {
-                        future: send_fn(request),
+/// Future for optionally signing and then executing a transaction.
+pub struct ExecuteFuture<T: Transport> {
+    /// Internal execution state.
+    state: ExecutionState<T, Web3Unpin<T>, CompatCallFuture<T, H256>>,
+}
+
+impl<T: Transport> ExecuteFuture<T> {
+    /// Creates a new future from a `TransactionBuilder`
+    pub fn from_builder(builder: TransactionBuilder<T>) -> ExecuteFuture<T> {
+        let web3 = builder.web3.clone().into();
+        let state = ExecutionState::from_builder_with_data(builder, web3);
+
+        ExecuteFuture { state }
+    }
+
+    fn state(
+        self: Pin<&mut Self>,
+    ) -> &mut ExecutionState<T, Web3Unpin<T>, CompatCallFuture<T, H256>> {
+        &mut self.get_mut().state
+    }
+}
+
+impl<T: Transport> Future for ExecuteFuture<T> {
+    type Output = Result<H256, ExecutionError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        self.state().poll_unpinned(cx, |web3, tx| match tx {
+            Transaction::Request(tx) => web3.eth().send_transaction(tx).compat(),
+            Transaction::Raw(tx) => web3.eth().send_raw_transaction(tx).compat(),
+        })
+    }
+}
+
+/// Future for optinally signing and then executing a transaction with
+/// confirmation.
+pub struct ExecuteConfirmFuture<T: Transport> {
+    /// Internal execution state.
+    state: ExecutionState<T, (Web3Unpin<T>, Duration, usize), CompatSendTxWithConfirmation<T>>,
+}
+
+impl<T: Transport> ExecuteConfirmFuture<T> {
+    /// Creates a new future from a `TransactionBuilder`
+    pub fn from_builder_with_confirm(
+        builder: TransactionBuilder<T>,
+        poll_interval: Duration,
+        confirmations: usize,
+    ) -> ExecuteConfirmFuture<T> {
+        let web3 = builder.web3.clone().into();
+        let state =
+            ExecutionState::from_builder_with_data(builder, (web3, poll_interval, confirmations));
+
+        ExecuteConfirmFuture { state }
+    }
+
+    fn state(
+        self: Pin<&mut Self>,
+    ) -> &mut ExecutionState<T, (Web3Unpin<T>, Duration, usize), CompatSendTxWithConfirmation<T>>
+    {
+        &mut self.get_mut().state
+    }
+}
+
+impl<T: Transport> Future for ExecuteConfirmFuture<T> {
+    type Output = Result<TransactionReceipt, ExecutionError>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        self.as_mut()
+            .state()
+            .poll_unpinned(cx, |(web3, poll_interval, confirmations), tx| match tx {
+                Transaction::Request(tx) => web3
+                    .send_transaction_with_confirmation(tx, poll_interval, confirmations)
+                    .compat(),
+                Transaction::Raw(tx) => web3
+                    .send_raw_transaction_with_confirmation(tx, poll_interval, confirmations)
+                    .compat(),
+            })
+    }
+}
+
+/// Internal execution state for preparing and executing transactions.
+enum ExecutionState<T, D, F>
+where
+    T: Transport,
+    F: TryFuture + Unpin,
+    F::Error: Into<ExecutionError>,
+{
+    /// Waiting for the transaction to be prepared to be sent.
+    Build(BuildFuture<T>, Option<D>),
+
+    /// Sending the request and waiting for the future to resolve.
+    Send(F),
+}
+
+impl<T, D, F> ExecutionState<T, D, F>
+where
+    T: Transport,
+    F: TryFuture + Unpin,
+    F::Error: Into<ExecutionError>,
+{
+    /// Create a `ExecutionState` from a `TransactionBuilder`
+    fn from_builder_with_data(builder: TransactionBuilder<T>, data: D) -> ExecutionState<T, D, F> {
+        let build = BuildFuture::from_builder(builder);
+        let data = Some(data);
+
+        ExecutionState::Build(build, data)
+    }
+
+    /// Poll the state to drive the execution of its inner futures.
+    fn poll_unpinned<S>(
+        &mut self,
+        cx: &mut Context,
+        mut send_fn: S,
+    ) -> Poll<Result<F::Ok, ExecutionError>>
+    where
+        S: FnMut(D, Transaction) -> F,
+    {
+        loop {
+            match self {
+                ExecutionState::Build(build, data) => {
+                    let tx = ready!(Pin::new(build).poll(cx).map_err(ExecutionError::from));
+                    let tx = match tx {
+                        Ok(tx) => tx,
+                        Err(err) => return Poll::Ready(Err(err)),
                     };
+
+                    let data = data.take().expect("called once");
+                    let send = send_fn(data, tx);
+                    *self = ExecutionState::Send(send);
                 }
-                ExecutionState::Send { ref mut future } => {
-                    return Pin::new(future).try_poll(cx).map_err(Into::<ExecutionError>::into)
+                ExecutionState::Send(ref mut send) => {
+                    return Pin::new(send)
+                        .try_poll(cx)
+                        .map_err(Into::<ExecutionError>::into)
                 }
             }
         }

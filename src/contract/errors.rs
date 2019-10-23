@@ -1,8 +1,8 @@
 use ethsign::Error as EthsignError;
 use std::num::ParseIntError;
-use web3::error::Error as Web3Error;
-use web3::contract::Error as Web3ContractError;
 use thiserror::Error;
+use web3::contract::Error as Web3ContractError;
+use web3::error::Error as Web3Error;
 
 /// Error that can occur while locating a deployed contract.
 #[derive(Debug, Error)]
