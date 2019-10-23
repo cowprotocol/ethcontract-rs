@@ -6,7 +6,7 @@ use thiserror::Error;
 
 /// Error that can occur while locating a deployed contract.
 #[derive(Debug, Error)]
-pub enum DeployedError {
+pub enum DeployError {
     /// An error occured while performing a web3 call.
     #[error("web3 error: {0}")]
     Web3(#[from] Web3Error),

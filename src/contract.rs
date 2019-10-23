@@ -3,7 +3,7 @@
 //! state.
 
 mod call;
-mod deployed;
+mod deploy;
 mod errors;
 mod transaction;
 mod util;
@@ -15,9 +15,9 @@ use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes};
 use web3::Transport;
 
-pub use self::errors::{DeployedError, ExecutionError};
+pub use self::errors::{DeployError, ExecutionError};
 pub use self::call::{CallBuilder, ExecuteCallFuture};
-pub use self::deployed::{DeployedFuture};
+pub use self::deploy::{DeployedFuture};
 pub use self::transaction::{TransactionBuilder};
 
 /// Represents a contract instance at an address. Provides methods for

@@ -1,4 +1,7 @@
-use crate::contract::errors::DeployedError;
+//! Implementation for creating instances for deployed contracts and deploying
+//! new contracts.
+
+use crate::contract::errors::DeployError;
 use crate::contract::util::{CompatCallFuture, Web3Unpin};
 use crate::contract::Instance;
 use crate::truffle::Artifact;
@@ -44,7 +47,7 @@ impl<T: Transport> DeployedFuture<T> {
 }
 
 impl<T: Transport> Future for DeployedFuture<T> {
-    type Output = Result<Instance<T>, DeployedError>;
+    type Output = Result<Instance<T>, DeployError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         self.as_mut().network_id().poll(cx).map(|network_id| {
@@ -53,7 +56,7 @@ impl<T: Transport> Future for DeployedFuture<T> {
 
             let address = match artifact.networks.get(&network_id) {
                 Some(network) => network.address,
-                None => return Err(DeployedError::NotFound(network_id)),
+                None => return Err(DeployError::NotFound(network_id)),
             };
 
             Ok(Instance {
