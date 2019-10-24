@@ -4,21 +4,18 @@
 
 mod call;
 mod deploy;
-mod errors;
-mod transaction;
-mod util;
+mod send;
 
 use crate::truffle::{Abi, Artifact};
-use ethabi::{ErrorKind as AbiErrorKind, Function, Result as AbiResult};
+use ethabi::{Function, Result as AbiResult};
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes};
 use web3::Transport;
 
 pub use self::call::{CallBuilder, ExecuteCallFuture};
-pub use self::deploy::DeployedFuture;
-pub use self::errors::{DeployError, ExecutionError};
-pub use self::transaction::TransactionBuilder;
+pub use self::deploy::{DeployedFuture, DeployBuilder, DeployFuture};
+pub use self::send::SendBuilder;
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
@@ -53,38 +50,11 @@ impl<T: Transport> Instance<T> {
         web3: Web3<T>,
         artifact: Artifact,
         params: P,
-    ) -> AbiResult<TransactionBuilder<T>>
+    ) -> AbiResult<DeployBuilder<T>>
     where
         P: Tokenize,
     {
-        // NOTE(nlordell): we can't just use `web3` implementation here as it
-        //   does not support signing
-
-        let tokens = params.into_tokens();
-        let data = match artifact.abi.constructor {
-            Some(constructor) => constructor.encode_input(artifact.bytecode.0, &tokens)?,
-            None => {
-                if tokens.len() != 0 {
-                    // what `ethabi` returns when parameters don't match ABI
-                    return Err(AbiErrorKind::InvalidData.into());
-                }
-                artifact.bytecode.0
-            }
-        };
-
-        let _ = (data, web3);
-        unimplemented!()
-        // TODO(nlordell): we need to add confirmation + get contract address
-        // Ok(TransactionBuilder {
-        //     web3: self.web3(),
-        //     address: self.address,
-        //     data,
-        //     gas: None,
-        //     gas_price: None,
-        //     value: None,
-        //     nonce: None,
-        //     sign: None,
-        // })
+        DeployBuilder::new(web3, artifact, params)
     }
 
     /// Create a clone of the handle to our current `web3` provider.
@@ -117,13 +87,13 @@ impl<T: Transport> Instance<T> {
     }
 
     /// Returns a transaction builder to setup a transaction
-    pub fn send<S, P>(&self, name: S, params: P) -> AbiResult<TransactionBuilder<T>>
+    pub fn send<S, P>(&self, name: S, params: P) -> AbiResult<SendBuilder<T>>
     where
         S: AsRef<str>,
         P: Tokenize,
     {
         let (_, data) = self.encode_abi(name, params)?;
-        Ok(TransactionBuilder::new(self.web3(), self.address, data))
+        Ok(SendBuilder::new(self.web3(), self.address, data))
     }
 
     /// Utility function to locate a function by name and encode the function

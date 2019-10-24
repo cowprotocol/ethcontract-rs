@@ -103,7 +103,7 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
             /// `Abi` is actually deployed at the given address.
             pub fn deployed<F, T>(
                 web3: &ethcontract::web3::api::Web3<T>,
-            ) -> impl std::future::Future<Output = std::result::Result<#contract_name, ethcontract::contract::DeployError>>
+            ) -> impl std::future::Future<Output = std::result::Result<#contract_name, ethcontract::errors::DeployError>>
             where
                 F: ethcontract::web3::futures::Future<Item = ethcontract::json::Value, Error = ethcontract::web3::Error> + Send + 'static,
                 T: ethcontract::web3::Transport<Out = F> + 'static,
@@ -168,7 +168,7 @@ fn expand_function(artifact: &Artifact, function: &Function) -> Result<TokenStre
     } else {
         (
             quote! { send },
-            quote! { ethcontract::contract::TransactionBuilder<ethcontract::DynTransport> },
+            quote! { ethcontract::contract::SendBuilder<ethcontract::DynTransport> },
         )
     };
     let arg = expand_fn_call_arg(function);

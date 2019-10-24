@@ -3,8 +3,10 @@
 //! TODO(nlordell): documentation with examples.
 
 pub mod contract;
+pub mod errors;
 mod future;
 pub mod sign;
+pub mod transaction;
 pub mod transport;
 
 pub use ethcontract_common::*;

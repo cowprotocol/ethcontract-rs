@@ -1,6 +1,8 @@
-use crate::contract::errors::ExecutionError;
-use crate::contract::util::{CompatCallFuture, CompatSendTxWithConfirmation, Web3Unpin};
-use crate::future::MaybeReady;
+//! Implementation for setting up, signing, estimating gas and executing
+//! transactions on the Ethereum network.
+
+use crate::errors::ExecutionError;
+use crate::future::{MaybeReady, CompatCallFuture, CompatSendTxWithConfirmation, Web3Unpin};
 use crate::sign::TransactionData;
 use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
@@ -18,17 +20,17 @@ use web3::types::{
 };
 use web3::Transport;
 
-/// Data used for building a contract transaction that modifies the blockchain.
-/// These transactions can either be sent to be signed locally by the node or can
-/// be signed offline.
+/// Data used for building a transaction that modifies the blockchain. These
+/// transactions can either be sent to be signed locally by the node or can be
+/// signed offline.
 #[derive(Clone, Debug)]
 pub struct TransactionBuilder<T: Transport> {
     web3: Web3<T>,
-    address: Address,
-    data: Bytes,
-    /// The signing strategy to use. Defaults to locally signing on the node with
-    /// the default acount.
-    pub account: Option<Account>,
+    /// The sender of the transaction with the signing strategy to use. Defaults
+    /// to locally signing on the node with the default acount.
+    pub from: Option<Account>,
+    /// The receiver of the transaction.
+    pub to: Address,
     /// Optional gas amount to use for transaction. Defaults to estimated gas.
     pub gas: Option<U256>,
     /// Optional gas price to use for transaction. Defaults to estimated gas
@@ -36,6 +38,8 @@ pub struct TransactionBuilder<T: Transport> {
     pub gas_price: Option<U256>,
     /// The ETH value to send with the transaction. Defaults to 0.
     pub value: Option<U256>,
+    /// The data for the transaction. Defaults to empty data.
+    pub data: Option<Bytes>,
     /// Optional nonce to use. Defaults to the signing account's current
     /// transaction count.
     pub nonce: Option<U256>,
@@ -62,16 +66,16 @@ pub enum Transaction {
 }
 
 impl<T: Transport> TransactionBuilder<T> {
-    /// Creates a new builder for a contract transaction.
-    pub fn new(web3: Web3<T>, address: Address, data: Bytes) -> TransactionBuilder<T> {
+    /// Creates a new builder for a transaction.
+    pub fn new(web3: Web3<T>) -> TransactionBuilder<T> {
         TransactionBuilder {
             web3,
-            address,
-            data,
-            account: None,
+            from: None,
+            to: Address::zero(),
             gas: None,
             gas_price: None,
             value: None,
+            data: None,
             nonce: None,
         }
     }
@@ -79,7 +83,14 @@ impl<T: Transport> TransactionBuilder<T> {
     /// Specify the signing method to use for the transaction, if not specified
     /// the the transaction will be locally signed with the default user.
     pub fn from(mut self, value: Account) -> TransactionBuilder<T> {
-        self.account = Some(value);
+        self.from = Some(value);
+        self
+    }
+
+    /// Specify the recepient of the transaction, if not specified the
+    /// transaction will be sent to the 0 address (for deploying contracts).
+    pub fn to(mut self, value: Address) -> TransactionBuilder<T> {
+        self.to = value;
         self
     }
 
@@ -101,6 +112,13 @@ impl<T: Transport> TransactionBuilder<T> {
     /// specified then no ETH will be sent.
     pub fn value(mut self, value: U256) -> TransactionBuilder<T> {
         self.value = Some(value);
+        self
+    }
+
+    /// Specify the data to use for the transaction, if not specified, then empty
+    /// data will be used.
+    pub fn data(mut self, value: Bytes) -> TransactionBuilder<T> {
+        self.data = Some(value);
         self
     }
 
@@ -142,9 +160,10 @@ impl<T: Transport> TransactionBuilder<T> {
 pub struct EstimateGasFuture<T: Transport>(CompatCallFuture<T, U256>);
 
 impl<T: Transport> EstimateGasFuture<T> {
+    /// Create a instance from a `TransactionBuilder`.
     pub fn from_builder(builder: TransactionBuilder<T>) -> EstimateGasFuture<T> {
         let eth = builder.web3.eth();
-        let from = builder.account.map(|account| match account {
+        let from = builder.from.map(|from| match from {
             Account::Local(from, ..) => from,
             Account::Locked(from, ..) => from,
             Account::Offline(key, ..) => key.public().address().into(),
@@ -154,11 +173,11 @@ impl<T: Transport> EstimateGasFuture<T> {
             eth.estimate_gas(
                 CallRequest {
                     from,
-                    to: builder.address,
+                    to: builder.to,
                     gas: None,
                     gas_price: None,
                     value: builder.value,
-                    data: Some(builder.data),
+                    data: builder.data,
                 },
                 None,
             )
@@ -186,6 +205,7 @@ pub struct BuildFuture<T: Transport> {
 }
 
 impl<T: Transport> BuildFuture<T> {
+    /// Create an instance from a `TransactionBuilder`.
     pub fn from_builder(builder: TransactionBuilder<T>) -> BuildFuture<T> {
         BuildFuture {
             state: BuildState::from_builder(builder),
@@ -233,8 +253,8 @@ enum BuildState<T: Transport> {
     Offline {
         /// The private key to use for signing.
         key: SecretKey,
-        /// The contract address.
-        address: Address,
+        /// The recepient address.
+        to: Address,
         /// The ETH value to be sent with the transaction.
         value: U256,
         /// The ABI encoded call parameters,
@@ -253,15 +273,15 @@ enum BuildState<T: Transport> {
 impl<T: Transport> BuildState<T> {
     /// Create a `BuildState` from a `TransactionBuilder`
     fn from_builder(builder: TransactionBuilder<T>) -> BuildState<T> {
-        match builder.account {
+        match builder.from {
             None => BuildState::DefaultAccount {
                 request: Some(TransactionRequest {
                     from: Address::zero(),
-                    to: Some(builder.address),
+                    to: Some(builder.to),
                     gas: builder.gas,
                     gas_price: builder.gas_price,
                     value: builder.value,
-                    data: Some(builder.data),
+                    data: builder.data,
                     nonce: builder.nonce,
                     condition: None,
                 }),
@@ -270,11 +290,11 @@ impl<T: Transport> BuildState<T> {
             Some(Account::Local(from, condition)) => BuildState::Local {
                 request: Some(TransactionRequest {
                     from,
-                    to: Some(builder.address),
+                    to: Some(builder.to),
                     gas: builder.gas,
                     gas_price: builder.gas_price,
                     value: builder.value,
-                    data: Some(builder.data),
+                    data: builder.data,
                     nonce: builder.nonce,
                     condition,
                 }),
@@ -282,11 +302,11 @@ impl<T: Transport> BuildState<T> {
             Some(Account::Locked(from, password, condition)) => {
                 let request = TransactionRequest {
                     from,
-                    to: Some(builder.address),
+                    to: Some(builder.to),
                     gas: builder.gas,
                     gas_price: builder.gas_price,
                     value: builder.value,
-                    data: Some(builder.data),
+                    data: builder.data,
                     nonce: builder.nonce,
                     condition,
                 };
@@ -318,11 +338,11 @@ impl<T: Transport> BuildState<T> {
                     eth.estimate_gas(
                         CallRequest {
                             from: Some(from),
-                            to: builder.address,
+                            to: builder.to,
                             gas: None,
                             gas_price: None,
                             value: builder.value,
-                            data: Some(builder.data.clone()),
+                            data: builder.data.clone(),
                         },
                         None
                     )
@@ -341,9 +361,9 @@ impl<T: Transport> BuildState<T> {
 
                 BuildState::Offline {
                     key,
-                    address: builder.address,
+                    to: builder.to,
                     value: builder.value.unwrap_or_else(U256::zero),
-                    data: builder.data,
+                    data: builder.data.unwrap_or_else(Bytes::default),
                     params: future::try_join4(gas, gas_price, nonce, chain_id),
                 }
             }
@@ -372,7 +392,7 @@ impl<T: Transport> BuildState<T> {
                 .map(|raw| Ok(Transaction::Raw(raw?.raw))),
             BuildState::Offline {
                 key,
-                address,
+                to,
                 value,
                 data,
                 params,
@@ -384,7 +404,7 @@ impl<T: Transport> BuildState<T> {
                     nonce,
                     gas_price,
                     gas,
-                    to: *address,
+                    to: *to,
                     value: *value,
                     data: data,
                 };

@@ -1,17 +1,19 @@
 //! Implementation for creating instances for deployed contracts and deploying
 //! new contracts.
 
-use crate::contract::errors::DeployError;
-use crate::contract::transaction::TransactionBuilder;
-use crate::contract::util::{CompatCallFuture, Web3Unpin};
+use crate::errors::DeployError;
+use crate::transaction::TransactionBuilder;
+use crate::future::{CompatCallFuture, Web3Unpin};
 use crate::contract::Instance;
 use crate::truffle::{Abi, Artifact};
+use ethabi::{ErrorKind as AbiErrorKind, Result as AbiResult};
 use futures::compat::Future01CompatExt;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use web3::api::Web3;
+use web3::contract::tokens::{Tokenize};
 use web3::types::Address;
 use web3::Transport;
 
@@ -84,7 +86,10 @@ pub struct DeployBuilder<T: Transport> {
 }
 
 impl<T: Transport> DeployBuilder<T> {
-    pub(crate) fn new(web3: Web3<T>, artifact: Artifact) -> DeployBuilder<T> {
+    pub(crate) fn new<P>(web3: Web3<T>, artifact: Artifact, params: P) -> AbiResult<DeployBuilder<T>>
+    where
+        P: Tokenize,
+    {
         unimplemented!()
     }
 }

@@ -2,8 +2,8 @@
 //! is not intended to be used directly but to be used by a contract `Instance`
 //! with the [call](ethcontract::contract::Instance::call) method.
 
-use crate::contract::errors::ExecutionError;
-use crate::contract::util::CompatQueryResult;
+use crate::errors::ExecutionError;
+use crate::future::CompatQueryResult;
 use ethabi::Function;
 use futures::compat::Future01CompatExt;
 use std::future::Future;

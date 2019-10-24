@@ -1,3 +1,5 @@
+//! Module with common error types.
+
 use ethsign::Error as EthsignError;
 use std::num::ParseIntError;
 use thiserror::Error;
