@@ -41,6 +41,7 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
     // TODO(nlordell): only generate `deployed` if there is are netowkrs in the
     //   contract artifact.
     // TODO(nlordell): Generate contructor(fn deploy), fallback, events
+    // TODO(nlordell): Generate deploy based on required linked libraries
 
     let functions = artifact
         .abi
