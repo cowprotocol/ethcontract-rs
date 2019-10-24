@@ -1,14 +1,15 @@
 //! Module for reading and examining data produced by truffle.
 
+mod bytecode;
+
+use crate::errors::ArtifactError;
 use serde::Deserialize;
-use serde_json::Error as JsonError;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Error as IoError;
 use std::path::Path;
-use thiserror::Error;
-use web3::types::{Address, Bytes};
+use web3::types::Address;
 
+pub use self::bytecode::Bytecode;
 pub use ethabi::Contract as Abi;
 
 /// Represents a truffle artifact.
@@ -19,8 +20,8 @@ pub struct Artifact {
     pub contract_name: String,
     /// The contract ABI
     pub abi: Abi,
-    /// The bytecode for deploying the contract in its hex representation.
-    pub bytecode: Bytes,
+    /// The contract deployment bytecode.
+    pub bytecode: Bytecode,
     /// The configured networks by network ID for the contract.
     pub networks: HashMap<String, Network>,
     /// The developer documentation.
@@ -81,14 +82,8 @@ pub struct Documentation {
     pub methods: HashMap<String, String>,
 }
 
-/// An error in loading or parsing a truffle artifact.
-#[derive(Debug, Error)]
-pub enum ArtifactError {
-    /// An IO error occurred when loading a truffle artifact from disk.
-    #[error("failed to open contract artifact file")]
-    Io(#[from] IoError),
-
-    /// A JSON error occurred while parsing a truffle artifact.
-    #[error("failed to parse contract artifact JSON")]
-    Json(#[from] JsonError),
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn parse() {}
 }

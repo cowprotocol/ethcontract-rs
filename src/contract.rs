@@ -14,7 +14,7 @@ use web3::types::{Address, Bytes};
 use web3::Transport;
 
 pub use self::call::{CallBuilder, ExecuteCallFuture};
-pub use self::deploy::{DeployedFuture, DeployBuilder, DeployFuture};
+pub use self::deploy::{DeployBuilder, DeployFuture, DeployedFuture};
 pub use self::send::SendBuilder;
 
 /// Represents a contract instance at an address. Provides methods for
@@ -46,11 +46,7 @@ impl<T: Transport> Instance<T> {
 
     /// Deploys a contract with the specified `web3` provider with the given
     /// `Artifact` byte code.
-    pub fn deploy<P>(
-        web3: Web3<T>,
-        artifact: Artifact,
-        params: P,
-    ) -> AbiResult<DeployBuilder<T>>
+    pub fn deploy<P>(web3: Web3<T>, artifact: Artifact, params: P) -> DeployBuilder<T>
     where
         P: Tokenize,
     {

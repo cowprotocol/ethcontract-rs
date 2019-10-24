@@ -1,9 +1,9 @@
 use futures::compat::Compat01As03;
 use futures::future::{self, Either, Ready};
 use std::future::Future;
+use std::ops::Deref;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::ops::Deref;
 use web3::api::Web3;
 use web3::confirm::SendTransactionWithConfirmation;
 use web3::contract::QueryResult;

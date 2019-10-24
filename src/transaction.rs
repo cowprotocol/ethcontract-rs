@@ -2,7 +2,7 @@
 //! transactions on the Ethereum network.
 
 use crate::errors::ExecutionError;
-use crate::future::{MaybeReady, CompatCallFuture, CompatSendTxWithConfirmation, Web3Unpin};
+use crate::future::{CompatCallFuture, CompatSendTxWithConfirmation, MaybeReady, Web3Unpin};
 use crate::sign::TransactionData;
 use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
@@ -13,7 +13,7 @@ use std::pin::Pin;
 use std::str;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use web3::api::{Web3};
+use web3::api::Web3;
 use web3::types::{
     Address, Bytes, CallRequest, RawTransaction, TransactionCondition, TransactionReceipt,
     TransactionRequest, H256, U256,

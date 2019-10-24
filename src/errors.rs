@@ -1,6 +1,8 @@
 //! Module with common error types.
 
-use ethsign::Error as EthsignError;
+pub use ethcontract_common::errors::LinkError;
+use ethabi::{Error as AbiError, ErrorKind as AbiErrorKind};
+use ethsign::Error as SignError;
 use std::num::ParseIntError;
 use thiserror::Error;
 use web3::contract::Error as Web3ContractError;
@@ -17,6 +19,20 @@ pub enum DeployError {
     /// by the current `web3` provider.
     #[error("could not find deployed contract for network {0}")]
     NotFound(String),
+
+    /// Error linking a contract with a deployed library.
+    #[error("could not link library {0}")]
+    Link(#[from] LinkError),
+
+    /// An error occured encoding deployment parameters with the contract ABI.
+    #[error("error ABI ecoding deployment parameters")]
+    Abi(#[from] AbiError),
+}
+
+impl From<AbiErrorKind> for DeployError {
+    fn from(err: AbiErrorKind) -> DeployError {
+        DeployError::Abi(err.into())
+    }
 }
 
 /// Error that can occur while executing a contract call or transaction.
@@ -36,5 +52,5 @@ pub enum ExecutionError {
 
     /// An error occured while signing a transaction offline.
     #[error("offline sign error: {0}")]
-    Sign(#[from] EthsignError),
+    Sign(#[from] SignError),
 }

@@ -1,10 +1,6 @@
 //! Implementation for sending a transaction to a contract.
 
-use crate::transaction::{
-    Account, BuildFuture, EstimateGasFuture, ExecuteConfirmFuture, ExecuteFuture,
-    TransactionBuilder,
-};
-use std::time::Duration;
+use crate::transaction::{Account, ExecuteFuture, TransactionBuilder};
 use web3::api::Web3;
 use web3::types::{Address, Bytes, U256};
 use web3::Transport;
@@ -12,6 +8,7 @@ use web3::Transport;
 /// Data used for building a contract transaction that modifies the blockchain.
 /// These transactions can either be sent to be signed locally by the node or can
 /// be signed offline.
+#[derive(Debug, Clone)]
 pub struct SendBuilder<T: Transport>(TransactionBuilder<T>);
 
 impl<T: Transport> SendBuilder<T> {
@@ -50,29 +47,15 @@ impl<T: Transport> SendBuilder<T> {
         SendBuilder(self.0.gas(value))
     }
 
-    /// Estimate the gas required for this transaction.
-    pub fn estimate_gas(self) -> EstimateGasFuture<T> {
-        self.0.estimate_gas()
-    }
-
-    /// Build a prepared transaction that is ready to send.
-    pub fn build(self) -> BuildFuture<T> {
-        self.0.build()
+    /// Extract inner `TransactionBuilder` from this `SendBuilder`. This exposes
+    /// `TransactionBuilder` only APIs such as `estimate_gas` and `build`.
+    pub fn into_inner(self) -> TransactionBuilder<T> {
+        self.0
     }
 
     /// Sign (if required) and execute the transaction. Returns the transaction
     /// hash that can be used to retrieve transaction information.
     pub fn execute(self) -> ExecuteFuture<T> {
         self.0.execute()
-    }
-
-    /// Execute a transaction and wait for confirmation. Returns the transaction
-    /// receipt for inspection.
-    pub fn execute_and_confirm(
-        self,
-        poll_interval: Duration,
-        confirmations: usize,
-    ) -> ExecuteConfirmFuture<T> {
-        self.0.execute_and_confirm(poll_interval, confirmations)
     }
 }

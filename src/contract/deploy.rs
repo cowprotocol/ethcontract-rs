@@ -1,20 +1,19 @@
 //! Implementation for creating instances for deployed contracts and deploying
 //! new contracts.
 
-use crate::errors::DeployError;
-use crate::transaction::TransactionBuilder;
-use crate::future::{CompatCallFuture, Web3Unpin};
 use crate::contract::Instance;
-use crate::truffle::{Abi, Artifact};
-use ethabi::{ErrorKind as AbiErrorKind, Result as AbiResult};
+use crate::errors::DeployError;
+use crate::future::{CompatCallFuture, Web3Unpin};
+use crate::transaction::{Account, TransactionBuilder};
+use crate::truffle::{Abi, Artifact, Bytecode};
+use ethabi::{ErrorKind as AbiErrorKind, Token};
 use futures::compat::Future01CompatExt;
-use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use web3::api::Web3;
-use web3::contract::tokens::{Tokenize};
-use web3::types::Address;
+use web3::contract::tokens::Tokenize;
+use web3::types::{Address, Bytes, U256};
 use web3::Transport;
 
 /// Future for creating a deployed contract instance.
@@ -74,23 +73,109 @@ impl<T: Transport> Future for DeployedFuture<T> {
 }
 
 /// Builder for specifying options for deploying a contract.
+#[derive(Debug, Clone)]
 pub struct DeployBuilder<T: Transport> {
+    /// The deployment code for the contract.
+    code: Bytecode,
     /// The ABI for the contract that is to be deployed.
     abi: Abi,
-    /// The deployment code for the contract.
-    code: String,
-    /// The linked libraries.
-    libs: HashMap<String, Address>,
+    /// The tokenized parameters.
+    params: Vec<Token>,
     /// The underlying transaction used t
     tx: TransactionBuilder<T>,
 }
 
 impl<T: Transport> DeployBuilder<T> {
-    pub(crate) fn new<P>(web3: Web3<T>, artifact: Artifact, params: P) -> AbiResult<DeployBuilder<T>>
+    pub(crate) fn new<P>(web3: Web3<T>, artifact: Artifact, params: P) -> DeployBuilder<T>
     where
         P: Tokenize,
     {
-        unimplemented!()
+        // NOTE(nlordell): unfortunately here we have to re-implement some
+        //   `rust-web3` code so that we can add things like signing support;
+        //   luckily most of complicated bits can be reused from the tx code
+
+        DeployBuilder {
+            code: artifact.bytecode,
+            abi: artifact.abi,
+            params: params.into_tokens(),
+            tx: TransactionBuilder::new(web3),
+        }
+    }
+
+    /// Specify a linked library used for this contract. Note that we
+    /// incrementally link so that we can verify each time a library is linked
+    /// whether it was successful or not.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an invalid library name is used (for example if it is more
+    /// than 38 characters long).
+    pub fn link<S>(mut self, name: S, address: Address) -> Result<DeployBuilder<T>, DeployError>
+    where
+        S: AsRef<str>,
+    {
+        self.code.link(name, address)?;
+        Ok(self)
+    }
+
+    /// Commit deploy options into inner transaction and return remaining parts.
+    fn commit(self) -> Result<(Abi, TransactionBuilder<T>), DeployError> {
+        let code = self.code.into_bytes()?;
+        let data = match (self.abi.constructor(), self.params.is_empty()) {
+            (None, false) => return Err(AbiErrorKind::InvalidData.into()),
+            (None, true) => code,
+            (Some(ctor), _) => Bytes(ctor.encode_input(code.0, &self.params)?),
+        };
+
+        Ok((self.abi, self.tx.data(data)))
+    }
+
+    /// Specify the signing method to use for the transaction, if not specified
+    /// the the transaction will be locally signed with the default user.
+    pub fn from(mut self, value: Account) -> DeployBuilder<T> {
+        self.tx = self.tx.from(value);
+        self
+    }
+
+    /// Secify amount of gas to use, if not specified then a gas estimate will
+    /// be used.
+    pub fn gas(mut self, value: U256) -> DeployBuilder<T> {
+        self.tx = self.tx.gas(value);
+        self
+    }
+
+    /// Specify the gas price to use, if not specified then the estimated gas
+    /// price will be used.
+    pub fn gas_price(mut self, value: U256) -> DeployBuilder<T> {
+        self.tx = self.tx.gas(value);
+        self
+    }
+
+    /// Specify what how much ETH to transfer with the transaction, if not
+    /// specified then no ETH will be sent.
+    pub fn value(mut self, value: U256) -> DeployBuilder<T> {
+        self.tx = self.tx.gas(value);
+        self
+    }
+
+    /// Specify the nonce for the transation, if not specified will use the
+    /// current transaction count for the signing account.
+    pub fn nonce(mut self, value: U256) -> DeployBuilder<T> {
+        self.tx = self.tx.gas(value);
+        self
+    }
+
+    /// Extract inner `TransactionBuilder` from this `DeployBuilder`. This exposes
+    /// `TransactionBuilder` only APIs such as `estimate_gas` and `build`.
+    pub fn into_inner(self) -> Result<TransactionBuilder<T>, DeployError> {
+        let (_, tx) = self.commit()?;
+        Ok(tx)
+    }
+
+    /// Sign (if required) and execute the transaction. Returns the transaction
+    /// hash that can be used to retrieve transaction information.
+    pub fn deploy(self) -> DeployFuture<T> {
+        DeployFuture::from_builder(self)
     }
 }
 
@@ -98,7 +183,16 @@ impl<T: Transport> DeployBuilder<T> {
 pub struct DeployFuture<T: Transport> {
     /// Deployed arguments: `web3` provider and artifact.
     args: Option<(Web3Unpin<T>, Artifact)>,
-
     /// Underlying future for retrieving the network ID.
     network_id: CompatCallFuture<T, String>,
+}
+
+impl<T: Transport> DeployFuture<T> {
+    /// Create an instance from a `DeployBuilder`.
+    pub fn from_builder(builder: DeployBuilder<T>) -> DeployFuture<T> {
+        let tx = builder.into_inner();
+
+        let _ = tx;
+        unimplemented!()
+    }
 }

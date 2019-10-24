@@ -34,18 +34,6 @@ pub mod example {
     //! illustrate what the generated API. This module should not be used and is
     //! should only be included when generating documentation.
 
-    use crate as ethcontract;
-
-    ethcontract::contract!("examples/WETH9.json");
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn example_loads_artifact() {
-            // just make sure this does not panic!
-            Weth9::artifact();
-        }
-    }
+    // use crate as ethcontract;
+    // ethcontract::contract!("examples/WETH9.json");
 }
