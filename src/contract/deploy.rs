@@ -179,6 +179,84 @@ impl<T: Transport> DeployBuilder<T> {
     }
 }
 
+/// Builder for specifying options for deploying a linked contract.
+#[derive(Debug, Clone)]
+pub struct LinkedDeployBuilder<T: Transport> {
+    /// The contract ABI.
+    abi: Abi,
+    /// The underlying transaction used t
+    tx: TransactionBuilder<T>,
+}
+
+impl<T: Transport> LinkedDeployBuilder<T> {
+    pub(crate) fn new<'a, P, I>(
+        web3: Web3<T>,
+        artifact: Artifact,
+        params: P,
+        libraries: I,
+    ) -> Result<LinkedDeployBuilder<T>, DeployError>
+    where
+        P: Tokenize,
+        I: Iterator<Item = (&'a str, Address)>,
+    {
+        let mut builder = DeployBuilder::new(web3, artifact, params);
+        for (name, address) in libraries {
+            builder = builder.link(name, address)?;
+        }
+
+        let (abi, tx) = builder.commit()?;
+
+        Ok(LinkedDeployBuilder { abi, tx })
+    }
+
+    /// Specify the signing method to use for the transaction, if not specified
+    /// the the transaction will be locally signed with the default user.
+    pub fn from(mut self, value: Account) -> LinkedDeployBuilder<T> {
+        self.tx = self.tx.from(value);
+        self
+    }
+
+    /// Secify amount of gas to use, if not specified then a gas estimate will
+    /// be used.
+    pub fn gas(mut self, value: U256) -> LinkedDeployBuilder<T> {
+        self.tx = self.tx.gas(value);
+        self
+    }
+
+    /// Specify the gas price to use, if not specified then the estimated gas
+    /// price will be used.
+    pub fn gas_price(mut self, value: U256) -> LinkedDeployBuilder<T> {
+        self.tx = self.tx.gas(value);
+        self
+    }
+
+    /// Specify what how much ETH to transfer with the transaction, if not
+    /// specified then no ETH will be sent.
+    pub fn value(mut self, value: U256) -> LinkedDeployBuilder<T> {
+        self.tx = self.tx.gas(value);
+        self
+    }
+
+    /// Specify the nonce for the transation, if not specified will use the
+    /// current transaction count for the signing account.
+    pub fn nonce(mut self, value: U256) -> LinkedDeployBuilder<T> {
+        self.tx = self.tx.gas(value);
+        self
+    }
+
+    /// Extract inner `TransactionBuilder` from this `LinkedDeployBuilder`. This
+    /// exposes `TransactionBuilder` only APIs.
+    pub fn into_inner(self) -> TransactionBuilder<T> {
+        self.tx
+    }
+
+    /// Sign (if required) and execute the transaction. Returns the transaction
+    /// hash that can be used to retrieve transaction information.
+    pub fn deploy(self) -> DeployFuture<T> {
+        DeployFuture::from_linked_builder(self)
+    }
+}
+
 /// Future for deploying a contract instance.
 pub struct DeployFuture<T: Transport> {
     /// Deployed arguments: `web3` provider and artifact.
@@ -190,6 +268,14 @@ pub struct DeployFuture<T: Transport> {
 impl<T: Transport> DeployFuture<T> {
     /// Create an instance from a `DeployBuilder`.
     pub fn from_builder(builder: DeployBuilder<T>) -> DeployFuture<T> {
+        let tx = builder.into_inner();
+
+        let _ = tx;
+        unimplemented!()
+    }
+
+    /// Create an instance from a `LinkedDeployBuilder`.
+    pub fn from_linked_builder(builder: LinkedDeployBuilder<T>) -> DeployFuture<T> {
         let tx = builder.into_inner();
 
         let _ = tx;

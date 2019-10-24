@@ -7,6 +7,7 @@ mod deploy;
 mod send;
 
 use crate::truffle::{Abi, Artifact};
+use crate::errors::DeployError;
 use ethabi::{Function, Result as AbiResult};
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
@@ -14,7 +15,7 @@ use web3::types::{Address, Bytes};
 use web3::Transport;
 
 pub use self::call::{CallBuilder, ExecuteCallFuture};
-pub use self::deploy::{DeployBuilder, DeployFuture, DeployedFuture};
+pub use self::deploy::{DeployBuilder, DeployFuture, DeployedFuture, LinkedDeployBuilder};
 pub use self::send::SendBuilder;
 
 /// Represents a contract instance at an address. Provides methods for
@@ -51,6 +52,21 @@ impl<T: Transport> Instance<T> {
         P: Tokenize,
     {
         DeployBuilder::new(web3, artifact, params)
+    }
+
+    /// Deploys a contract with the specified `web3` provider with the given
+    /// `Artifact` byte code and linking libraries.
+    pub fn deploy_linked<'a, P, I>(
+        web3: Web3<T>,
+        artifact: Artifact,
+        params: P,
+        libraries: I,
+    ) -> Result<LinkedDeployBuilder<T>, DeployError>
+    where
+        P: Tokenize,
+        I: Iterator<Item = (&'a str, Address)>,
+    {
+        LinkedDeployBuilder::new(web3, artifact, params, libraries)
     }
 
     /// Create a clone of the handle to our current `web3` provider.
