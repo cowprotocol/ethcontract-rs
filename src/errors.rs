@@ -7,6 +7,7 @@ use std::num::ParseIntError;
 use thiserror::Error;
 use web3::contract::Error as Web3ContractError;
 use web3::error::Error as Web3Error;
+use web3::types::H256;
 
 /// Error that can occur while locating a deployed contract.
 #[derive(Debug, Error)]
@@ -27,6 +28,14 @@ pub enum DeployError {
     /// An error occured encoding deployment parameters with the contract ABI.
     #[error("error ABI ecoding deployment parameters")]
     Abi(#[from] AbiError),
+
+    /// Error executing contract deployment transaction.
+    #[error("error executing contract deployment transaction")]
+    Tx(#[from] ExecutionError),
+
+    /// Transaction failure (e.g. out of gas).
+    #[error("contract deployment transaction failed")]
+    Failure(H256),
 }
 
 impl From<AbiErrorKind> for DeployError {

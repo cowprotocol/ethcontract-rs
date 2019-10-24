@@ -4,13 +4,15 @@
 use crate::contract::Instance;
 use crate::errors::DeployError;
 use crate::future::{CompatCallFuture, Web3Unpin};
-use crate::transaction::{Account, TransactionBuilder};
+use crate::transaction::{Account, ExecuteConfirmFuture, TransactionBuilder};
 use crate::truffle::{Abi, Artifact, Bytecode};
 use ethabi::{ErrorKind as AbiErrorKind, Token};
 use futures::compat::Future01CompatExt;
+use futures::ready;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::time::Duration;
 use web3::api::Web3;
 use web3::contract::tokens::Tokenize;
 use web3::types::{Address, Bytes, U256};
@@ -72,13 +74,26 @@ impl<T: Transport> Future for DeployedFuture<T> {
     }
 }
 
+/// Deployment arguments to use.
+#[derive(Debug, Clone)]
+pub struct DeployArgs<T: Transport> {
+    /// The underlying `web3` provider.
+    web3: Web3Unpin<T>,
+    /// The ABI for the contract that is to be deployed.
+    abi: Abi,
+    /// The poll interval for confirming the contract deployed.
+    pub poll_interval: Option<Duration>,
+    /// The number of confirmations to wait for.
+    pub confirmations: Option<usize>,
+}
+
 /// Builder for specifying options for deploying a contract.
 #[derive(Debug, Clone)]
 pub struct DeployBuilder<T: Transport> {
+    /// The deployment arguments.
+    pub args: DeployArgs<T>,
     /// The deployment code for the contract.
     code: Bytecode,
-    /// The ABI for the contract that is to be deployed.
-    abi: Abi,
     /// The tokenized parameters.
     params: Vec<Token>,
     /// The underlying transaction used t
@@ -95,8 +110,13 @@ impl<T: Transport> DeployBuilder<T> {
         //   luckily most of complicated bits can be reused from the tx code
 
         DeployBuilder {
+            args: DeployArgs {
+                web3: web3.clone().into(),
+                abi: artifact.abi,
+                poll_interval: None,
+                confirmations: None,
+            },
             code: artifact.bytecode,
-            abi: artifact.abi,
             params: params.into_tokens(),
             tx: TransactionBuilder::new(web3),
         }
@@ -118,16 +138,17 @@ impl<T: Transport> DeployBuilder<T> {
         Ok(self)
     }
 
-    /// Commit deploy options into inner transaction and return remaining parts.
-    fn commit(self) -> Result<(Abi, TransactionBuilder<T>), DeployError> {
+    /// Commit deploy options into inner transaction so that it can be safely
+    /// moved out. This is an internal function.
+    fn commit(self) -> Result<(DeployArgs<T>, TransactionBuilder<T>), DeployError> {
         let code = self.code.into_bytes()?;
-        let data = match (self.abi.constructor(), self.params.is_empty()) {
+        let data = match (self.args.abi.constructor(), self.params.is_empty()) {
             (None, false) => return Err(AbiErrorKind::InvalidData.into()),
             (None, true) => code,
             (Some(ctor), _) => Bytes(ctor.encode_input(code.0, &self.params)?),
         };
 
-        Ok((self.abi, self.tx.data(data)))
+        Ok((self.args, self.tx.data(data)))
     }
 
     /// Specify the signing method to use for the transaction, if not specified
@@ -182,8 +203,8 @@ impl<T: Transport> DeployBuilder<T> {
 /// Builder for specifying options for deploying a linked contract.
 #[derive(Debug, Clone)]
 pub struct LinkedDeployBuilder<T: Transport> {
-    /// The contract ABI.
-    abi: Abi,
+    /// The deployment arguments.
+    pub args: DeployArgs<T>,
     /// The underlying transaction used t
     tx: TransactionBuilder<T>,
 }
@@ -204,9 +225,12 @@ impl<T: Transport> LinkedDeployBuilder<T> {
             builder = builder.link(name, address)?;
         }
 
-        let (abi, tx) = builder.commit()?;
+        LinkedDeployBuilder::from_builder(builder)
+    }
 
-        Ok(LinkedDeployBuilder { abi, tx })
+    fn from_builder(builder: DeployBuilder<T>) -> Result<LinkedDeployBuilder<T>, DeployError> {
+        let (args, tx) = builder.commit()?;
+        Ok(LinkedDeployBuilder { args, tx })
     }
 
     /// Specify the signing method to use for the transaction, if not specified
@@ -259,26 +283,62 @@ impl<T: Transport> LinkedDeployBuilder<T> {
 
 /// Future for deploying a contract instance.
 pub struct DeployFuture<T: Transport> {
-    /// Deployed arguments: `web3` provider and artifact.
-    args: Option<(Web3Unpin<T>, Artifact)>,
-    /// Underlying future for retrieving the network ID.
-    network_id: CompatCallFuture<T, String>,
+    /// The deployment args
+    args: Option<DeployArgs<T>>,
+    /// The future resolved when the deploy transaction is complete.
+    tx: Result<ExecuteConfirmFuture<T>, Option<DeployError>>,
 }
 
 impl<T: Transport> DeployFuture<T> {
     /// Create an instance from a `DeployBuilder`.
     pub fn from_builder(builder: DeployBuilder<T>) -> DeployFuture<T> {
-        let tx = builder.into_inner();
-
-        let _ = tx;
-        unimplemented!()
+        match LinkedDeployBuilder::from_builder(builder) {
+            Ok(linked_builder) => DeployFuture::from_linked_builder(linked_builder),
+            Err(err) => DeployFuture {
+                args: None,
+                tx: Err(Some(err)),
+            },
+        }
     }
 
     /// Create an instance from a `LinkedDeployBuilder`.
     pub fn from_linked_builder(builder: LinkedDeployBuilder<T>) -> DeployFuture<T> {
-        let tx = builder.into_inner();
+        let LinkedDeployBuilder { args, tx } = builder;
 
-        let _ = tx;
-        unimplemented!()
+        // NOTE(nlordell): arbitrary default values taken from `rust-web3`
+        let poll_interval = args.poll_interval.clone().unwrap_or(Duration::from_secs(7));
+        let confirmations = args.confirmations.clone().unwrap_or(1);
+
+        DeployFuture {
+            args: Some(args),
+            tx: Ok(tx.execute_and_confirm(poll_interval, confirmations)),
+        }
+    }
+}
+
+impl<T: Transport> Future for DeployFuture<T> {
+    type Output = Result<Instance<T>, DeployError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let unpinned = self.get_mut();
+        match unpinned.tx {
+            Ok(ref mut tx) => {
+                let tx = ready!(Pin::new(tx).poll(cx).map_err(DeployError::from));
+                let tx = match tx {
+                    Ok(tx) => tx,
+                    Err(err) => return Poll::Ready(Err(err.into())),
+                };
+                let address = match tx.contract_address {
+                    Some(address) => address,
+                    None => return Poll::Ready(Err(DeployError::Failure(tx.transaction_hash))),
+                };
+
+                let args = unpinned.args.take().expect("called once");
+                let web3 = args.web3.into();
+
+                Poll::Ready(Ok(Instance::at(web3, args.abi, address)))
+            }
+            Err(ref mut err) => Poll::Ready(Err(err.take().expect("called once"))),
+        }
     }
 }

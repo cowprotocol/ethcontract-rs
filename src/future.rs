@@ -40,6 +40,7 @@ impl<F: Future + Unpin> Future for MaybeReady<F> {
 }
 
 /// Helper type for wrapping `Web3` as `Unpin`.
+#[derive(Clone, Debug)]
 pub struct Web3Unpin<T: Transport>(Web3<T>);
 
 impl<T: Transport> Into<Web3<T>> for Web3Unpin<T> {
