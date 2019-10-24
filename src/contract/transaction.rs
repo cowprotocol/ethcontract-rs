@@ -57,7 +57,6 @@ pub enum Account {
 pub enum Transaction {
     /// A structured transaction request to be signed locally by the node.
     Request(TransactionRequest),
-
     /// A signed raw transaction request.
     Raw(Bytes),
 }
@@ -213,7 +212,6 @@ enum BuildState<T: Transport> {
     DefaultAccount {
         /// The transaction request being built.
         request: Option<TransactionRequest>,
-
         /// The inner future for retrieving the list of accounts on the node.
         inner: CompatCallFuture<T, Vec<Address>>,
     },
@@ -226,6 +224,7 @@ enum BuildState<T: Transport> {
 
     /// Waiting for the node to sign with a locked account.
     Locked {
+        /// Future waiting for the node to sign the request with a locked account.
         sign: CompatCallFuture<T, RawTransaction>,
     },
 
@@ -234,16 +233,12 @@ enum BuildState<T: Transport> {
     Offline {
         /// The private key to use for signing.
         key: SecretKey,
-
         /// The contract address.
         address: Address,
-
         /// The ETH value to be sent with the transaction.
         value: U256,
-
         /// The ABI encoded call parameters,
         data: Bytes,
-
         /// Future for retrieving gas, gas price, nonce and chain ID when they
         /// where not specified.
         params: TryJoin4<
@@ -489,7 +484,6 @@ where
 {
     /// Waiting for the transaction to be prepared to be sent.
     Build(BuildFuture<T>, Option<D>),
-
     /// Sending the request and waiting for the future to resolve.
     Send(F),
 }

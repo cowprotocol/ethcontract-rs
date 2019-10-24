@@ -7,17 +7,18 @@ use crate::contract::util::{CompatCallFuture, Web3Unpin};
 use crate::contract::Instance;
 use crate::truffle::{Abi, Artifact};
 use futures::compat::Future01CompatExt;
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use web3::api::Web3;
+use web3::types::Address;
 use web3::Transport;
 
 /// Future for creating a deployed contract instance.
 pub struct DeployedFuture<T: Transport> {
     /// Deployed arguments: `web3` provider and artifact.
     args: Option<(Web3Unpin<T>, Artifact)>,
-
     /// Underlying future for retrieving the network ID.
     network_id: CompatCallFuture<T, String>,
 }
@@ -74,7 +75,10 @@ impl<T: Transport> Future for DeployedFuture<T> {
 pub struct DeployBuilder<T: Transport> {
     /// The ABI for the contract that is to be deployed.
     abi: Abi,
-
+    /// The deployment code for the contract.
+    code: String,
+    /// The linked libraries.
+    libs: HashMap<String, Address>,
     /// The underlying transaction used t
     tx: TransactionBuilder<T>,
 }
