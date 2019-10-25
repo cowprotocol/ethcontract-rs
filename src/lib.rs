@@ -35,7 +35,6 @@ pub mod example {
     //! should only be included when generating documentation.
 
     use crate as ethcontract;
-    ethcontract::contract!("examples/WETH9.json");
     ethcontract::contract!("contracts/build/contracts/DocumentedContract.json");
     ethcontract::contract!("contracts/build/contracts/LinkedContract.json");
 }
