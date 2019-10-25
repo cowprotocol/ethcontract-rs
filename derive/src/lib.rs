@@ -105,10 +105,6 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
                 Self{ instance }
             }
 
-            #deployed
-
-            #deploy
-
             /// Retrieve the undelying instance being used by this contract.
             pub fn instance(&self) -> &ethcontract::DynInstance {
                 &self.instance
@@ -118,6 +114,10 @@ fn expand_contract(input: LitStr) -> Result<TokenStream> {
             pub fn address(&self) -> ethcontract::web3::types::Address {
                 self.instance.address()
             }
+
+            #deployed
+
+            #deploy
 
             #( #functions )*
         }
@@ -204,22 +204,22 @@ fn expand_deploy(artifact: &Artifact) -> Result<TokenStream> {
         .collect();
     let lib_input = expand_inputs(&libraries)?;
 
-    let deploy = if libraries.is_empty() {
-        quote! {
-            DeployBuilder::new(web3, artifact, #arg)
-        }
-    } else {
-        let link = libraries.iter().map(|lib| {
+    let link = if libraries.is_empty() {
+        let link_libraries = libraries.iter().map(|lib| {
             let name = Literal::string(&lib.name);
             let address = ident!(&lib.name);
 
-            quote! { .library(#name, #address) }
+            quote! {
+                artifact.bytecode.link(#name, #address).expect("valid library");
+            }
         });
+
         quote! {
-            Linker::new(artifact)
-                #( #link )*
-                .deploy(web3, #arg)
+            let mut artifact = artifact;
+            #( #link_libraries )*
         }
+    } else {
+        quote! {}
     };
 
     Ok(quote! {
@@ -231,13 +231,14 @@ fn expand_deploy(artifact: &Artifact) -> Result<TokenStream> {
             F: ethcontract::web3::futures::Future<Item = ethcontract::json::Value, Error = ethcontract::web3::Error> + Send + 'static,
             T: ethcontract::web3::Transport<Out = F> + 'static,
         {
-            use ethcontract::contract::{DeployBuilder, Linker};
+            use ethcontract::contract::DeployBuilder;
             use ethcontract::transport::DynTransport;
             use ethcontract::truffle::Artifact;
             use ethcontract::web3::api::Web3;
 
             let transport = DynTransport::new(web3.transport().clone());
             let web3 = Web3::new(transport);
+
             let artifact = { // only clone the pieces we need
                 let artifact = Self::artifact();
                 Artifact {
@@ -246,8 +247,9 @@ fn expand_deploy(artifact: &Artifact) -> Result<TokenStream> {
                     ..Artifact::empty()
                 }
             };
+            #link
 
-            #deploy .expect("valid deployment args")
+            DeployBuilder::new(web3, artifact, #arg).expect("valid deployment args")
         }
     })
 }

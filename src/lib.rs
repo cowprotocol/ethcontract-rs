@@ -36,4 +36,6 @@ pub mod example {
 
     use crate as ethcontract;
     ethcontract::contract!("examples/WETH9.json");
+    ethcontract::contract!("contracts/build/contracts/DocumentedContract.json");
+    ethcontract::contract!("contracts/build/contracts/LinkedContract.json");
 }

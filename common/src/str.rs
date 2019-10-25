@@ -4,39 +4,36 @@ use web3::types::Address;
 
 /// Extension trait for in place `String` replacement.
 pub trait StringReplaceExt {
-    /// Replace all matches of a pattern string with another.
+    /// Replace a single match of a pattern string with another.
     ///
     /// # Returns
     ///
-    /// The number of times the pattern string was found and replaced.
+    /// True if a match was found and replaced
     ///
     /// # Panics
     ///
     /// Panics if the replacement string size does not match the search pattern.
-    fn replace_in_place(&mut self, from: &str, to: &str) -> usize;
+    fn replace_once_in_place(&mut self, from: &str, to: &str) -> bool;
 }
 
 impl StringReplaceExt for String {
-    fn replace_in_place(&mut self, from: &str, to: &str) -> usize {
+    fn replace_once_in_place(&mut self, from: &str, to: &str) -> bool {
         let len = from.len();
         if to.len() != len {
             panic!("mismatch length of from and to string");
         }
 
-        let mut count = 0;
-        let mut last_end = 0;
-        while let Some(pos) = self[last_end..].find(from) {
-            let start = last_end + pos;
+        if let Some(start) = self.find(from) {
             let end = start + len;
 
+            // NOTE(nlordell): safe since the to string is valid utf-8
             let section = unsafe { self[start..end].as_bytes_mut() };
             section.copy_from_slice(to.as_bytes());
 
-            count += 1;
-            last_end = end;
+            true
+        } else {
+            false
         }
-
-        count
     }
 }
 
@@ -58,13 +55,13 @@ mod tests {
 
     #[test]
     fn replace_in_place() {
-        for (value, count, expected) in &[
-            ("abcdefg", 0usize, "abcdefg"),
-            ("abfoocdefg", 1, "abbarcdefg"),
-            ("abfoocdfooefgfoo", 3, "abbarcdbarefgbar"),
+        for (value, matched, expected) in &[
+            ("abcdefg", false, "abcdefg"),
+            ("abfoocdefg", true, "abbarcdefg"),
+            ("abfoocdfooefgfoo", true, "abbarcdfooefgfoo"),
         ] {
             let mut value = value.to_string();
-            assert_eq!(value.replace_in_place("foo", "bar"), *count);
+            assert_eq!(value.replace_once_in_place("foo", "bar"), *matched);
             assert_eq!(&value, expected);
         }
     }

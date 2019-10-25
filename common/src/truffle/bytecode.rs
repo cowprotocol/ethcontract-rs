@@ -71,8 +71,8 @@ impl Bytecode {
         //   `LinkedContract` contract for and example of how it looks like
         let placeholder = format!("__{:_<38}", name);
         let address = address.to_fixed_hex();
-        let count = self.0.replace_in_place(&placeholder, &address);
-        if count == 0 {
+        let matched = self.0.replace_once_in_place(&placeholder, &address);
+        if !matched {
             return Err(LinkError::NotFound(name.to_string()));
         }
 

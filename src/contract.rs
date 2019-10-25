@@ -170,7 +170,7 @@ impl Linker {
         self.bytecode.link(name, address)?;
         Ok(self)
     }
-
+    
     /// Finish linking and check if there are any outstanding unlinked libraries
     /// and create a deployment builder.
     pub fn deploy<T, P>(
