@@ -194,6 +194,7 @@ fn expand_deploy(artifact: &Artifact) -> Result<TokenStream> {
         None => (quote! {}, quote! {()}),
     };
 
+    // TODO(nlordell): we don't handle duplicate library names
     let libraries: Vec<_> = artifact
         .bytecode
         .undefined_libraries()

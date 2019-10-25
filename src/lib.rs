@@ -28,13 +28,20 @@ pub mod foreign {
     pub use lazy_static::lazy_static;
 }
 
+#[cfg(test)]
+#[allow(missing_docs)]
+mod test {
+    pub mod prelude;
+    pub mod transport;
+}
+
 #[allow(missing_docs)]
 pub mod example {
     //! An example of a derived contract for documentation purposes in roder to
     //! illustrate what the generated API. This module should not be used and is
     //! should only be included when generating documentation.
 
-    use crate as ethcontract;
-    ethcontract::contract!("contracts/build/contracts/DocumentedContract.json");
-    ethcontract::contract!("contracts/build/contracts/LinkedContract.json");
+    // use crate as ethcontract;
+    // ethcontract::contract!("contracts/build/contracts/DocumentedContract.json");
+    // ethcontract::contract!("contracts/build/contracts/LinkedContract.json");
 }

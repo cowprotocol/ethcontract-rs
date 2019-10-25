@@ -553,3 +553,63 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test::prelude::*;
+
+    #[test]
+    fn tx_builder_setters() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport);
+
+        let tx = TransactionBuilder::new(web3)
+            .from(Account::Local(Address::zero(), None))
+            .to("0123456789012345678901234567890123456789"
+                .parse()
+                .expect("valid address"))
+            .gas(1.into())
+            .gas_price(2.into())
+            .value(28.into())
+            .data(Bytes(vec![4, 2]))
+            .nonce(42.into());
+
+        assert!(tx.from.is_some());
+        assert!(tx.to != Address::zero());
+        assert_eq!(tx.gas, Some(1.into()));
+        assert_eq!(tx.gas_price, Some(2.into()));
+        assert_eq!(tx.value, Some(28.into()));
+        assert_eq!(tx.data, Some(Bytes(vec![4, 2])));
+        assert_eq!(tx.nonce, Some(42.into()));
+    }
+
+    #[test]
+    fn tx_builder_estimate_gas() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        transport.add_response(json!("0x42")); // estimate gas response
+        let estimate_gas = TransactionBuilder::new(web3)
+            .to("0123456789012345678901234567890123456789"
+                .parse()
+                .expect("valid address"))
+            .value(42.into())
+            .estimate_gas();
+
+        transport.assert_request(
+            "eth_estimateGas",
+            &[
+                json!({
+                    "to": "0x0123456789012345678901234567890123456789",
+                    "value": "0x2a",
+                }),
+                json!("latest"), // block number
+            ],
+        );
+        transport.assert_no_more_requests();
+
+        let estimate_gas = estimate_gas.wait().expect("success");
+        assert_eq!(estimate_gas, 0x42.into());
+    }
+}

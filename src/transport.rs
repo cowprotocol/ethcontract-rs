@@ -96,3 +96,35 @@ impl Transport for DynTransport {
         self.inner.execute_boxed(method, params)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test::prelude::*;
+
+    #[test]
+    fn dyn_transport() {
+        let mut transport = TestTransport::new();
+        let dyn_transport = DynTransport::new(transport.clone());
+
+        // assert that the underlying transport prepares the request.
+        let (id, call) = dyn_transport.prepare("test", vec![json!(28)]);
+        transport.assert_request("test", &[json!(28)]);
+        transport.assert_no_more_requests();
+
+        // assert that the underlying transport returns the response.
+        transport.add_response(json!(true));
+        let response = dyn_transport.send(id, call).wait().expect("success");
+        assert_eq!(response, json!(true));
+
+        // assert that the transport layer gets propagated - it errors here since
+        // we did not provide the test transport with a response
+        dyn_transport
+            .execute("test", vec![json!(42)])
+            .wait()
+            .err()
+            .expect("failed");
+        transport.assert_request("test", &[json!(42)]);
+        transport.assert_no_more_requests();
+    }
+}
