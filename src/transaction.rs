@@ -58,11 +58,32 @@ pub enum Account {
 
 /// Represents a prepared and optionally signed transaction that is ready for
 /// sending created by a `TransactionBuilder`.
+#[derive(Clone, Debug, PartialEq)]
 pub enum Transaction {
     /// A structured transaction request to be signed locally by the node.
     Request(TransactionRequest),
     /// A signed raw transaction request.
     Raw(Bytes),
+}
+
+impl Transaction {
+    /// Unwraps the transaction into a transaction request, returning None if the
+    /// transaction is a raw transaction.
+    pub fn request(self) -> Option<TransactionRequest> {
+        match self {
+            Transaction::Request(tx) => Some(tx),
+            _ => None,
+        }
+    }
+
+    /// Unwraps the transaction into its raw bytes, returning None if it is a
+    /// transaction request.
+    pub fn raw(self) -> Option<Bytes> {
+        match self {
+            Transaction::Raw(tx) => Some(tx),
+            _ => None,
+        }
+    }
 }
 
 impl<T: Transport> TransactionBuilder<T> {
@@ -560,40 +581,15 @@ mod tests {
     use crate::test::prelude::*;
 
     #[test]
-    fn tx_builder_setters() {
-        let transport = TestTransport::new();
-        let web3 = Web3::new(transport);
-
-        let tx = TransactionBuilder::new(web3)
-            .from(Account::Local(Address::zero(), None))
-            .to("0123456789012345678901234567890123456789"
-                .parse()
-                .expect("valid address"))
-            .gas(1.into())
-            .gas_price(2.into())
-            .value(28.into())
-            .data(Bytes(vec![4, 2]))
-            .nonce(42.into());
-
-        assert!(tx.from.is_some());
-        assert!(tx.to != Address::zero());
-        assert_eq!(tx.gas, Some(1.into()));
-        assert_eq!(tx.gas_price, Some(2.into()));
-        assert_eq!(tx.value, Some(28.into()));
-        assert_eq!(tx.data, Some(Bytes(vec![4, 2])));
-        assert_eq!(tx.nonce, Some(42.into()));
-    }
-
-    #[test]
     fn tx_builder_estimate_gas() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
+        let to = addr!("0x0123456789012345678901234567890123456789");
+
         transport.add_response(json!("0x42")); // estimate gas response
         let estimate_gas = TransactionBuilder::new(web3)
-            .to("0123456789012345678901234567890123456789"
-                .parse()
-                .expect("valid address"))
+            .to(to)
             .value(42.into())
             .estimate_gas();
 
@@ -601,7 +597,7 @@ mod tests {
             "eth_estimateGas",
             &[
                 json!({
-                    "to": "0x0123456789012345678901234567890123456789",
+                    "to": to,
                     "value": "0x2a",
                 }),
                 json!("latest"), // block number
@@ -611,5 +607,183 @@ mod tests {
 
         let estimate_gas = estimate_gas.wait().expect("success");
         assert_eq!(estimate_gas, 0x42.into());
+    }
+
+    #[test]
+    fn tx_execute_local() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0x9876543210987654321098765432109876543210");
+        let to = addr!("0x0123456789012345678901234567890123456789");
+        let hash = hash!("0x4242424242424242424242424242424242424242424242424242424242424242");
+
+        transport.add_response(json!(hash)); // tansaction hash
+        let tx = TransactionBuilder::new(web3)
+            .from(Account::Local(from, Some(TransactionCondition::Block(100))))
+            .to(to)
+            .gas(1.into())
+            .gas_price(2.into())
+            .value(28.into())
+            .data(Bytes(vec![0x13, 0x37]))
+            .nonce(42.into())
+            .execute()
+            .wait()
+            .expect("transaction success");
+
+        // assert that all the parameters are being used and that no extra
+        // request was being sent (since no extra data from the node is needed)
+        transport.assert_request(
+            "eth_sendTransaction",
+            &[json!({
+                "from": from,
+                "to": to,
+                "gas": "0x1",
+                "gasPrice": "0x2",
+                "value": "0x1c",
+                "data": "0x1337",
+                "nonce": "0x2a",
+                "condition": { "block": 100 },
+            })],
+        );
+        transport.assert_no_more_requests();
+
+        // assert the tx hash is what we expect it to be
+        assert_eq!(tx, hash);
+    }
+
+    #[test]
+    fn tx_build_default_account() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let accounts = [
+            addr!("0x9876543210987654321098765432109876543210"),
+            addr!("0x1111111111111111111111111111111111111111"),
+            addr!("0x2222222222222222222222222222222222222222"),
+        ];
+
+        transport.add_response(json!(accounts)); // get accounts
+        let tx = TransactionBuilder::new(web3)
+            .build()
+            .wait()
+            .expect("get accounts success")
+            .request()
+            .expect("transaction request");
+
+        transport.assert_request("eth_accounts", &[]);
+        transport.assert_no_more_requests();
+
+        // assert that if no from is specified that it uses the first account
+        assert_eq!(tx.from, accounts[0]);
+    }
+
+    #[test]
+    fn tx_build_locked() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0x9876543210987654321098765432109876543210");
+        let pw = "foobar";
+        let to = addr!("0x0000000000000000000000000000000000000000");
+        let signed = bytes!("0x0123456789"); // doesn't have to be valid, we don't check
+
+        transport.add_response(json!({
+            "raw": signed,
+            "tx": {
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "nonce": "0x0",
+                "from": from,
+                "value": "0x0",
+                "gas": "0x0",
+                "gasPrice": "0x0",
+                "input": "0x",
+            }
+        })); // sign transaction
+        let tx = TransactionBuilder::new(web3)
+            .from(Account::Locked(from, pw.into(), None))
+            .to(to)
+            .build()
+            .wait()
+            .expect("sign succeeded")
+            .raw()
+            .expect("raw transaction");
+
+        transport.assert_request(
+            "personal_signTransaction",
+            &[
+                json!({
+                    "from": from,
+                    "to": to,
+                }),
+                json!(pw),
+            ],
+        );
+        transport.assert_no_more_requests();
+
+        assert_eq!(tx, signed);
+    }
+
+    #[test]
+    fn tx_build_offline() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
+        let from: Address = key.public().address().into();
+        let to = addr!("0x0000000000000000000000000000000000000000");
+
+        let gas = uint!("0x9a5");
+        let gas_price = uint!("0x1ce");
+        let nonce = uint!("0x42");
+        let chain_id = 77777;
+
+        transport.add_response(json!(gas));
+        transport.add_response(json!(gas_price));
+        transport.add_response(json!(nonce));
+        transport.add_response(json!(format!("{}", chain_id))); // chain id
+
+        let tx1 = TransactionBuilder::new(web3.clone())
+            .from(Account::Offline(key.clone(), None))
+            .to(to)
+            .build()
+            .wait()
+            .expect("sign succeeded")
+            .raw()
+            .expect("raw transaction");
+
+        // assert that we ask the node for all the missing values
+        transport.assert_request(
+            "eth_estimateGas",
+            &[
+                json!({
+                    "from": from,
+                    "to": to,
+                }),
+                json!("latest"),
+            ],
+        );
+        transport.assert_request("eth_gasPrice", &[]);
+        transport.assert_request("eth_getTransactionCount", &[json!(from), json!("latest")]);
+        transport.assert_request("net_version", &[]);
+        transport.assert_no_more_requests();
+
+        let tx2 = TransactionBuilder::new(web3)
+            .from(Account::Offline(key, Some(chain_id)))
+            .to(to)
+            .gas(gas)
+            .gas_price(gas_price)
+            .nonce(nonce)
+            .build()
+            .wait()
+            .expect("sign succeeded")
+            .raw()
+            .expect("raw transaction");
+
+        // assert that if we provide all the values then we can sign right away
+        transport.assert_no_more_requests();
+
+        // check that if we sign with same values we get same results
+        assert_eq!(tx1, tx2);
     }
 }
