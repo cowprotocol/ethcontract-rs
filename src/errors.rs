@@ -1,7 +1,7 @@
 //! Module with common error types.
 
-pub use ethcontract_common::errors::LinkError;
 use ethabi::{Error as AbiError, ErrorKind as AbiErrorKind};
+pub use ethcontract_common::errors::LinkError;
 use ethsign::Error as SignError;
 use std::num::ParseIntError;
 use thiserror::Error;
