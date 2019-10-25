@@ -78,6 +78,8 @@ pub struct Network {
 /// A contract's documentation.
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Documentation {
+    /// Contract documentation
+    pub details: Option<String>,
     /// Contract method documentation.
     pub methods: HashMap<String, String>,
 }

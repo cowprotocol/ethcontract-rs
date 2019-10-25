@@ -1,8 +1,9 @@
 use crate::errors::{BytecodeError, LinkError};
 use crate::str::{AddressHexExt, StringReplaceExt};
 use hex;
-use serde::de::Error as _;
+use serde::de::{Error as DeError, Visitor};
 use serde::{Deserialize, Deserializer};
+use std::fmt::{Formatter, Result as FmtResult};
 use std::mem;
 use web3::types::{Address, Bytes};
 
@@ -90,6 +91,11 @@ impl Bytecode {
     pub fn undefined_libraries<'a>(&'a self) -> LibIter<'a> {
         LibIter(&self.0)
     }
+
+    /// Returns true if bytecode requires linking.
+    pub fn requires_linking(&self) -> bool {
+        self.undefined_libraries().next().is_some()
+    }
 }
 
 /// internal type for iterating though a bytecode's string code blocks skipping
@@ -143,9 +149,32 @@ impl<'de> Deserialize<'de> for Bytecode {
     where
         D: Deserializer<'de>,
     {
-        let s: &str = Deserialize::deserialize(deserializer)?;
-        let code = Bytecode::from_str(s).map_err(D::Error::custom)?;
+        deserializer.deserialize_str(BytecodeVisitor)
+    }
+}
 
-        Ok(code)
+/// A serde visitor for deserializing bytecode.
+struct BytecodeVisitor;
+
+impl<'de> Visitor<'de> for BytecodeVisitor {
+    type Value = Bytecode;
+
+    fn expecting(&self, f: &mut Formatter) -> FmtResult {
+        write!(f, "valid EVM bytecode string representation")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: DeError,
+    {
+        Bytecode::from_str(v).map_err(E::custom)
+    }
+
+    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+    where
+        E: DeError,
+    {
+        // TODO(nlordell): try to reuse this allocation
+        self.visit_str(&v)
     }
 }

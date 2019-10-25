@@ -1,6 +1,7 @@
 use futures::compat::Compat01As03;
 use futures::future::{self, Either, Ready};
 use std::future::Future;
+use std::marker::PhantomData;
 use std::ops::Deref;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -63,8 +64,8 @@ impl<T: Transport> Deref for Web3Unpin<T> {
     }
 }
 
-// It is safe to mark this type as `Unpin` since `Web3<T>` *should be* `Unpin`
-// even if T is not.
+// NOTE(nlordell): It is safe to mark this type as `Unpin` since `Web3<T>`
+//   *should be* `Unpin` even if T is not.
 // TODO(nlordell): verify this is safe
 impl<T: Transport> Unpin for Web3Unpin<T> {}
 
@@ -76,3 +77,17 @@ pub type CompatQueryResult<T, R> = Compat01As03<QueryResult<R, <T as Transport>:
 
 /// Type alias for Compat01As03<SendTransactionWithConfirmation<...>>.
 pub type CompatSendTxWithConfirmation<T> = Compat01As03<SendTransactionWithConfirmation<T>>;
+
+/// A helper type for PhantomData that also implements Unpin.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct PhantomDataUnpin<T: ?Sized>(PhantomData<T>);
+
+impl<T: ?Sized> Default for PhantomDataUnpin<T> {
+    fn default() -> Self {
+        PhantomDataUnpin(PhantomData)
+    }
+}
+
+// NOTE(nlordell): for some reason PhantomData is not always Unpin even if it is
+//   completely empty so should always be safe to move
+impl<T: ?Sized> Unpin for PhantomDataUnpin<T> {}

@@ -6,11 +6,11 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum ArtifactError {
     /// An IO error occurred when loading a truffle artifact from disk.
-    #[error("failed to open contract artifact file")]
+    #[error("failed to open contract artifact file: {0}")]
     Io(#[from] IoError),
 
     /// A JSON error occurred while parsing a truffle artifact.
-    #[error("failed to parse contract artifact JSON")]
+    #[error("failed to parse contract artifact JSON: {0}")]
     Json(#[from] JsonError),
 }
 

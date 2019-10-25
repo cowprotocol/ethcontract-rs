@@ -34,6 +34,6 @@ pub mod example {
     //! illustrate what the generated API. This module should not be used and is
     //! should only be included when generating documentation.
 
-    // use crate as ethcontract;
-    // ethcontract::contract!("examples/WETH9.json");
+    use crate as ethcontract;
+    ethcontract::contract!("examples/WETH9.json");
 }

@@ -15,7 +15,7 @@ use web3::types::{Address, Bytes};
 use web3::Transport;
 
 pub use self::call::{CallBuilder, ExecuteCallFuture};
-pub use self::deploy::{DeployBuilder, DeployFuture, DeployedFuture};
+pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture};
 pub use self::send::SendBuilder;
 
 /// Represents a contract instance at an address. Provides methods for
@@ -41,7 +41,7 @@ impl<T: Transport> Instance<T> {
     ///
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
-    pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T> {
+    pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, Instance<T>> {
         DeployedFuture::from_args(web3, artifact)
     }
 
@@ -51,7 +51,7 @@ impl<T: Transport> Instance<T> {
         web3: Web3<T>,
         artifact: Artifact,
         params: P,
-    ) -> Result<DeployBuilder<T>, DeployError>
+    ) -> Result<DeployBuilder<T, Instance<T>>, DeployError>
     where
         P: Tokenize,
     {
@@ -65,7 +65,7 @@ impl<T: Transport> Instance<T> {
         artifact: Artifact,
         params: P,
         libraries: I,
-    ) -> Result<DeployBuilder<T>, DeployError>
+    ) -> Result<DeployBuilder<T, Instance<T>>, DeployError>
     where
         P: Tokenize,
         I: Iterator<Item = (&'a str, Address)>,
@@ -78,9 +78,14 @@ impl<T: Transport> Instance<T> {
         linker.deploy(web3, params)
     }
 
-    /// Create a clone of the handle to our current `web3` provider.
-    fn web3(&self) -> Web3<T> {
+    /// Retrieve the underlying web3 provider used by this contract instance.
+    pub fn web3(&self) -> Web3<T> {
         self.web3.clone()
+    }
+
+    /// Retrieves the contract ABI for this instance.
+    pub fn abi(&self) -> &Abi {
+        &self.abi
     }
 
     /// Returns the contract address being used by this instance.
@@ -168,7 +173,11 @@ impl Linker {
 
     /// Finish linking and check if there are any outstanding unlinked libraries
     /// and create a deployment builder.
-    pub fn deploy<T, P>(self, web3: Web3<T>, params: P) -> Result<DeployBuilder<T>, DeployError>
+    pub fn deploy<T, P>(
+        self,
+        web3: Web3<T>,
+        params: P,
+    ) -> Result<DeployBuilder<T, Instance<T>>, DeployError>
     where
         T: Transport,
         P: Tokenize,
