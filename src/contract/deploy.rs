@@ -263,3 +263,42 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::contract::Instance;
+    use crate::test::prelude::*;
+    use crate::truffle::{Artifact, Network};
+
+    #[test]
+    fn deployed() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let network_id = "42";
+        let address = addr!("0x0102030405060708091011121314151617181920");
+        let artifact = {
+            let mut artifact = Artifact::empty();
+            artifact
+                .networks
+                .insert(network_id.to_string(), Network { address });
+            artifact
+        };
+
+        transport.add_response(json!(network_id)); // estimate gas response
+        let instance: Instance<_> = DeployedFuture::from_args(web3, artifact)
+            .wait()
+            .expect("successful deployment");
+
+        transport.assert_request("net_version", &[]);
+        transport.assert_no_more_requests();
+
+        assert_eq!(instance.address(), address);
+    }
+
+    #[test]
+    fn deploy() {
+        unimplemented!();
+    }
+}

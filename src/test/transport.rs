@@ -44,11 +44,6 @@ impl TestTransport {
         Default::default()
     }
 
-    /// Set the responses for the next executed requests.
-    pub fn set_response(&mut self, value: Value) {
-        *self.responses.borrow_mut() = vec![value].into();
-    }
-
     /// Add a response to an eventual request.
     pub fn add_response(&mut self, value: Value) {
         self.responses.borrow_mut().push_back(value);
