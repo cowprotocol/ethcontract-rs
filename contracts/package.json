@@ -1,0 +1,25 @@
+{
+  "name": "ethcontract-contracts",
+  "version": "0.1.0",
+  "private": "true",
+  "description": "Test contracts for ethcontract-rs runtime and proc macro.",
+  "scripts": {
+    "develop": "truffle develop",
+    "build": "truffle build",
+    "start": "(echo 'migrate' && cat) | truffle develop",
+    "test": "truffle test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gnosis/ethcontract-rs.git"
+  },
+  "author": "Nicholas Rodrigues Lordello <nlordell@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/gnosis/ethcontract-rs"
+  },
+  "homepage": "https://github.com/gnosis/ethcontract-rs",
+  "devDependencies": {
+    "truffle": "^5.0.41"
+  }
+}
