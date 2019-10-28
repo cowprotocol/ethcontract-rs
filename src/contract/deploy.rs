@@ -50,7 +50,9 @@ where
     T: Transport,
     D: Deploy<T>,
 {
-    pub(crate) fn from_args(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, D> {
+    /// Construct a new future that resolves when a deployed contract is located
+    /// from a `web3` provider and artifact data.
+    pub fn from_args(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, D> {
         let net = web3.net();
         DeployedFuture {
             args: Some((web3.into(), artifact)),
@@ -123,7 +125,9 @@ where
     T: Transport,
     D: Deploy<T>,
 {
-    pub(crate) fn new<P>(
+    /// Create a new deploy builder from a `web3` provider, artifact data and
+    /// deployment (constructor) parameters.
+    pub fn new<P>(
         web3: Web3<T>,
         artifact: Artifact,
         params: P,

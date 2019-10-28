@@ -14,8 +14,8 @@ pub use ethcontract_derive::contract;
 pub use serde_json as json;
 pub use web3;
 
-use crate::contract::Instance;
-use crate::transport::DynTransport;
+pub use crate::contract::Instance;
+pub use crate::transport::DynTransport;
 
 /// Type alias for a contract `Instance` with an underyling `DynTransport`.
 pub type DynInstance = Instance<DynTransport>;
