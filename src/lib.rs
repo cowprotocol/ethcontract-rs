@@ -36,13 +36,23 @@ mod test {
     pub mod transport;
 }
 
+#[cfg(feature = "example")]
 #[allow(missing_docs)]
 pub mod example {
     //! An example of a derived contract for documentation purposes in roder to
     //! illustrate what the generated API. This module should not be used and is
     //! should only be included when generating documentation.
 
-    // use crate as ethcontract;
-    // ethcontract::contract!("contracts/build/contracts/DocumentedContract.json");
-    // ethcontract::contract!("contracts/build/contracts/LinkedContract.json");
+    crate::contract!(
+        "examples/truffle/build/contracts/DocumentedContract.json",
+        crate = crate
+    );
+    crate::contract!(
+        "examples/truffle/build/contracts/LinkedContract.json",
+        crate = crate
+    );
+    crate::contract!(
+        "examples/truffle/build/contracts/IERC20.json",
+        crate = crate
+    );
 }

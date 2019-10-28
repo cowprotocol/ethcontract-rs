@@ -15,10 +15,13 @@ to Ethereum smart contracts.
 [lib]
 name = "ethcontract"
 
+[features]
+default = []
+example = []
+
 [workspace]
 members = [
   "common",
-  "examples/truffle",
   "derive",
 ]
 
