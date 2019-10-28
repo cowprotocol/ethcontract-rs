@@ -26,15 +26,15 @@ pub enum DeployError {
     Link(#[from] LinkError),
 
     /// An error occured encoding deployment parameters with the contract ABI.
-    #[error("error ABI ecoding deployment parameters")]
+    #[error("error ABI ecoding deployment parameters: {0}")]
     Abi(#[from] AbiError),
 
     /// Error executing contract deployment transaction.
-    #[error("error executing contract deployment transaction")]
+    #[error("error executing contract deployment transaction: {0}")]
     Tx(#[from] ExecutionError),
 
     /// Transaction failure (e.g. out of gas).
-    #[error("contract deployment transaction failed")]
+    #[error("contract deployment transaction failed: {0}")]
     Failure(H256),
 }
 

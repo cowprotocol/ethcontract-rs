@@ -30,7 +30,7 @@ pub struct TransactionBuilder<T: Transport> {
     /// to locally signing on the node with the default acount.
     pub from: Option<Account>,
     /// The receiver of the transaction.
-    pub to: Address,
+    pub to: Option<Address>,
     /// Optional gas amount to use for transaction. Defaults to estimated gas.
     pub gas: Option<U256>,
     /// Optional gas price to use for transaction. Defaults to estimated gas
@@ -92,7 +92,7 @@ impl<T: Transport> TransactionBuilder<T> {
         TransactionBuilder {
             web3,
             from: None,
-            to: Address::zero(),
+            to: None,
             gas: None,
             gas_price: None,
             value: None,
@@ -111,7 +111,7 @@ impl<T: Transport> TransactionBuilder<T> {
     /// Specify the recepient of the transaction, if not specified the
     /// transaction will be sent to the 0 address (for deploying contracts).
     pub fn to(mut self, value: Address) -> TransactionBuilder<T> {
-        self.to = value;
+        self.to = Some(value);
         self
     }
 
@@ -189,12 +189,13 @@ impl<T: Transport> EstimateGasFuture<T> {
             Account::Locked(from, ..) => from,
             Account::Offline(key, ..) => key.public().address().into(),
         });
+        let to = builder.to.unwrap_or_else(Address::zero);
 
         EstimateGasFuture(
             eth.estimate_gas(
                 CallRequest {
                     from,
-                    to: builder.to,
+                    to,
                     gas: None,
                     gas_price: None,
                     value: builder.value,
@@ -298,7 +299,7 @@ impl<T: Transport> BuildState<T> {
             None => BuildState::DefaultAccount {
                 request: Some(TransactionRequest {
                     from: Address::zero(),
-                    to: Some(builder.to),
+                    to: builder.to,
                     gas: builder.gas,
                     gas_price: builder.gas_price,
                     value: builder.value,
@@ -311,7 +312,7 @@ impl<T: Transport> BuildState<T> {
             Some(Account::Local(from, condition)) => BuildState::Local {
                 request: Some(TransactionRequest {
                     from,
-                    to: Some(builder.to),
+                    to: builder.to,
                     gas: builder.gas,
                     gas_price: builder.gas_price,
                     value: builder.value,
@@ -323,7 +324,7 @@ impl<T: Transport> BuildState<T> {
             Some(Account::Locked(from, password, condition)) => {
                 let request = TransactionRequest {
                     from,
-                    to: Some(builder.to),
+                    to: builder.to,
                     gas: builder.gas,
                     gas_price: builder.gas_price,
                     value: builder.value,
@@ -351,6 +352,7 @@ impl<T: Transport> BuildState<T> {
                 }
 
                 let from = key.public().address().into();
+                let to = builder.to.unwrap_or_else(Address::zero);
                 let eth = builder.web3.eth();
                 let net = builder.web3.net();
 
@@ -359,7 +361,7 @@ impl<T: Transport> BuildState<T> {
                     eth.estimate_gas(
                         CallRequest {
                             from: Some(from),
-                            to: builder.to,
+                            to,
                             gas: None,
                             gas_price: None,
                             value: builder.value,
@@ -382,7 +384,7 @@ impl<T: Transport> BuildState<T> {
 
                 BuildState::Offline {
                     key,
-                    to: builder.to,
+                    to,
                     value: builder.value.unwrap_or_else(U256::zero),
                     data: builder.data.unwrap_or_else(Bytes::default),
                     params: future::try_join4(gas, gas_price, nonce, chain_id),

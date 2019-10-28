@@ -83,7 +83,7 @@ impl Bytecode {
     pub fn into_bytes(self) -> Result<Bytes, LinkError> {
         match self.undefined_libraries().next() {
             Some(library) => Err(LinkError::UndefinedLibrary(library.to_string())),
-            None => Ok(Bytes(hex::decode(&self.0).expect("valid hex"))),
+            None => Ok(Bytes(hex::decode(&self.0[2..]).expect("valid hex"))),
         }
     }
 
