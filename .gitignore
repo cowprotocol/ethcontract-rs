@@ -3,5 +3,5 @@
 Cargo.lock
 
 node_modules/
-contracts/build/
+examples/*/build/
 package-lock.json
