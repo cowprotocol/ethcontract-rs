@@ -18,6 +18,7 @@ name = "ethcontract"
 [workspace]
 members = [
   "common",
+  "examples/truffle",
   "derive",
 ]
 
@@ -34,3 +35,6 @@ serde_json = "1.0"
 thiserror = "1.0"
 tiny-keccak = "1.5"
 web3 = "0.8"
+
+[dev-dependencies]
+rustversion = "1.0"
