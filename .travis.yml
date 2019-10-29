@@ -13,7 +13,8 @@ before_cache:
   - rm -rf "$TRAVIS_HOME/.cargo/registry/src"
 
 script:
-  - cargo build --verbose --all
-  - cargo test --verbose --all
+  - (cd examples/truffle; npm install; npm run build)
+  - cargo build --features example --verbose --all
+  - cargo test --features example --verbose --all
   - cargo fmt --all -- --check
   - cargo clippy --all
