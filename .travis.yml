@@ -15,3 +15,5 @@ before_cache:
 script:
   - cargo build --verbose --all
   - cargo test --verbose --all
+  - cargo fmt --all -- --check
+  - cargo clippy --all

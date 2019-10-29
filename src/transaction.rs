@@ -59,6 +59,7 @@ pub enum Account {
 /// Represents a prepared and optionally signed transaction that is ready for
 /// sending created by a `TransactionBuilder`.
 #[derive(Clone, Debug, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 pub enum Transaction {
     /// A structured transaction request to be signed locally by the node.
     Request(TransactionRequest),
@@ -247,7 +248,20 @@ impl<T: Transport> Future for BuildFuture<T> {
     }
 }
 
+/// Type alias for a call future that might already be resolved.
+type MaybeCallFuture<T, R> = MaybeReady<CompatCallFuture<T, R>>;
+
+/// Type alias for future retrieving the optional parameters that may not have
+/// been specified by the transaction builder but are required for signing.
+type ParamsFuture<T> = TryJoin4<
+    MaybeCallFuture<T, U256>,
+    MaybeCallFuture<T, U256>,
+    MaybeCallFuture<T, U256>,
+    MaybeCallFuture<T, String>,
+>;
+
 /// Internal build state for preparing transactions.
+#[allow(clippy::large_enum_variant)]
 enum BuildState<T: Transport> {
     /// Waiting for list of accounts in order to determine from address so that
     /// we can return a `Request::Tx`.
@@ -283,12 +297,7 @@ enum BuildState<T: Transport> {
         data: Bytes,
         /// Future for retrieving gas, gas price, nonce and chain ID when they
         /// where not specified.
-        params: TryJoin4<
-            MaybeReady<CompatCallFuture<T, U256>>,
-            MaybeReady<CompatCallFuture<T, U256>>,
-            MaybeReady<CompatCallFuture<T, U256>>,
-            MaybeReady<CompatCallFuture<T, String>>,
-        >,
+        params: ParamsFuture<T>,
     },
 }
 
@@ -429,7 +438,7 @@ impl<T: Transport> BuildState<T> {
                     gas,
                     to: *to,
                     value: *value,
-                    data: data,
+                    data,
                 };
                 let raw = tx.sign(key, Some(chain_id))?;
 
