@@ -52,7 +52,8 @@ pub enum Account {
     Local(Address, Option<TransactionCondition>),
     /// Do online signing with a locked account with a password.
     Locked(Address, Protected, Option<TransactionCondition>),
-    /// Do offline signing with private key and optionally specify chain ID.
+    /// Do offline signing with private key and optionally specify chain ID. If
+    /// no chain ID is specified, then it will default to the network ID.
     Offline(SecretKey, Option<u64>),
 }
 

@@ -11,10 +11,9 @@ use ethcontract_common::truffle::Artifact;
 use inflector::Inflector;
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
-use std::borrow::Cow;
 use syn::ext::IdentExt;
 use syn::parse::{Error as ParseError, Parse, ParseStream, Result as ParseResult};
-use syn::{parse_macro_input, Error as SynError, LitStr, Token};
+use syn::{parse_macro_input, Error as SynError, Ident as SynIdent, LitStr, Token};
 
 /// Proc macro to generate type-safe bindings to a contract. See
 /// [`ethcontract`](ethcontract) module level documentation for more information.
@@ -80,7 +79,7 @@ fn expand_contract(args: ContractArgs) -> Result<TokenStream> {
     //   experience.
     let artifact_path = args.artifact_path;
     let artifact = Artifact::load(&artifact_path.value())?;
-    let contract_name = ident!(&artifact.contract_name.to_pascal_case());
+    let contract_name = ident!(&artifact.contract_name);
 
     let ethcontract = args.runtime_crate.unwrap_or_else(|| ident!("ethcontract"));
 
@@ -344,13 +343,6 @@ fn expand_function(
     })
 }
 
-fn fix_input_name(i: usize, n: &str) -> Cow<'_, str> {
-    match n {
-        "" => format!("p{}", i).into(),
-        n => n.into(),
-    }
-}
-
 fn function_signature(function: &Function) -> String {
     let types = match function.inputs.len() {
         0 => String::new(),
@@ -368,8 +360,7 @@ fn expand_inputs(ethcontract: &Ident, inputs: &[Param]) -> Result<TokenStream> {
         .iter()
         .enumerate()
         .map(|(i, param)| {
-            let name_str = fix_input_name(i, &param.name);
-            let name = ident!(&name_str);
+            let name = expand_input_name(i, &param.name);
             let kind = expand_type(ethcontract, &param.kind)?;
             Ok(quote! { #name: #kind })
         })
@@ -377,11 +368,22 @@ fn expand_inputs(ethcontract: &Ident, inputs: &[Param]) -> Result<TokenStream> {
     Ok(quote! { #( , #params )* })
 }
 
+fn expand_input_name(index: usize, name: &str) -> TokenStream {
+    let name_str = match name {
+        "" => format!("p{}", index),
+        n => n.to_snake_case(),
+    };
+    let name =
+        syn::parse_str::<SynIdent>(&name_str).unwrap_or_else(|_| ident!(&format!("{}_", name_str)));
+
+    quote! { #name }
+}
+
 fn expand_inputs_call_arg(inputs: &[Param]) -> TokenStream {
-    let names = inputs.iter().enumerate().map(|(i, param)| {
-        let name = fix_input_name(i, &param.name);
-        ident!(&name)
-    });
+    let names = inputs
+        .iter()
+        .enumerate()
+        .map(|(i, param)| expand_input_name(i, &param.name));
     quote! { ( #( #names ),* ) }
 }
 

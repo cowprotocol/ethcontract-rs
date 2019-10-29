@@ -9,7 +9,7 @@ pub mod sign;
 pub mod transaction;
 pub mod transport;
 
-pub use ethcontract_common::*;
+pub use ethcontract_common::truffle;
 pub use ethcontract_derive::contract;
 pub use serde_json as json;
 pub use web3;
@@ -45,6 +45,10 @@ pub mod example {
 
     crate::contract!(
         "examples/truffle/build/contracts/DocumentedContract.json",
+        crate = crate
+    );
+    crate::contract!(
+        "examples/truffle/build/contracts/SimpleLibrary.json",
         crate = crate
     );
     crate::contract!(
