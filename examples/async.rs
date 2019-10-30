@@ -65,7 +65,7 @@ fn main() {
                 to: Some(x),
                 gas: None,
                 gas_price: None,
-                value: Some("1000000000000000".parse().expect("valid u256")),
+                value: Some(1_000_000_000_000_000_000u64.into()),
                 data: None,
                 nonce: None,
                 condition: None,
