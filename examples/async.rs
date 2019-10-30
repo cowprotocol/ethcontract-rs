@@ -7,7 +7,7 @@ fn main() {
     use futures::compat::Future01CompatExt;
     use web3::api::Web3;
     use web3::transports::Http;
-    use web3::types::{Address, H256};
+    use web3::types::{Address, TransactionRequest, H256};
 
     async fn print_balance_of(instance: &RustCoin, account: Address) {
         let balance = instance
@@ -50,26 +50,43 @@ fn main() {
         print_balance_of(&instance, accounts[2]).await;
 
         let key = SecretKey::from_raw(
-            &"c9a3c7d0f7685dc5e08cc990a4614666202258db9ca93e429499c3884a07782a"
+            &"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
                 .parse::<H256>()
                 .expect("valid hash")[..],
         )
         .expect("parse key");
-        assert_eq!(accounts[3], key.public().address().into());
+        let x: Address = key.public().address().into();
+        println!("Created new account {:?}", x);
+
+        // send some eth to x so that it can do transactions
+        web3.eth()
+            .send_transaction(TransactionRequest {
+                from: accounts[0],
+                to: Some(x),
+                gas: None,
+                gas_price: None,
+                value: Some("1000000000000000".parse().expect("valid u256")),
+                data: None,
+                nonce: None,
+                condition: None,
+            })
+            .compat()
+            .await
+            .expect("send eth");
 
         instance
-            .transfer(accounts[3], 1_000_000.into())
+            .transfer(x, 1_000_000.into())
             .execute()
             .await
-            .expect("transfer 0->3");
+            .expect("transfer 0->x");
         instance
             .transfer(accounts[4], 420.into())
             .from(Account::Offline(key, None))
             .execute()
             .await
-            .expect("transfer 3->4");
+            .expect("transfer x->4");
 
-        print_balance_of(&instance, accounts[3]).await;
+        print_balance_of(&instance, x).await;
         print_balance_of(&instance, accounts[4]).await;
     });
 }
