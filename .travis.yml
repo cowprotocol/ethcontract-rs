@@ -15,10 +15,10 @@ before_cache:
 before_install:
   - rustup component add clippy rustfmt
 install:
-  - (cd contracts; npm install)
+  - (cd examples/truffle; npm install)
 
 script:
-  - (cd contracts; npm run build)
+  - (cd examples/truffle; npm run build)
   - cargo build --verbose --all
   - cargo test --verbose --all
   - cargo fmt --all -- --check
