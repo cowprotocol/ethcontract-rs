@@ -292,7 +292,7 @@ fn expand_function(artifact: &Artifact, function: &Function) -> Result<TokenStre
     })
 }
 
-fn fix_input_name<'a>(i: usize, n: &'a str) -> Cow<'a, str> {
+fn fix_input_name(i: usize, n: &str) -> Cow<'_, str> {
     match n {
         "" => format!("p{}", i).into(),
         n => n.into(),

@@ -1,6 +1,9 @@
 //! Implementation for setting up, signing, estimating gas and executing
 //! transactions on the Ethereum network.
 
+#![allow(clippy::large_enum_variant)]
+#![allow(clippy::type_complexity)]
+
 use crate::errors::ExecutionError;
 use crate::future::{CompatCallFuture, CompatSendTxWithConfirmation, MaybeReady, Web3Unpin};
 use crate::sign::TransactionData;
@@ -427,7 +430,7 @@ impl<T: Transport> BuildState<T> {
                     gas,
                     to: *to,
                     value: *value,
-                    data: data,
+                    data,
                 };
                 let raw = tx.sign(key, Some(chain_id))?;
 

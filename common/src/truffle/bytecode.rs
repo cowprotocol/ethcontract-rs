@@ -15,12 +15,12 @@ pub struct Bytecode(String);
 
 impl Bytecode {
     /// Read hex bytecode representation from a string slice.
-    pub fn from_str<S>(s: S) -> Result<Bytecode, BytecodeError>
+    pub fn from_hex_str<S>(s: S) -> Result<Bytecode, BytecodeError>
     where
         S: AsRef<str>,
     {
         let s = s.as_ref();
-        if s.len() == 0 {
+        if s.is_empty() {
             // special case where we have an empty string byte code.
             return Ok(Bytecode::default());
         }
@@ -88,7 +88,7 @@ impl Bytecode {
     }
 
     /// Iterator over all libraries remaining in the bytecode.
-    pub fn undefined_libraries<'a>(&'a self) -> LibIter<'a> {
+    pub fn undefined_libraries(&self) -> LibIter<'_> {
         LibIter(&self.0)
     }
 
@@ -167,7 +167,7 @@ impl<'de> Visitor<'de> for BytecodeVisitor {
     where
         E: DeError,
     {
-        Bytecode::from_str(v).map_err(E::custom)
+        Bytecode::from_hex_str(v).map_err(E::custom)
     }
 
     fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
