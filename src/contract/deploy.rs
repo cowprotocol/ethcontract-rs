@@ -299,6 +299,7 @@ mod tests {
 
     #[test]
     fn deploy() {
-        unimplemented!();
+        // TODO(nlordell): implement this test - there is an open issue for this
+        //   on github
     }
 }
