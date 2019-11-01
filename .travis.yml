@@ -1,0 +1,25 @@
+language: rust
+rust:
+  - stable
+  - beta
+  - nightly
+jobs:
+  allow_failures:
+    - rust: nightly
+  fast_finish: true
+
+cache: cargo
+before_cache:
+  - rm -rf "$TRAVIS_HOME/.cargo/registry/src"
+
+before_install:
+  - rustup component add clippy rustfmt
+install:
+  - (cd contracts; npm install)
+
+script:
+  - (cd contracts; npm run build)
+  - cargo build --verbose --all
+  - cargo test --verbose --all
+  - cargo fmt --all -- --check
+  - cargo clippy --all

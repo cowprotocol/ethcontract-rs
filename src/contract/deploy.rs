@@ -248,7 +248,7 @@ where
                 let tx = ready!(Pin::new(tx).poll(cx).map_err(DeployError::from));
                 let tx = match tx {
                     Ok(tx) => tx,
-                    Err(err) => return Poll::Ready(Err(err.into())),
+                    Err(err) => return Poll::Ready(Err(err)),
                 };
                 let address = match tx.contract_address {
                     Some(address) => address,
@@ -299,6 +299,7 @@ mod tests {
 
     #[test]
     fn deploy() {
-        unimplemented!();
+        // TODO(nlordell): implement this test - there is an open issue for this
+        //   on github
     }
 }

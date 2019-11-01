@@ -54,7 +54,7 @@ impl<'a> TransactionData<'a> {
 
     /// RLP encode a transaction with its signature.
     fn rlp_append_signed(&self, s: &mut RlpStream, sig: Signature, chain_id: Option<u64>) {
-        let v = add_chain_replay_protection(sig.v as _, chain_id);
+        let v = add_chain_replay_protection(u64::from(sig.v), chain_id);
 
         s.begin_list(9);
         s.append(&self.nonce);
