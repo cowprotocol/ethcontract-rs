@@ -48,6 +48,10 @@ pub mod example {
         crate = crate
     );
     crate::contract!(
+        "examples/truffle/build/contracts/SimpleLibrary.json",
+        crate = crate
+    );
+    crate::contract!(
         "examples/truffle/build/contracts/LinkedContract.json",
         crate = crate
     );
