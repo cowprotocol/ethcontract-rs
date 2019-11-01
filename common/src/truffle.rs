@@ -81,7 +81,14 @@ pub struct Documentation {
     /// Contract documentation
     pub details: Option<String>,
     /// Contract method documentation.
-    pub methods: HashMap<String, String>,
+    pub methods: HashMap<String, DocEntry>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+/// A documentation entry.
+pub struct DocEntry {
+    /// The documentation details for this entry.
+    pub details: Option<String>,
 }
 
 #[cfg(test)]
