@@ -1,9 +1,6 @@
 //! Implementation for setting up, signing, estimating gas and executing
 //! transactions on the Ethereum network.
 
-#![allow(clippy::large_enum_variant)]
-#![allow(clippy::type_complexity)]
-
 use crate::errors::ExecutionError;
 use crate::future::{CompatCallFuture, CompatSendTxWithConfirmation, MaybeReady, Web3Unpin};
 use crate::sign::TransactionData;
@@ -55,13 +52,15 @@ pub enum Account {
     Local(Address, Option<TransactionCondition>),
     /// Do online signing with a locked account with a password.
     Locked(Address, Protected, Option<TransactionCondition>),
-    /// Do offline signing with private key and optionally specify chain ID.
+    /// Do offline signing with private key and optionally specify chain ID. If
+    /// no chain ID is specified, then it will default to the network ID.
     Offline(SecretKey, Option<u64>),
 }
 
 /// Represents a prepared and optionally signed transaction that is ready for
 /// sending created by a `TransactionBuilder`.
 #[derive(Clone, Debug, PartialEq)]
+#[allow(clippy::large_enum_variant)]
 pub enum Transaction {
     /// A structured transaction request to be signed locally by the node.
     Request(TransactionRequest),
@@ -250,7 +249,20 @@ impl<T: Transport> Future for BuildFuture<T> {
     }
 }
 
+/// Type alias for a call future that might already be resolved.
+type MaybeCallFuture<T, R> = MaybeReady<CompatCallFuture<T, R>>;
+
+/// Type alias for future retrieving the optional parameters that may not have
+/// been specified by the transaction builder but are required for signing.
+type ParamsFuture<T> = TryJoin4<
+    MaybeCallFuture<T, U256>,
+    MaybeCallFuture<T, U256>,
+    MaybeCallFuture<T, U256>,
+    MaybeCallFuture<T, String>,
+>;
+
 /// Internal build state for preparing transactions.
+#[allow(clippy::large_enum_variant)]
 enum BuildState<T: Transport> {
     /// Waiting for list of accounts in order to determine from address so that
     /// we can return a `Request::Tx`.
@@ -286,12 +298,7 @@ enum BuildState<T: Transport> {
         data: Bytes,
         /// Future for retrieving gas, gas price, nonce and chain ID when they
         /// where not specified.
-        params: TryJoin4<
-            MaybeReady<CompatCallFuture<T, U256>>,
-            MaybeReady<CompatCallFuture<T, U256>>,
-            MaybeReady<CompatCallFuture<T, U256>>,
-            MaybeReady<CompatCallFuture<T, String>>,
-        >,
+        params: ParamsFuture<T>,
     },
 }
 
