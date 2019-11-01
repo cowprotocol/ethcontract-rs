@@ -9,13 +9,13 @@ pub mod sign;
 pub mod transaction;
 pub mod transport;
 
-pub use ethcontract_common::*;
+pub use ethcontract_common::truffle;
 pub use ethcontract_derive::contract;
 pub use serde_json as json;
 pub use web3;
 
-use crate::contract::Instance;
-use crate::transport::DynTransport;
+pub use crate::contract::Instance;
+pub use crate::transport::DynTransport;
 
 /// Type alias for a contract `Instance` with an underyling `DynTransport`.
 pub type DynInstance = Instance<DynTransport>;
@@ -44,11 +44,15 @@ pub mod example {
     //! should only be included when generating documentation.
 
     crate::contract!(
-        "contracts/build/contracts/DocumentedContract.json",
+        "examples/truffle/build/contracts/DocumentedContract.json",
         crate = crate
     );
     crate::contract!(
-        "contracts/build/contracts/LinkedContract.json",
+        "examples/truffle/build/contracts/LinkedContract.json",
+        crate = crate
+    );
+    crate::contract!(
+        "examples/truffle/build/contracts/IERC20.json",
         crate = crate
     );
 }

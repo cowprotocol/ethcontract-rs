@@ -50,7 +50,9 @@ where
     T: Transport,
     D: Deploy<T>,
 {
-    pub(crate) fn from_args(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, D> {
+    /// Construct a new future that resolves when a deployed contract is located
+    /// from a `web3` provider and artifact data.
+    pub fn from_args(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, D> {
         let net = web3.net();
         DeployedFuture {
             args: Some((web3.into(), artifact)),
@@ -123,7 +125,9 @@ where
     T: Transport,
     D: Deploy<T>,
 {
-    pub(crate) fn new<P>(
+    /// Create a new deploy builder from a `web3` provider, artifact data and
+    /// deployment (constructor) parameters.
+    pub fn new<P>(
         web3: Web3<T>,
         artifact: Artifact,
         params: P,
@@ -186,6 +190,20 @@ where
     /// current transaction count for the signing account.
     pub fn nonce(mut self, value: U256) -> DeployBuilder<T, D> {
         self.tx = self.tx.gas(value);
+        self
+    }
+
+    /// Specify the poll interval to use for confirming the deployment, if not
+    /// specified will use a period of 7 seconds.
+    pub fn poll_interval(mut self, value: Duration) -> DeployBuilder<T, D> {
+        self.poll_interval = Some(value);
+        self
+    }
+
+    /// Specify the number of confirmations to wait for when confirming the
+    /// transaction, if not specified will wait for 1 confirmation.
+    pub fn confirmations(mut self, value: usize) -> DeployBuilder<T, D> {
+        self.confirmations = Some(value);
         self
     }
 
@@ -252,7 +270,9 @@ where
                 };
                 let address = match tx.contract_address {
                     Some(address) => address,
-                    None => return Poll::Ready(Err(DeployError::Failure(tx.transaction_hash))),
+                    None => {
+                        return Poll::Ready(Err(DeployError::Failure(tx.transaction_hash)));
+                    }
                 };
 
                 let (web3, abi) = unpinned.args.take().expect("called once");
