@@ -10,12 +10,13 @@ jobs:
 
 cache:
   cargo: true
-  npm: true
+  directories:
+    - $HOME/.npm
 
 before_install:
   - rustup component add clippy rustfmt
 install:
-  - (cd examples/truffle; npm install)
+  - (cd examples/truffle; npm ci)
 
 script:
   - (cd examples/truffle; npm run build)
