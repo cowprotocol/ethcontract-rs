@@ -46,18 +46,18 @@ $ cargo +beta run --example async
 This example deploys a ERC20 token and interacts with the contract with various
 accounts.
 
-## Example documentation
+## Sample Contracts Documentation
 
-We added some examples of generated contracts from our sample contract collection
+We added some samples of generated contracts from our sample contract collection
 gated behind a feature. This feature is **only intended to be used for document
 generation**. In order to view the documentation for these contracts you need to
 first build the contracts and then generate documentation for the crate with the
-`example` feature enabled:
+`samples` feature enabled:
 
 ```sh
 $ (cd examples/truffle; npm run build)
-$ cargo doc --features example --open
+$ cargo doc --features samples --open
 ```
 
-This will open a browser at the documentation root. Look under the `example`
-module for the example contracts to get a feel for how the generated types look.
+This will open a browser at the documentation root. Look under the `samples`
+module for the sample contracts to get a feel for how the generated types look.
