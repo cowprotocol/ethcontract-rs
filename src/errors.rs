@@ -1,13 +1,14 @@
 //! Module with common error types.
 
 use ethabi::{Error as AbiError, ErrorKind as AbiErrorKind};
-pub use ethcontract_common::errors::LinkError;
 use ethsign::Error as SignError;
 use std::num::ParseIntError;
 use thiserror::Error;
 use web3::contract::Error as Web3ContractError;
 use web3::error::Error as Web3Error;
 use web3::types::H256;
+
+pub use ethcontract_common::errors::*;
 
 /// Error that can occur while locating a deployed contract.
 #[derive(Debug, Error)]

@@ -19,7 +19,7 @@ install:
 
 script:
   - (cd examples/truffle; npm run build)
-  - cargo build --verbose --all
-  - cargo test --verbose --all
+  - cargo build --all-features --verbose --all
+  - cargo test --all-features --verbose --all
   - cargo fmt --all -- --check
   - cargo clippy --all
