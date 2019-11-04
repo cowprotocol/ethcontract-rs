@@ -1,3 +1,5 @@
+ethcontract::contract!("examples/truffle/build/contracts/RustCoin.json");
+
 #[rustversion::since(1.39)]
 fn main() {
     use ethcontract::transaction::Account;
@@ -6,8 +8,6 @@ fn main() {
     use web3::api::Web3;
     use web3::transports::Http;
     use web3::types::{Address, TransactionRequest, H256};
-
-    ethcontract::contract!("examples/truffle/build/contracts/RustCoin.json");
 
     async fn print_balance_of(instance: &RustCoin, account: Address) {
         let balance = instance
