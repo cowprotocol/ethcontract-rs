@@ -40,5 +40,4 @@ tiny-keccak = "1.5"
 web3 = "0.8"
 
 [dev-dependencies]
-anyhow = "1.0"
 rustversion = "1.0"
