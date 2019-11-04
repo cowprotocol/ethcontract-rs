@@ -8,9 +8,9 @@ jobs:
     - rust: nightly
   fast_finish: true
 
-cache: cargo
-before_cache:
-  - rm -rf "$TRAVIS_HOME/.cargo/registry/src"
+cache:
+  cargo: true
+  npm: true
 
 before_install:
   - rustup component add clippy rustfmt
