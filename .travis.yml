@@ -22,4 +22,4 @@ script:
   - cargo build --all-features --verbose --all
   - cargo test --all-features --verbose --all
   - cargo fmt --all -- --check
-  - cargo clippy --all
+  - cargo clippy --all --all-features --all-targets -- -D warnings

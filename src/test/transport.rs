@@ -10,11 +10,14 @@ use web3::futures::future::{self, FutureResult};
 use web3::helpers;
 use web3::{RequestId, Transport};
 
+/// Type alias for request method and value pairs
+type Requests = Vec<(String, Vec<Value>)>;
+
 /// Test transport
 #[derive(Debug, Default, Clone)]
 pub struct TestTransport {
     asserted: usize,
-    requests: Rc<RefCell<Vec<(String, Vec<Value>)>>>,
+    requests: Rc<RefCell<Requests>>,
     responses: Rc<RefCell<VecDeque<Value>>>,
 }
 
