@@ -14,7 +14,7 @@
 //!
 //! ```text
 //! pragma solidity ^0.5.0;
-//! 
+//!
 //! contract MyContract {
 //!   function my_view_function(uint64 some_val) public view returns (string) {
 //!     // ...
