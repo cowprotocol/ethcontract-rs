@@ -536,9 +536,9 @@ where
     F::Error: Into<ExecutionError>,
 {
     /// Waiting for the transaction to be prepared to be sent.
-    Build(BuildFuture<T>, Option<D>),
+    Building(BuildFuture<T>, Option<D>),
     /// Sending the request and waiting for the future to resolve.
-    Send(F),
+    Sending(F),
 }
 
 impl<T, D, F> ExecutionState<T, D, F>
@@ -552,7 +552,7 @@ where
         let build = BuildFuture::from_builder(builder);
         let data = Some(data);
 
-        ExecutionState::Build(build, data)
+        ExecutionState::Building(build, data)
     }
 
     /// Poll the state to drive the execution of its inner futures.
@@ -566,7 +566,7 @@ where
     {
         loop {
             match self {
-                ExecutionState::Build(build, data) => {
+                ExecutionState::Building(build, data) => {
                     let tx = ready!(Pin::new(build).poll(cx).map_err(ExecutionError::from));
                     let tx = match tx {
                         Ok(tx) => tx,
@@ -575,9 +575,9 @@ where
 
                     let data = data.take().expect("called once");
                     let send = send_fn(data, tx);
-                    *self = ExecutionState::Send(send);
+                    *self = ExecutionState::Sending(send);
                 }
-                ExecutionState::Send(ref mut send) => {
+                ExecutionState::Sending(ref mut send) => {
                     return Pin::new(send)
                         .try_poll(cx)
                         .map_err(Into::<ExecutionError>::into)
