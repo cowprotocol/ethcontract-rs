@@ -36,10 +36,10 @@ mod test {
     pub mod transport;
 }
 
-#[cfg(feature = "example")]
+#[cfg(feature = "samples")]
 #[allow(missing_docs)]
-pub mod example {
-    //! An example of a derived contract for documentation purposes in roder to
+pub mod samples {
+    //! Samples of derived contracts for documentation purposes in roder to
     //! illustrate what the generated API. This module should not be used and is
     //! should only be included when generating documentation.
 

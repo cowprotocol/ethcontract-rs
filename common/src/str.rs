@@ -60,7 +60,7 @@ mod tests {
             ("abfoocdefg", true, "abbarcdefg"),
             ("abfoocdfooefgfoo", true, "abbarcdfooefgfoo"),
         ] {
-            let mut value = value.to_string();
+            let mut value = (*value).to_string();
             assert_eq!(value.replace_once_in_place("foo", "bar"), *matched);
             assert_eq!(&value, expected);
         }
