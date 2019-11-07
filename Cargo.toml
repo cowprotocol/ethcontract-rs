@@ -7,6 +7,7 @@ license = "MIT"
 repository = "https://github.com/gnosis/ethcontract-rs"
 homepage = "https://github.com/gnosis/ethcontract-rs"
 documentation = "https://docs.rs/ethcontract"
+keywords = ["web3", "ethereum", "contract", "async"]
 description = """
 Runtime library and proc macro for interacting and generating type-safe bindings
 to Ethereum smart contracts.
