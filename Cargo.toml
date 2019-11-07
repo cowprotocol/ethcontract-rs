@@ -26,8 +26,8 @@ members = [
 ]
 
 [dependencies]
-ethcontract-common = { path = "./common" }
-ethcontract-derive = { path = "./derive" }
+ethcontract-common = { version = "0.1.0", path = "./common" }
+ethcontract-derive = { version = "0.1.0", path = "./derive" }
 ethabi = "8.0"
 ethsign = "0.7"
 futures-preview = { version = "0.3.0-alpha.19", features = ["compat"] }
