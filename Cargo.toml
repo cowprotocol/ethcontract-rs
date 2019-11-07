@@ -7,6 +7,7 @@ license = "MIT"
 repository = "https://github.com/gnosis/ethcontract-rs"
 homepage = "https://github.com/gnosis/ethcontract-rs"
 documentation = "https://docs.rs/ethcontract"
+keywords = ["web3", "ethereum", "contract", "async"]
 description = """
 Runtime library and proc macro for interacting and generating type-safe bindings
 to Ethereum smart contracts.
@@ -26,8 +27,8 @@ members = [
 ]
 
 [dependencies]
-ethcontract-common = { path = "./common" }
-ethcontract-derive = { path = "./derive" }
+ethcontract-common = { version = "0.1.0", path = "./common" }
+ethcontract-derive = { version = "0.1.0", path = "./derive" }
 ethabi = "8.0"
 ethsign = "0.7"
 futures-preview = { version = "0.3.0-alpha.19", features = ["compat"] }

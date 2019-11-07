@@ -17,7 +17,7 @@ proc-macro = true
 [dependencies]
 anyhow = "1.0"
 ethabi = "8.0"
-ethcontract-common = { path = "../common" }
+ethcontract-common = { version = "0.1.0", path = "../common" }
 Inflector = "0.11"
 proc-macro2 = "1.0"
 quote = "1.0"
