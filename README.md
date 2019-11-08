@@ -40,7 +40,7 @@ $ npm run develop
 Then in a sepate terminal window, you can run the example:
 
 ```sh
-$ cargo +beta run --example async
+$ cargo run --example async
 ```
 
 This example deploys a ERC20 token and interacts with the contract with various
