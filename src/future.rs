@@ -91,16 +91,3 @@ impl<T: ?Sized> Default for PhantomDataUnpin<T> {
 // NOTE(nlordell): for some reason PhantomData is not always Unpin even if it is
 //   completely empty so should always be safe to move
 impl<T: ?Sized> Unpin for PhantomDataUnpin<T> {}
-
-// TODO(nlordell): remove once async/await stablalizes
-/// Temporary solution to async/await not being stable.
-pub trait FutureWaitExt: Future {
-    /// Block thread on a future completing.
-    fn wait(self) -> Self::Output;
-}
-
-impl<F: Future + Sized> FutureWaitExt for F {
-    fn wait(self) -> Self::Output {
-        futures::executor::block_on(self)
-    }
-}
