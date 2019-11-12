@@ -14,7 +14,7 @@ use web3::types::{Address, Bytes};
 use web3::Transport;
 
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture};
-pub use self::method::{MethodBuilder, ViewMethodBuilder, CallFuture};
+pub use self::method::{CallFuture, MethodBuilder, ViewMethodBuilder};
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
@@ -109,7 +109,12 @@ impl<T: Transport> Instance<T> {
         let function = function.clone();
         let data = Bytes(data);
 
-        Ok(MethodBuilder::new(self.web3(), function, self.address, data))
+        Ok(MethodBuilder::new(
+            self.web3(),
+            function,
+            self.address,
+            data,
+        ))
     }
 
     /// Returns a view method builder to setup a call to a smart contract. View

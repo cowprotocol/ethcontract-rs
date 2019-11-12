@@ -322,17 +322,12 @@ fn expand_function(
     let input = expand_inputs(ethcontract, &function.inputs)?;
     let outputs = expand_fn_outputs(ethcontract, &function)?;
     let (method, result_type_name) = if function.constant {
-        (
-            quote! { view_method },
-            quote! { ViewMethodBuilder },
-        )
+        (quote! { view_method }, quote! { ViewMethodBuilder })
     } else {
-        (
-            quote! { method },
-            quote! { MethodBuilder },
-        )
+        (quote! { method }, quote! { MethodBuilder })
     };
-    let result = quote! { #ethcontract::contract::#result_type_name<#ethcontract::DynTransport, #outputs> };
+    let result =
+        quote! { #ethcontract::contract::#result_type_name<#ethcontract::DynTransport, #outputs> };
     let arg = expand_inputs_call_arg(&function.inputs);
 
     Ok(quote! {

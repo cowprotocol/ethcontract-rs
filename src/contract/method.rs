@@ -22,8 +22,8 @@ use web3::Transport;
 /// transactions. This is useful when dealing with view functions.
 #[derive(Debug, Clone)]
 pub struct MethodBuilder<T: Transport, R: Detokenize> {
-	web3: Web3<T>,
-	function: Function,
+    web3: Web3<T>,
+    function: Function,
     /// transaction parameters
     pub tx: TransactionBuilder<T>,
     _result: PhantomData<R>,
@@ -31,12 +31,17 @@ pub struct MethodBuilder<T: Transport, R: Detokenize> {
 
 impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
     /// Creates a new builder for a transaction.
-    pub fn new(web3: Web3<T>, function: Function, address: Address, data: Bytes) -> MethodBuilder<T, R> {
+    pub fn new(
+        web3: Web3<T>,
+        function: Function,
+        address: Address,
+        data: Bytes,
+    ) -> MethodBuilder<T, R> {
         MethodBuilder {
-        	web3: web3.clone(),
-        	function,
-        	tx: TransactionBuilder::new(web3).to(address).data(data),
-        	_result: PhantomData,
+            web3: web3.clone(),
+            function,
+            tx: TransactionBuilder::new(web3).to(address).data(data),
+            _result: PhantomData,
         }
     }
 
@@ -44,35 +49,35 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
     /// the the transaction will be locally signed with the default user.
     pub fn from(mut self, value: Account) -> MethodBuilder<T, R> {
         self.tx = self.tx.from(value);
-		self
+        self
     }
 
     /// Secify amount of gas to use, if not specified then a gas estimate will
     /// be used.
     pub fn gas(mut self, value: U256) -> MethodBuilder<T, R> {
         self.tx = self.tx.gas(value);
-		self
+        self
     }
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
     pub fn gas_price(mut self, value: U256) -> MethodBuilder<T, R> {
         self.tx = self.tx.gas(value);
-		self
+        self
     }
 
     /// Specify what how much ETH to transfer with the transaction, if not
     /// specified then no ETH will be sent.
     pub fn value(mut self, value: U256) -> MethodBuilder<T, R> {
         self.tx = self.tx.gas(value);
-		self
+        self
     }
 
     /// Specify the nonce for the transation, if not specified will use the
     /// current transaction count for the signing account.
     pub fn nonce(mut self, value: U256) -> MethodBuilder<T, R> {
         self.tx = self.tx.gas(value);
-		self
+        self
     }
 
     /// Extract inner `TransactionBuilder` from this `SendBuilder`. This exposes
@@ -83,10 +88,10 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
     }
 
     /// Demotes a `MethodBuilder` into a `ViewMethodBuilder` which has a more
-   	/// restricted API and cannot actually send transactions.
-   	pub fn view(self) -> ViewMethodBuilder<T, R> {
-   		ViewMethodBuilder::from_method(self)
-   	}
+    /// restricted API and cannot actually send transactions.
+    pub fn view(self) -> ViewMethodBuilder<T, R> {
+        ViewMethodBuilder::from_method(self)
+    }
 
     /// Call a contract method. Contract calls do not modify the blockchain and
     /// as such do not require gas or signing. Note that doing a call with a
@@ -105,21 +110,21 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
 /// Data used for building a contract method call. The view method builder can't
 /// directly send transactions and is for read only method calls.
 #[derive(Debug, Clone)]
-pub struct ViewMethodBuilder<T: Transport, R: Detokenize>{
+pub struct ViewMethodBuilder<T: Transport, R: Detokenize> {
     /// method parameters
-	pub m: MethodBuilder<T, R>,
-	/// optional block number
-	pub block: Option<BlockNumber>,
+    pub m: MethodBuilder<T, R>,
+    /// optional block number
+    pub block: Option<BlockNumber>,
 }
 
 impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
-	/// Create a new `ViewMethodBuilder` by demoting a `MethodBuilder`.
-	pub fn from_method(method: MethodBuilder<T, R>) -> ViewMethodBuilder<T, R> {
-   		ViewMethodBuilder {
-   			m: method,
-   			block: None,
-   		}
-	}
+    /// Create a new `ViewMethodBuilder` by demoting a `MethodBuilder`.
+    pub fn from_method(method: MethodBuilder<T, R>) -> ViewMethodBuilder<T, R> {
+        ViewMethodBuilder {
+            m: method,
+            block: None,
+        }
+    }
 
     /// Specify the account the transaction is being sent from.
     pub fn from(mut self, value: Address) -> ViewMethodBuilder<T, R> {
