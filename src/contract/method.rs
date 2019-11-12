@@ -4,14 +4,13 @@
 
 use crate::errors::ExecutionError;
 use crate::future::CompatQueryResult;
-use crate::transaction::{Account, SendFuture, SendAndConfirmFuture, TransactionBuilder};
+use crate::transaction::{Account, SendFuture, TransactionBuilder};
 use ethabi::Function;
 use futures::compat::Future01CompatExt;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::Duration;
 use web3::api::Web3;
 use web3::contract::tokens::Detokenize;
 use web3::contract::QueryResult;
@@ -77,37 +76,89 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
     }
 
     /// Extract inner `TransactionBuilder` from this `SendBuilder`. This exposes
-    /// `TransactionBuilder` only APIs such as `estimate_gas`.
+    /// `TransactionBuilder` only APIs such as `estimate_gas` and
+    /// `send_and_confirm`.
     pub fn into_inner(self) -> TransactionBuilder<T> {
         self.tx
     }
 
-    /// Call a contract method. Contract calls do not modify the blockchain and
-    /// as such do not require gas or signing.
-    pub fn call(self) -> CallFuture<T, R> {
-        self.call_with_block(None)
-    }
+    /// Demotes a `MethodBuilder` into a `ViewMethodBuilder` which has a more
+   	/// restricted API and cannot actually send transactions.
+   	pub fn view(self) -> ViewMethodBuilder<T, R> {
+   		ViewMethodBuilder::from_method(self)
+   	}
 
-    /// Call a contract method to be evaluated for a optionally specified block
-    /// number. Contract calls do not modify the blockchain and as such do not
-    /// require gas or signing.
-    pub fn call_with_block(self, block: Option<BlockNumber>) -> CallFuture<T, R> {
-        CallFuture::from_builder_with_block(self, block)
+    /// Call a contract method. Contract calls do not modify the blockchain and
+    /// as such do not require gas or signing. Note that doing a call with a
+    /// block number requires first demoting the `MethodBuilder` into a
+    /// `ViewMethodBuilder` and setting the block number for the call.
+    pub fn call(self) -> CallFuture<T, R> {
+        self.view().call()
     }
 
     /// Sign (if required) and send the transaction.
     pub fn send(self) -> SendFuture<T> {
         self.tx.send()
     }
+}
 
-    /// Sign (if required) and send the transaction and then wait for
-    /// confirmations.
-   	pub fn send_and_confirm(
-        self,
-        poll_interval: Duration,
-        confirmations: usize,
-    ) -> SendAndConfirmFuture<T> {
-        self.tx.send_and_confirm(poll_interval, confirmations)
+/// Data used for building a contract method call. The view method builder can't
+/// directly send transactions and is for read only method calls.
+#[derive(Debug, Clone)]
+pub struct ViewMethodBuilder<T: Transport, R: Detokenize>{
+    /// method parameters
+	pub m: MethodBuilder<T, R>,
+	/// optional block number
+	pub block: Option<BlockNumber>,
+}
+
+impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
+	/// Create a new `ViewMethodBuilder` by demoting a `MethodBuilder`.
+	pub fn from_method(method: MethodBuilder<T, R>) -> ViewMethodBuilder<T, R> {
+   		ViewMethodBuilder {
+   			m: method,
+   			block: None,
+   		}
+	}
+
+    /// Specify the account the transaction is being sent from.
+    pub fn from(mut self, value: Address) -> ViewMethodBuilder<T, R> {
+        self.m = self.m.from(Account::Local(value, None));
+        self
+    }
+
+    /// Secify amount of gas to use, if not specified then a gas estimate will
+    /// be used.
+    pub fn gas(mut self, value: U256) -> ViewMethodBuilder<T, R> {
+        self.m = self.m.gas(value);
+        self
+    }
+
+    /// Specify the gas price to use, if not specified then the estimated gas
+    /// price will be used.
+    pub fn gas_price(mut self, value: U256) -> ViewMethodBuilder<T, R> {
+        self.m = self.m.gas(value);
+        self
+    }
+
+    /// Specify what how much ETH to transfer with the transaction, if not
+    /// specified then no ETH will be sent.
+    pub fn value(mut self, value: U256) -> ViewMethodBuilder<T, R> {
+        self.m = self.m.gas(value);
+        self
+    }
+
+    /// Specify the nonce for the transation, if not specified will use the
+    /// current transaction count for the signing account.
+    pub fn block(mut self, value: BlockNumber) -> ViewMethodBuilder<T, R> {
+        self.block = Some(value);
+        self
+    }
+
+    /// Call a contract method. Contract calls do not modify the blockchain and
+    /// as such do not require gas or signing.
+    pub fn call(self) -> CallFuture<T, R> {
+        CallFuture::from_builder(self)
     }
 }
 
@@ -118,21 +169,21 @@ pub struct CallFuture<T: Transport, R: Detokenize>(CompatQueryResult<T, R>);
 
 impl<T: Transport, R: Detokenize> CallFuture<T, R> {
     /// Construct a new `CallFuture` from a `CallBuilder`.
-    fn from_builder_with_block(builder: MethodBuilder<T, R>, block: Option<BlockNumber>) -> CallFuture<T, R> {
+    fn from_builder(builder: ViewMethodBuilder<T, R>) -> CallFuture<T, R> {
         CallFuture(
             QueryResult::new(
-                builder.web3.eth().call(
+                builder.m.web3.eth().call(
                     CallRequest {
-                        from: builder.tx.from.map(|account| account.address()),
-                        to: builder.tx.to.unwrap_or_default(),
-                        gas: builder.tx.gas,
-                        gas_price: builder.tx.gas_price,
-                        value: builder.tx.value,
-                        data: builder.tx.data,
+                        from: builder.m.tx.from.map(|account| account.address()),
+                        to: builder.m.tx.to.unwrap_or_default(),
+                        gas: builder.m.tx.gas,
+                        gas_price: builder.m.tx.gas_price,
+                        value: builder.m.tx.value,
+                        data: builder.m.tx.data,
                     },
-                    block,
+                    builder.block,
                 ),
-                builder.function,
+                builder.m.function,
             )
             .compat(),
         )

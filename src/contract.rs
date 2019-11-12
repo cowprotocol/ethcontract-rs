@@ -2,10 +2,8 @@
 //! for sending transactions to contracts as well as querying current contract
 //! state.
 
-mod call;
 mod deploy;
 mod method;
-mod send;
 
 use crate::errors::{DeployError, LinkError};
 use crate::truffle::{Abi, Artifact, Bytecode};
@@ -15,10 +13,8 @@ use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes};
 use web3::Transport;
 
-pub use self::call::{CallBuilder, ExecuteCallFuture};
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture};
-pub use self::method::{MethodBuilder, CallFuture};
-pub use self::send::SendBuilder;
+pub use self::method::{MethodBuilder, ViewMethodBuilder, CallFuture};
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
@@ -95,35 +91,6 @@ impl<T: Transport> Instance<T> {
         self.address
     }
 
-    /// Returns a method builder to setup a call  to a smart contract that just
-    /// gets evaluated on a node but does not actually commit anything to the
-    /// block chain.
-    pub fn call<S, P, R>(&self, name: S, params: P) -> AbiResult<CallBuilder<T, R>>
-    where
-        S: AsRef<str>,
-        P: Tokenize,
-        R: Detokenize,
-    {
-        let (function, data) = self.encode_abi(name, params)?;
-
-        // take ownership here as it greatly simplifies dealing with futures
-        // lifetime as it would require the contract Instance to live until
-        // the end of the future
-        let function = function.clone();
-
-        Ok(CallBuilder::new(self.web3(), function, self.address, data))
-    }
-
-    /// Returns a transaction builder to setup a transaction
-    pub fn send<S, P>(&self, name: S, params: P) -> AbiResult<SendBuilder<T>>
-    where
-        S: AsRef<str>,
-        P: Tokenize,
-    {
-        let (_, data) = self.encode_abi(name, params)?;
-        Ok(SendBuilder::new(self.web3(), self.address, data))
-    }
-
     /// Returns a method builder to setup a call or transaction on a smart
     /// contract method. Note that calls just get evaluated on a node but do not
     /// actually commit anything to the block chain.
@@ -143,6 +110,18 @@ impl<T: Transport> Instance<T> {
         let data = Bytes(data);
 
         Ok(MethodBuilder::new(self.web3(), function, self.address, data))
+    }
+
+    /// Returns a view method builder to setup a call to a smart contract. View
+    /// method builders can't actually send transactions and only query contract
+    /// state.
+    pub fn view_method<S, P, R>(&self, name: S, params: P) -> AbiResult<ViewMethodBuilder<T, R>>
+    where
+        S: AsRef<str>,
+        P: Tokenize,
+        R: Detokenize,
+    {
+        Ok(self.method(name, params)?.view())
     }
 
     /// Utility function to locate a function by name and encode the function

@@ -24,7 +24,7 @@ async fn run() {
         .deploy()
         .await
         .expect("deploy");
-    let name = instance.name().execute().await.expect("name");
+    let name = instance.name().call().await.expect("name");
     println!("Deployed {} at {:?}", name, instance.address());
 
     instance
@@ -86,7 +86,7 @@ async fn run() {
 async fn print_balance_of(instance: &RustCoin, account: Address) {
     let balance = instance
         .balance_of(account)
-        .execute()
+        .call()
         .await
         .expect("balance of");
     println!("Account {:?} has balance of {}", account, balance);

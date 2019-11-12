@@ -320,18 +320,19 @@ fn expand_function(
     let doc = expand_doc(doc_str);
 
     let input = expand_inputs(ethcontract, &function.inputs)?;
-    let (method, result) = if function.constant {
-        let outputs = expand_fn_outputs(ethcontract, &function)?;
+    let outputs = expand_fn_outputs(ethcontract, &function)?;
+    let (method, result_type_name) = if function.constant {
         (
-            quote! { call },
-            quote! { #ethcontract::contract::CallBuilder<#ethcontract::DynTransport, #outputs> },
+            quote! { view_method },
+            quote! { ViewMethodBuilder },
         )
     } else {
         (
-            quote! { send },
-            quote! { #ethcontract::contract::SendBuilder<#ethcontract::DynTransport> },
+            quote! { method },
+            quote! { MethodBuilder },
         )
     };
+    let result = quote! { #ethcontract::contract::#result_type_name<#ethcontract::DynTransport, #outputs> };
     let arg = expand_inputs_call_arg(&function.inputs);
 
     Ok(quote! {
