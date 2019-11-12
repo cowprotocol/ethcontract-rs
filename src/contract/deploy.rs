@@ -4,7 +4,7 @@
 use crate::contract::Instance;
 use crate::errors::DeployError;
 use crate::future::{CompatCallFuture, PhantomDataUnpin, Web3Unpin};
-use crate::transaction::{Account, ExecuteConfirmFuture, TransactionBuilder};
+use crate::transaction::{Account, SendAndConfirmFuture, TransactionBuilder};
 use crate::truffle::{Abi, Artifact};
 use ethabi::ErrorKind as AbiErrorKind;
 use futures::compat::Future01CompatExt;
@@ -229,7 +229,7 @@ where
     /// The deployment args
     args: Option<(Web3Unpin<T>, Abi)>,
     /// The future resolved when the deploy transaction is complete.
-    tx: Result<ExecuteConfirmFuture<T>, Option<DeployError>>,
+    tx: Result<SendAndConfirmFuture<T>, Option<DeployError>>,
     _deploy: PhantomDataUnpin<D>,
 }
 
@@ -246,7 +246,7 @@ where
 
         DeployFuture {
             args: Some((builder.web3.into(), builder.abi)),
-            tx: Ok(builder.tx.execute_and_confirm(poll_interval, confirmations)),
+            tx: Ok(builder.tx.send_and_confirm(poll_interval, confirmations)),
             _deploy: Default::default(),
         }
     }

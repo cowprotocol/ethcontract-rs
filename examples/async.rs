@@ -29,13 +29,13 @@ async fn run() {
 
     instance
         .transfer(accounts[1], 1_000_000.into())
-        .execute()
+        .send()
         .await
         .expect("transfer 0->1");
     instance
         .transfer(accounts[2], 500_000.into())
         .from(Account::Local(accounts[1], None))
-        .execute()
+        .send()
         .await
         .expect("transfer 1->2");
 
@@ -69,13 +69,13 @@ async fn run() {
 
     instance
         .transfer(x, 1_000_000.into())
-        .execute()
+        .send()
         .await
         .expect("transfer 0->x");
     instance
         .transfer(accounts[4], 420.into())
         .from(Account::Offline(key, None))
-        .execute()
+        .send()
         .await
         .expect("transfer x->4");
 

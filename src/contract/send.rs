@@ -1,6 +1,6 @@
 //! Implementation for sending a transaction to a contract.
 
-use crate::transaction::{Account, ExecuteFuture, TransactionBuilder};
+use crate::transaction::{Account, SendFuture, TransactionBuilder};
 use web3::api::Web3;
 use web3::types::{Address, Bytes, U256};
 use web3::Transport;
@@ -53,9 +53,9 @@ impl<T: Transport> SendBuilder<T> {
         self.0
     }
 
-    /// Sign (if required) and execute the transaction. Returns the transaction
+    /// Sign (if required) and send the transaction. Returns the transaction
     /// hash that can be used to retrieve transaction information.
-    pub fn execute(self) -> ExecuteFuture<T> {
-        self.0.execute()
+    pub fn send(self) -> SendFuture<T> {
+        self.0.send()
     }
 }

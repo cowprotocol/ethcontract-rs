@@ -4,6 +4,7 @@
 
 mod call;
 mod deploy;
+mod method;
 mod send;
 
 use crate::errors::{DeployError, LinkError};
@@ -16,6 +17,7 @@ use web3::Transport;
 
 pub use self::call::{CallBuilder, ExecuteCallFuture};
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture};
+pub use self::method::{MethodBuilder, CallFuture};
 pub use self::send::SendBuilder;
 
 /// Represents a contract instance at an address. Provides methods for
@@ -93,7 +95,7 @@ impl<T: Transport> Instance<T> {
         self.address
     }
 
-    /// Returns a call builder to setup a query to a smart contract that just
+    /// Returns a method builder to setup a call  to a smart contract that just
     /// gets evaluated on a node but does not actually commit anything to the
     /// block chain.
     pub fn call<S, P, R>(&self, name: S, params: P) -> AbiResult<CallBuilder<T, R>>
@@ -120,6 +122,27 @@ impl<T: Transport> Instance<T> {
     {
         let (_, data) = self.encode_abi(name, params)?;
         Ok(SendBuilder::new(self.web3(), self.address, data))
+    }
+
+    /// Returns a method builder to setup a call or transaction on a smart
+    /// contract method. Note that calls just get evaluated on a node but do not
+    /// actually commit anything to the block chain.
+    pub fn method<S, P, R>(&self, name: S, params: P) -> AbiResult<MethodBuilder<T, R>>
+    where
+        S: AsRef<str>,
+        P: Tokenize,
+        R: Detokenize,
+    {
+        let function = self.abi.function(name.as_ref())?;
+        let data = function.encode_input(&params.into_tokens())?;
+
+        // take ownership here as it greatly simplifies dealing with futures
+        // lifetime as it would require the contract Instance to live until
+        // the end of the future
+        let function = function.clone();
+        let data = Bytes(data);
+
+        Ok(MethodBuilder::new(self.web3(), function, self.address, data))
     }
 
     /// Utility function to locate a function by name and encode the function
