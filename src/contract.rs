@@ -7,7 +7,7 @@ mod method;
 
 use crate::errors::{DeployError, LinkError};
 use crate::truffle::{Abi, Artifact, Bytecode};
-use ethabi::{Function, Result as AbiResult};
+use ethabi::{Result as AbiResult};
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes};
@@ -127,20 +127,6 @@ impl<T: Transport> Instance<T> {
         R: Detokenize,
     {
         Ok(self.method(name, params)?.view())
-    }
-
-    /// Utility function to locate a function by name and encode the function
-    /// signature and parameters into data bytes to be sent to a contract.
-    #[inline(always)]
-    fn encode_abi<S, P>(&self, name: S, params: P) -> AbiResult<(&Function, Bytes)>
-    where
-        S: AsRef<str>,
-        P: Tokenize,
-    {
-        let function = self.abi.function(name.as_ref())?;
-        let data = function.encode_input(&params.into_tokens())?;
-
-        Ok((function, data.into()))
     }
 }
 
