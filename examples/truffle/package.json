@@ -20,7 +20,7 @@
   },
   "homepage": "https://github.com/gnosis/ethcontract-rs",
   "devDependencies": {
-    "@openzeppelin/contracts": "^2.3.0",
-    "truffle": "^5.0.41"
+    "@openzeppelin/contracts": "^2.4.0",
+    "truffle": "^5.1.0"
   }
 }
