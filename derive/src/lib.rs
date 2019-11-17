@@ -328,8 +328,7 @@ fn expand_function(
     } else {
         (quote! { method }, quote! { DynMethodBuilder })
     };
-    let result =
-        quote! { #ethcontract::#result_type_name<#outputs> };
+    let result = quote! { #ethcontract::#result_type_name<#outputs> };
     let arg = expand_inputs_call_arg(&function.inputs);
 
     Ok(quote! {
