@@ -274,7 +274,7 @@ fn expand_deploy(ethcontract: &Ident, artifact: &Artifact) -> Result<TokenStream
         #doc
         pub fn deploy<F, T>(
             web3: &#ethcontract::web3::api::Web3<T> #input #lib_input ,
-        ) -> #ethcontract::contract::DeployBuilder<#ethcontract::DynTransport, Self>
+        ) -> #ethcontract::DynDeployBuilder<Self>
         where
             F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
             T: #ethcontract::web3::Transport<Out = F> + 'static,
@@ -324,12 +324,12 @@ fn expand_function(
     let input = expand_inputs(ethcontract, &function.inputs)?;
     let outputs = expand_fn_outputs(ethcontract, &function)?;
     let (method, result_type_name) = if function.constant {
-        (quote! { view_method }, quote! { ViewMethodBuilder })
+        (quote! { view_method }, quote! { DynViewMethodBuilder })
     } else {
-        (quote! { method }, quote! { MethodBuilder })
+        (quote! { method }, quote! { DynMethodBuilder })
     };
     let result =
-        quote! { #ethcontract::contract::#result_type_name<#ethcontract::DynTransport, #outputs> };
+        quote! { #ethcontract::#result_type_name<#outputs> };
     let arg = expand_inputs_call_arg(&function.inputs);
 
     Ok(quote! {
