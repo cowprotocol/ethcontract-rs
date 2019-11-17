@@ -21,6 +21,7 @@ use web3::Transport;
 /// builder can be demoted into a `CallBuilder` to not allow sending of
 /// transactions. This is useful when dealing with view functions.
 #[derive(Debug, Clone)]
+#[must_use = "methods do nothing unless you `.call()` or `.send()` them"]
 pub struct MethodBuilder<T: Transport, R: Detokenize> {
     web3: Web3<T>,
     function: Function,
@@ -110,6 +111,7 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
 /// Data used for building a contract method call. The view method builder can't
 /// directly send transactions and is for read only method calls.
 #[derive(Debug, Clone)]
+#[must_use = "view methods do nothing unless you `.call()` them"]
 pub struct ViewMethodBuilder<T: Transport, R: Detokenize> {
     /// method parameters
     pub m: MethodBuilder<T, R>,

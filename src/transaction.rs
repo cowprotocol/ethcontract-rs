@@ -78,6 +78,7 @@ impl Transaction {
 /// transactions can either be sent to be signed locally by the node or can be
 /// signed offline.
 #[derive(Clone, Debug)]
+#[must_use = "transactions do nothing unless you `.build()` or `.send()` them"]
 pub struct TransactionBuilder<T: Transport> {
     web3: Web3<T>,
     /// The sender of the transaction with the signing strategy to use. Defaults

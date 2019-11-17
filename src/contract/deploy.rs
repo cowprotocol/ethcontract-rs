@@ -33,6 +33,7 @@ impl<T: Transport> Deploy<T> for Instance<T> {
 }
 
 /// Future for creating a deployed contract instance.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct DeployedFuture<T, D>
 where
     T: Transport,
@@ -102,6 +103,7 @@ where
 
 /// Builder for specifying options for deploying a linked contract.
 #[derive(Debug, Clone)]
+#[must_use = "deploy builers do nothing unless you `.deploy()` them"]
 pub struct DeployBuilder<T, D>
 where
     T: Transport,
@@ -221,6 +223,7 @@ where
 }
 
 /// Future for deploying a contract instance.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct DeployFuture<T, D>
 where
     T: Transport,
