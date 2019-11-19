@@ -90,16 +90,25 @@ pub mod sign;
 pub mod transaction;
 pub mod transport;
 
+pub use crate::contract::Instance;
+use crate::contract::{DeployBuilder, MethodBuilder, ViewMethodBuilder};
+pub use crate::transport::DynTransport;
 pub use ethcontract_common::truffle;
 pub use ethcontract_derive::contract;
 pub use serde_json as json;
 pub use web3;
 
-pub use crate::contract::Instance;
-pub use crate::transport::DynTransport;
-
 /// Type alias for a contract `Instance` with an underyling `DynTransport`.
 pub type DynInstance = Instance<DynTransport>;
+
+/// Type alias for a `MethodBuilder` with an underlying `DynTransport`.
+pub type DynDeployBuilder<D> = DeployBuilder<DynTransport, D>;
+
+/// Type alias for a `MethodBuilder` with an underlying `DynTransport`.
+pub type DynMethodBuilder<R> = MethodBuilder<DynTransport, R>;
+
+/// Type alias for a `ViewMethodBuilder` with an underlying `DynTransport`.
+pub type DynViewMethodBuilder<R> = ViewMethodBuilder<DynTransport, R>;
 
 #[doc(hidden)]
 pub mod foreign {

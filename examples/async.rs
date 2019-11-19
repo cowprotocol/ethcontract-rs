@@ -24,18 +24,18 @@ async fn run() {
         .deploy()
         .await
         .expect("deploy");
-    let name = instance.name().execute().await.expect("name");
+    let name = instance.name().call().await.expect("name");
     println!("Deployed {} at {:?}", name, instance.address());
 
     instance
         .transfer(accounts[1], 1_000_000.into())
-        .execute()
+        .send()
         .await
         .expect("transfer 0->1");
     instance
         .transfer(accounts[2], 500_000.into())
         .from(Account::Local(accounts[1], None))
-        .execute()
+        .send()
         .await
         .expect("transfer 1->2");
 
@@ -69,13 +69,13 @@ async fn run() {
 
     instance
         .transfer(x, 1_000_000.into())
-        .execute()
+        .send()
         .await
         .expect("transfer 0->x");
     instance
         .transfer(accounts[4], 420.into())
         .from(Account::Offline(key, None))
-        .execute()
+        .send()
         .await
         .expect("transfer x->4");
 
@@ -86,7 +86,7 @@ async fn run() {
 async fn print_balance_of(instance: &RustCoin, account: Address) {
     let balance = instance
         .balance_of(account)
-        .execute()
+        .call()
         .await
         .expect("balance of");
     println!("Account {:?} has balance of {}", account, balance);

@@ -2,21 +2,19 @@
 //! for sending transactions to contracts as well as querying current contract
 //! state.
 
-mod call;
 mod deploy;
-mod send;
+mod method;
 
 use crate::errors::{DeployError, LinkError};
 use crate::truffle::{Abi, Artifact, Bytecode};
-use ethabi::{Function, Result as AbiResult};
+use ethabi::Result as AbiResult;
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes};
 use web3::Transport;
 
-pub use self::call::{CallBuilder, ExecuteCallFuture};
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture};
-pub use self::send::SendBuilder;
+pub use self::method::{CallFuture, MethodBuilder, ViewMethodBuilder};
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
@@ -93,47 +91,42 @@ impl<T: Transport> Instance<T> {
         self.address
     }
 
-    /// Returns a call builder to setup a query to a smart contract that just
-    /// gets evaluated on a node but does not actually commit anything to the
-    /// block chain.
-    pub fn call<S, P, R>(&self, name: S, params: P) -> AbiResult<CallBuilder<T, R>>
+    /// Returns a method builder to setup a call or transaction on a smart
+    /// contract method. Note that calls just get evaluated on a node but do not
+    /// actually commit anything to the block chain.
+    pub fn method<S, P, R>(&self, name: S, params: P) -> AbiResult<MethodBuilder<T, R>>
     where
         S: AsRef<str>,
         P: Tokenize,
         R: Detokenize,
     {
-        let (function, data) = self.encode_abi(name, params)?;
+        let function = self.abi.function(name.as_ref())?;
+        let data = function.encode_input(&params.into_tokens())?;
 
         // take ownership here as it greatly simplifies dealing with futures
         // lifetime as it would require the contract Instance to live until
         // the end of the future
         let function = function.clone();
+        let data = Bytes(data);
 
-        Ok(CallBuilder::new(self.web3(), function, self.address, data))
+        Ok(MethodBuilder::new(
+            self.web3(),
+            function,
+            self.address,
+            data,
+        ))
     }
 
-    /// Returns a transaction builder to setup a transaction
-    pub fn send<S, P>(&self, name: S, params: P) -> AbiResult<SendBuilder<T>>
+    /// Returns a view method builder to setup a call to a smart contract. View
+    /// method builders can't actually send transactions and only query contract
+    /// state.
+    pub fn view_method<S, P, R>(&self, name: S, params: P) -> AbiResult<ViewMethodBuilder<T, R>>
     where
         S: AsRef<str>,
         P: Tokenize,
+        R: Detokenize,
     {
-        let (_, data) = self.encode_abi(name, params)?;
-        Ok(SendBuilder::new(self.web3(), self.address, data))
-    }
-
-    /// Utility function to locate a function by name and encode the function
-    /// signature and parameters into data bytes to be sent to a contract.
-    #[inline(always)]
-    fn encode_abi<S, P>(&self, name: S, params: P) -> AbiResult<(&Function, Bytes)>
-    where
-        S: AsRef<str>,
-        P: Tokenize,
-    {
-        let function = self.abi.function(name.as_ref())?;
-        let data = function.encode_input(&params.into_tokens())?;
-
-        Ok((function, data.into()))
+        Ok(self.method(name, params)?.view())
     }
 }
 

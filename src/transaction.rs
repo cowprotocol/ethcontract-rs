@@ -1,4 +1,4 @@
-//! Implementation for setting up, signing, estimating gas and executing
+//! Implementation for setting up, signing, estimating gas and sending
 //! transactions on the Ethereum network.
 
 use crate::errors::ExecutionError;
@@ -20,31 +20,6 @@ use web3::types::{
 };
 use web3::Transport;
 
-/// Data used for building a transaction that modifies the blockchain. These
-/// transactions can either be sent to be signed locally by the node or can be
-/// signed offline.
-#[derive(Clone, Debug)]
-pub struct TransactionBuilder<T: Transport> {
-    web3: Web3<T>,
-    /// The sender of the transaction with the signing strategy to use. Defaults
-    /// to locally signing on the node with the default acount.
-    pub from: Option<Account>,
-    /// The receiver of the transaction.
-    pub to: Option<Address>,
-    /// Optional gas amount to use for transaction. Defaults to estimated gas.
-    pub gas: Option<U256>,
-    /// Optional gas price to use for transaction. Defaults to estimated gas
-    /// price.
-    pub gas_price: Option<U256>,
-    /// The ETH value to send with the transaction. Defaults to 0.
-    pub value: Option<U256>,
-    /// The data for the transaction. Defaults to empty data.
-    pub data: Option<Bytes>,
-    /// Optional nonce to use. Defaults to the signing account's current
-    /// transaction count.
-    pub nonce: Option<U256>,
-}
-
 /// The account type used for signing the transaction.
 #[derive(Clone, Debug)]
 pub enum Account {
@@ -55,6 +30,17 @@ pub enum Account {
     /// Do offline signing with private key and optionally specify chain ID. If
     /// no chain ID is specified, then it will default to the network ID.
     Offline(SecretKey, Option<u64>),
+}
+
+impl Account {
+    /// Returns the public address of an account.
+    pub fn address(&self) -> Address {
+        match self {
+            Account::Local(address, _) => *address,
+            Account::Locked(address, _, _) => *address,
+            Account::Offline(key, _) => key.public().address().into(),
+        }
+    }
 }
 
 /// Represents a prepared and optionally signed transaction that is ready for
@@ -86,6 +72,32 @@ impl Transaction {
             _ => None,
         }
     }
+}
+
+/// Data used for building a transaction that modifies the blockchain. These
+/// transactions can either be sent to be signed locally by the node or can be
+/// signed offline.
+#[derive(Clone, Debug)]
+#[must_use = "transactions do nothing unless you `.build()` or `.send()` them"]
+pub struct TransactionBuilder<T: Transport> {
+    web3: Web3<T>,
+    /// The sender of the transaction with the signing strategy to use. Defaults
+    /// to locally signing on the node with the default acount.
+    pub from: Option<Account>,
+    /// The receiver of the transaction.
+    pub to: Option<Address>,
+    /// Optional gas amount to use for transaction. Defaults to estimated gas.
+    pub gas: Option<U256>,
+    /// Optional gas price to use for transaction. Defaults to estimated gas
+    /// price.
+    pub gas_price: Option<U256>,
+    /// The ETH value to send with the transaction. Defaults to 0.
+    pub value: Option<U256>,
+    /// The data for the transaction. Defaults to empty data.
+    pub data: Option<Bytes>,
+    /// Optional nonce to use. Defaults to the signing account's current
+    /// transaction count.
+    pub nonce: Option<U256>,
 }
 
 impl<T: Transport> TransactionBuilder<T> {
@@ -162,35 +174,32 @@ impl<T: Transport> TransactionBuilder<T> {
         BuildFuture::from_builder(self)
     }
 
-    /// Sign (if required) and execute the transaction. Returns the transaction
+    /// Sign (if required) and send the transaction. Returns the transaction
     /// hash that can be used to retrieve transaction information.
-    pub fn execute(self) -> ExecuteFuture<T> {
-        ExecuteFuture::from_builder(self)
+    pub fn send(self) -> SendFuture<T> {
+        SendFuture::from_builder(self)
     }
 
-    /// Execute a transaction and wait for confirmation. Returns the transaction
+    /// Send a transaction and wait for confirmation. Returns the transaction
     /// receipt for inspection.
-    pub fn execute_and_confirm(
+    pub fn send_and_confirm(
         self,
         poll_interval: Duration,
         confirmations: usize,
-    ) -> ExecuteConfirmFuture<T> {
-        ExecuteConfirmFuture::from_builder_with_confirm(self, poll_interval, confirmations)
+    ) -> SendAndConfirmFuture<T> {
+        SendAndConfirmFuture::from_builder_with_confirm(self, poll_interval, confirmations)
     }
 }
 
 /// Future for estimating gas for a transaction.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct EstimateGasFuture<T: Transport>(CompatCallFuture<T, U256>);
 
 impl<T: Transport> EstimateGasFuture<T> {
     /// Create a instance from a `TransactionBuilder`.
     pub fn from_builder(builder: TransactionBuilder<T>) -> EstimateGasFuture<T> {
         let eth = builder.web3.eth();
-        let from = builder.from.map(|from| match from {
-            Account::Local(from, ..) => from,
-            Account::Locked(from, ..) => from,
-            Account::Offline(key, ..) => key.public().address().into(),
-        });
+        let from = builder.from.map(|account| account.address());
         let to = builder.to.unwrap_or_else(Address::zero);
 
         EstimateGasFuture(
@@ -223,6 +232,7 @@ impl<T: Transport> Future for EstimateGasFuture<T> {
 }
 
 /// Future for preparing a transaction.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct BuildFuture<T: Transport> {
     /// The internal build state for preparing the transaction.
     state: BuildState<T>,
@@ -449,19 +459,20 @@ impl<T: Transport> BuildState<T> {
     }
 }
 
-/// Future for optionally signing and then executing a transaction.
-pub struct ExecuteFuture<T: Transport> {
+/// Future for optionally signing and then sending a transaction.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct SendFuture<T: Transport> {
     /// Internal execution state.
     state: ExecutionState<T, Web3Unpin<T>, CompatCallFuture<T, H256>>,
 }
 
-impl<T: Transport> ExecuteFuture<T> {
+impl<T: Transport> SendFuture<T> {
     /// Creates a new future from a `TransactionBuilder`
-    pub fn from_builder(builder: TransactionBuilder<T>) -> ExecuteFuture<T> {
+    pub fn from_builder(builder: TransactionBuilder<T>) -> SendFuture<T> {
         let web3 = builder.web3.clone().into();
         let state = ExecutionState::from_builder_with_data(builder, web3);
 
-        ExecuteFuture { state }
+        SendFuture { state }
     }
 
     fn state(
@@ -471,7 +482,7 @@ impl<T: Transport> ExecuteFuture<T> {
     }
 }
 
-impl<T: Transport> Future for ExecuteFuture<T> {
+impl<T: Transport> Future for SendFuture<T> {
     type Output = Result<H256, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -482,25 +493,26 @@ impl<T: Transport> Future for ExecuteFuture<T> {
     }
 }
 
-/// Future for optinally signing and then executing a transaction with
+/// Future for optinally signing and then sending a transaction with
 /// confirmation.
-pub struct ExecuteConfirmFuture<T: Transport> {
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct SendAndConfirmFuture<T: Transport> {
     /// Internal execution state.
     state: ExecutionState<T, (Web3Unpin<T>, Duration, usize), CompatSendTxWithConfirmation<T>>,
 }
 
-impl<T: Transport> ExecuteConfirmFuture<T> {
+impl<T: Transport> SendAndConfirmFuture<T> {
     /// Creates a new future from a `TransactionBuilder`
     pub fn from_builder_with_confirm(
         builder: TransactionBuilder<T>,
         poll_interval: Duration,
         confirmations: usize,
-    ) -> ExecuteConfirmFuture<T> {
+    ) -> SendAndConfirmFuture<T> {
         let web3 = builder.web3.clone().into();
         let state =
             ExecutionState::from_builder_with_data(builder, (web3, poll_interval, confirmations));
 
-        ExecuteConfirmFuture { state }
+        SendAndConfirmFuture { state }
     }
 
     fn state(
@@ -511,7 +523,7 @@ impl<T: Transport> ExecuteConfirmFuture<T> {
     }
 }
 
-impl<T: Transport> Future for ExecuteConfirmFuture<T> {
+impl<T: Transport> Future for SendAndConfirmFuture<T> {
     type Output = Result<TransactionReceipt, ExecutionError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -622,7 +634,7 @@ mod tests {
     }
 
     #[test]
-    fn tx_execute_local() {
+    fn tx_send_local() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
@@ -639,7 +651,7 @@ mod tests {
             .value(28.into())
             .data(Bytes(vec![0x13, 0x37]))
             .nonce(42.into())
-            .execute()
+            .send()
             .wait()
             .expect("transaction success");
 

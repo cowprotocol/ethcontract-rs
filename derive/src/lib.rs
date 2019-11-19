@@ -11,6 +11,7 @@ use ethcontract_common::truffle::Artifact;
 use inflector::Inflector;
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
+use std::fs;
 use syn::ext::IdentExt;
 use syn::parse::{Error as ParseError, Parse, ParseStream, Result as ParseResult};
 use syn::{parse_macro_input, Error as SynError, Ident as SynIdent, LitStr, Token};
@@ -77,7 +78,10 @@ fn expand_contract(args: ContractArgs) -> Result<TokenStream> {
     //   the path will always be rooted on the cargo manifest directory.
     //   Eventually we can use the `Span::source_file` API to have a better
     //   experience.
-    let artifact_path = args.artifact_path;
+    let artifact_path = {
+        let full_path = fs::canonicalize(args.artifact_path.value())?;
+        LitStr::new(&full_path.to_string_lossy(), args.artifact_path.span())
+    };
     let artifact = Artifact::load(&artifact_path.value())?;
     let contract_name = ident!(&artifact.contract_name);
 
@@ -117,9 +121,7 @@ fn expand_contract(args: ContractArgs) -> Result<TokenStream> {
 
                 lazy_static! {
                     pub static ref ARTIFACT: Artifact = {
-                        Artifact::from_json(
-                            include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", #artifact_path)))
-                            .expect("valid artifact JSON")
+                        Artifact::from_json(#artifact_path).expect("valid artifact JSON")
                     };
                 }
                 &ARTIFACT
@@ -272,7 +274,7 @@ fn expand_deploy(ethcontract: &Ident, artifact: &Artifact) -> Result<TokenStream
         #doc
         pub fn deploy<F, T>(
             web3: &#ethcontract::web3::api::Web3<T> #input #lib_input ,
-        ) -> #ethcontract::contract::DeployBuilder<#ethcontract::DynTransport, Self>
+        ) -> #ethcontract::DynDeployBuilder<Self>
         where
             F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
             T: #ethcontract::web3::Transport<Out = F> + 'static,
@@ -320,18 +322,13 @@ fn expand_function(
     let doc = expand_doc(doc_str);
 
     let input = expand_inputs(ethcontract, &function.inputs)?;
-    let (method, result) = if function.constant {
-        let outputs = expand_fn_outputs(ethcontract, &function)?;
-        (
-            quote! { call },
-            quote! { #ethcontract::contract::CallBuilder<#ethcontract::DynTransport, #outputs> },
-        )
+    let outputs = expand_fn_outputs(ethcontract, &function)?;
+    let (method, result_type_name) = if function.constant {
+        (quote! { view_method }, quote! { DynViewMethodBuilder })
     } else {
-        (
-            quote! { send },
-            quote! { #ethcontract::contract::SendBuilder<#ethcontract::DynTransport> },
-        )
+        (quote! { method }, quote! { DynMethodBuilder })
     };
+    let result = quote! { #ethcontract::#result_type_name<#outputs> };
     let arg = expand_inputs_call_arg(&function.inputs);
 
     Ok(quote! {
