@@ -24,6 +24,7 @@ samples = []
 members = [
   "common",
   "derive",
+  "generate",
 ]
 
 [dependencies]
