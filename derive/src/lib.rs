@@ -5,23 +5,28 @@
 
 extern crate proc_macro;
 
+use ethcontract_generate::Builder;
+use proc_macro::{TokenStream};
+use syn::{parse_macro_input, Token, Ident, LitStr, Error as SynError};
 use syn::ext::IdentExt;
 use syn::parse::{Error as ParseError, Parse, ParseStream, Result as ParseResult};
 
 /// Proc macro to generate type-safe bindings to a contract. See
 /// [`ethcontract`](ethcontract) module level documentation for more information.
 #[proc_macro]
-pub fn contract(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn contract(input: proc_macro::TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as ContractArgs);
-    expand_contract(args)
-        .unwrap_or_else(|e| SynError::new(Span::call_site(), e.to_string()).to_compile_error())
+    let artifact_span = args.artifact_path.span();
+    args.builder.generate()
+        .map(|bindings| bindings.into_tokens())
+        .unwrap_or_else(|e| SynError::new(artifact_span, e.to_string()).to_compile_error())
         .into()
 }
 
 /// Contract procedural macro arguments.
 struct ContractArgs {
     artifact_path: LitStr,
-    runtime_crate: Option<Ident>,
+    builder: Builder,
 }
 
     // TODO(nlordell): Due to limitation with the proc-macro Span API, we can't
@@ -32,14 +37,13 @@ struct ContractArgs {
 
 impl Parse for ContractArgs {
     fn parse(input: ParseStream) -> ParseResult<Self> {
-        let mut result = ContractArgs {
-            artifact_path: input.parse()?,
-            runtime_crate: None,
-        };
+        let artifact_path: LitStr = input.parse()?;
+        let mut builder = Builder::new(artifact_path.value());
 
         while !input.is_empty() {
             input.parse::<Token![,]>()?;
             if input.is_empty() {
+                // allow trailing commas
                 break;
             }
 
@@ -47,7 +51,11 @@ impl Parse for ContractArgs {
             input.parse::<Token![=]>()?;
 
             match param.to_string().as_str() {
-                "crate" => result.runtime_crate = Some(input.call(Ident::parse_any)?),
+                "crate" => {
+                    let ident = input.call(Ident::parse_any)?;
+                    let name = format!("{}", ident.unraw());
+                    builder = builder.with_runtime_crate_name(&name);
+                },
                 _ => {
                     return Err(ParseError::new(
                         param.span(),
@@ -57,7 +65,7 @@ impl Parse for ContractArgs {
             }
         }
 
-        Ok(result)
+        Ok(ContractArgs { artifact_path, builder })
     }
 }
 

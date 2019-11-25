@@ -9,10 +9,10 @@ use anyhow::{anyhow, Result};
 use ethabi::{Function, Param, ParamType};
 use ethcontract_common::truffle::Artifact;
 use inflector::Inflector;
-use proc_macro2::{Ident, Literal, Span, TokenStream};
+use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
 use std::fs;
-use syn::{Ident as SynIdent, LitStr};
+use syn::{Ident as SynIdent};
 
 
 macro_rules! ident {
@@ -22,7 +22,7 @@ macro_rules! ident {
 }
 
 struct Context {
-    artifact_path: LitStr,
+    artifact_path: Literal,
     artifact: Artifact,
     runtime_crate: Ident,
 }
@@ -31,9 +31,9 @@ impl Context {
     fn from_args(args: &Args) -> Result<Context> {
         let artifact_path = {
             let full_path = fs::canonicalize(&args.artifact_path)?;
-            LitStr::new(&full_path.to_string_lossy(), Span::call_site())
+            Literal::string(&full_path.to_string_lossy())
         };
-        let artifact = Artifact::load(&artifact_path.value())?;
+        let artifact = Artifact::load(&args.artifact_path)?;
         let runtime_crate = ident!(&args.runtime_crate_name);
 
         Ok(Context {
@@ -84,7 +84,8 @@ pub(crate) fn expand_contract(args: &Args) -> Result<TokenStream> {
 
                 lazy_static! {
                     pub static ref ARTIFACT: Artifact = {
-                        Artifact::from_json(#artifact_path).expect("valid artifact JSON")
+                        Artifact::from_json(include_str!(#artifact_path))
+                            .expect("valid artifact JSON")
                     };
                 }
                 &ARTIFACT
