@@ -1,28 +1,24 @@
-language: rust
-rust:
-  - stable
-  - beta
-  - nightly
-
-jobs:
-  allow_failures:
-    - rust: nightly
-  fast_finish: true
+matrix:
   include:
+    - language: rust
+      rust:
+        - stable
+        - beta
+        - nightly
+      cache:
+        cargo: true
+      jobs:
+        allow_failures:
+          - rust: nightly
+        fast_finish: true
+      before_install:
+        - rustup component add clippy rustfmt
+      script:
+        - cargo build --all-features --verbose --all
+        - cargo test --all-features --verbose --all
+        - cargo fmt --all -- --check
+        - cargo clippy --all --all-features --all-targets -- -D warnings
+
     - language: node_js
       node_js: node
       before_install: cd examples/truffle
-
-cache:
-  cargo: true
-  directories:
-    - $HOME/.npm
-
-before_install:
-  - rustup component add clippy rustfmt
-
-script:
-  - cargo build --all-features --verbose --all
-  - cargo test --all-features --verbose --all
-  - cargo fmt --all -- --check
-  - cargo clippy --all --all-features --all-targets -- -D warnings
