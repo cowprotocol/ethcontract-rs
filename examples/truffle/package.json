@@ -5,7 +5,7 @@
   "description": "Test contracts for ethcontract-rs runtime and proc macro.",
   "scripts": {
     "build": "rimraf build && truffle build",
-    "deploy": "truffle migrate --reset --network rinkeby && node scripts/artifacts.js extract-networks",
+    "deploy": "npm run build && truffle migrate --reset --network rinkeby && node scripts/artifacts.js extract-networks",
     "normalize": "node scripts/artifacts.js normalize",
     "prepublish": "npm run build && npm run normalize",
     "start": "truffle develop",
