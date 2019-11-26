@@ -9,6 +9,7 @@ const assert = require("assert");
 const fs = require("fs").promises;
 const path = require("path");
 const yargs = require("yargs");
+const injectNetworks = require("@gnosis.pm/util-contracts/src/util/injectNetworks");
 const extractNetworks = require("@gnosis.pm/util-contracts/src/util/extractNetworks");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
@@ -146,9 +147,14 @@ if (require.main === module) {
       handler: normalizeArtifacts,
     })
     .command({
+      command: "inject-networks",
+      desc: "inject network data from `networks.json` to contract artifacts",
+      handler: () => injectNetworks(NETWORK_RESTORE_CONF),
+    })
+    .command({
       command: "extract-networks",
       desc: "extract deployed contract addresses to `networks.json`",
-      handler: extractArtifactNetworks,
+      handler: () => extractNetworks(NETWORK_RESTORE_CONF),
     })
     .demandCommand()
     .help()

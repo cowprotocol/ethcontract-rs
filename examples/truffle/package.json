@@ -4,7 +4,7 @@
   "private": true,
   "description": "Test contracts for ethcontract-rs runtime and proc macro.",
   "scripts": {
-    "build": "rimraf build && truffle build",
+    "build": "rimraf build && truffle build && node scripts/artifacts.js inject-networks",
     "deploy": "npm run build && truffle migrate --reset --network rinkeby && node scripts/artifacts.js extract-networks",
     "normalize": "node scripts/artifacts.js normalize",
     "prepublish": "npm run build && npm run normalize",
