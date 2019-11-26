@@ -4,13 +4,10 @@
   "private": true,
   "description": "Test contracts for ethcontract-rs runtime and proc macro.",
   "scripts": {
-    "build": "rimraf build && truffle build && npm run networks:inject",
-    "prepublish": "npm run build && git diff --exit-code HEAD",
-    "deploy": "truffle migrate --reset --network rinkeby && npm run networks:extract",
-    "networks:inject": "node scripts/networks.js inject",
-    "networks:extract": "node scripts/networks.js extract",
+    "build": "rimraf build && truffle build && node scripts/networks.js inject",
+    "deploy": "truffle migrate --reset --network rinkeby && node scripts/networks.js extract",
     "start": "truffle develop",
-    "test": "truffle test"
+    "test": "npm run build && git diff --exit-code HEAD && truffle test"
   },
   "repository": {
     "type": "git",
