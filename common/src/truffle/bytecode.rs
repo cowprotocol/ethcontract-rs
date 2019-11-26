@@ -99,8 +99,7 @@ impl Bytecode {
 
     /// Returns true if the bytecode is an empty bytecode.
     pub fn is_empty(&self) -> bool {
-        // account for the 0x prefix
-        self.0.len() == 2
+        self.0 == "0x"
     }
 }
 
