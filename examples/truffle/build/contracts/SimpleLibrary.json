@@ -29,7 +29,7 @@
   "sourceMap": "25:115:4:-;;132:2:-1;166:7;155:9;146:7;137:37;255:7;249:14;246:1;241:23;235:4;232:33;222:2;;269:9;222:2;293:9;290:1;283:20;323:4;314:7;306:22;347:7;338;331:24",
   "deployedSourceMap": "25:115:4:-;;;;;;;;;;;;;;;;;;;;;;;;51:87;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;51:87:4;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;102:7;131:2;124:4;:9;117:16;;51:87;;;:::o",
   "source": "pragma solidity ^0.5.0;\n\nlibrary SimpleLibrary {\n  function answer(uint256 self) public pure returns (uint256) {\n    return self + 42;\n  }\n}",
-  "sourcePath": "./contracts/SimpleLibrary.json",
+  "sourcePath": "./contracts/SimpleLibrary.sol",
   "ast": {
     "absolutePath": "/contracts/SimpleLibrary.sol",
     "exportedSymbols": {

@@ -29,7 +29,7 @@ async function getContractArtifacts() {
       const contents = await fs.readFile(filepath);
       const artifact = JSON.parse(contents.toString());
 
-      return { filename, filepath, artifact };
+      return { filepath, artifact };
     })
 }
 
@@ -82,7 +82,7 @@ function clearBytecodeSwarmHash(bytecode) {
 /**
  * Fixes paths in `solc` metadata string
  */
-function fixMetadataPaths(metadata) {
+function fixRelativePaths(metadata) {
   return metadata.replace(new RegExp(PACKAGE_ROOT, "g"), ".");
 }
 
@@ -113,13 +113,13 @@ function fixAstPaths(ast) {
 async function normalizeArtifacts() {
   const networks = JSON.parse(await fs.readFile(NETWORKS_JSON));
   const artifacts = await getContractArtifacts();
-  for await (let { filename, filepath, artifact } of artifacts) {
+  for await (let { filepath, artifact } of artifacts) {
     artifact = {
       ...artifact,
-      metadata: fixMetadataPaths(artifact.metadata),
+      metadata: fixRelativePaths(artifact.metadata),
       bytecode: clearBytecodeSwarmHash(artifact.bytecode),
       deployedBytecode: clearBytecodeSwarmHash(artifact.deployedBytecode),
-      sourcePath: `./contracts/${filename}`,
+      sourcePath: fixRelativePaths(artifact.sourcePath),
       ast: fixAstPaths(artifact.ast),
       legacyAST: fixAstPaths(artifact.ast),
       networks: networks[artifact.contractName] || {},
