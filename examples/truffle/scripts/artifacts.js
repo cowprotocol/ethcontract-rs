@@ -1,3 +1,11 @@
+/**
+ * Module and script for transforming compiled truffle artifacts so that we get
+ * uniform build outputs regardless of where/when it is built. This is so we
+ * can check-in truffle artifacts as well as verify that they were correctly
+ * checked-in with CI.
+ */
+
+const assert = require("assert");
 const fs = require("fs").promises;
 const path = require("path");
 const yargs = require("yargs");
@@ -6,6 +14,7 @@ const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const CONTRACTS_ROOT = path.join(PACKAGE_ROOT, "build", "contracts");
 const NETWORKS_JSON = path.join(PACKAGE_ROOT, "networks.json");
 const DEVELOPMENT_NETWORK_ID = 5777;
+const ZERO_HASH = "".padEnd(64, "0");
 
 /**
  * Gets a list of parsed contract artifact JSON files.
@@ -18,7 +27,7 @@ async function getContractArtifacts() {
       const contents = await fs.readFile(filepath);
       const artifact = JSON.parse(contents.toString());
 
-      return { filepath, artifact };
+      return { filename, filepath, artifact };
     })
 }
 
@@ -30,27 +39,91 @@ function prettyJSON(value) {
 }
 
 /**
- * Injects the `networks.json` contract deployment information into the contact
- * artifact and returns a Promise that resolves once complete.
+ * COBR encode swarm hash.
  */
-async function inject() {
+function cobrEncode(swarmHash, compilerVersion) {
+  return `a265627a7a72315820${swarmHash}64736f6c6343${compilerVersion}0032`;
+}
+
+/**
+ * Sets the COBR encoded swarm hash of HEX encoded bytecode to 0.
+ *
+ * This is needed for reproduceable builds since, unfortunately, this hash is
+ * derived from the metadata string which included absolute paths to source.
+ * This means that this value can change dependending on where the contract is
+ * compiled from. The end of the bytecode contains 52 bytes of COBR encoded
+ * metadata which is the 32 byte swarm hash of the `artifact.metadata` string in
+ * bytes [10..41] and a 3 byte encoded solidity compiler version in bytes
+ * [48..50].
+ *
+ * https://solidity.readthedocs.io/en/latest/metadata.html#encoding-of-the-metadata-hash-in-the-bytecode
+ */
+function clearBytecodeSwarmHash(bytecode) {
+  if (bytecode === "" || bytecode === "0x") {
+    // empty bytecode, nothing to do
+    return bytecode;
+  }
+
+  const cobrStart = bytecode.length - 104;
+  const swarmHash = bytecode.substr(cobrStart + 18, 64);
+  const compilerVersion = bytecode.substr(cobrStart + 94, 6);
+
+  // check that the compiler still behaves as we expect it to:
+  assert.equal(
+    cobrEncode(swarmHash, compilerVersion),
+    bytecode.substr(cobrStart),
+    "solc COBR encoded metadata is not as expected");
+
+  return bytecode.substr(0, cobrStart) + cobrEncode(ZERO_HASH, compilerVersion);
+}
+
+/**
+ * Normalizes contract artifacts so that consecutive builds in different
+ * environments are identical.
+ *
+ * Truffle does a few things that make checking-in build artifacts painful. In
+ * order to normalize a build artifact we have to:
+ * - inject `networks.json` deployed contract information into the artifact
+ * - remove the `updatedAt` property from the artifact
+ * - update the metadata to use relative paths
+ * - clear the swarm hash from the bytecode (this is a known issue and can be
+ *   tracked here: https://github.com/trufflesuite/truffle/issues/1621)
+ */
+async function normalize() {
   const networks = JSON.parse(await fs.readFile(NETWORKS_JSON));
   const artifacts = await getContractArtifacts();
-  for await (let { filepath, artifact } of artifacts) {
+  for await (let { filename, filepath, artifact } of artifacts) {
+    const sourcePath = artifact.sourcePath;
+    const relativePath = `./contracts/${filename}`;
+    const fakeAbsolutePath = `/contracts/${filename}`;
+
     artifact = {
       ...artifact,
+      metadata: artifact.metadata.replace(new RegExp(sourcePath, "g"), relativePath),
+      bytecode: clearBytecodeSwarmHash(artifact.bytecode),
+      deployedBytecode: clearBytecodeSwarmHash(artifact.deployedBytecode),
+      sourcePath: relativePath,
+      ast: {
+        ...artifact.ast,
+        absolutePath: fakeAbsolutePath,
+      },
+      legacyAST: {
+        ...artifact.legacyAST,
+        absolutePath: fakeAbsolutePath,
+      },
       networks: networks[artifact.contractName] || {},
       updatedAt: undefined,
     };
+
     await fs.writeFile(filepath, prettyJSON(artifact));
   }
 }
 
 /**
- * Injects the `networks.json` contract deployment information into the contact
- * artifact and returns a Promise that resolves once complete.
+ * Extracts deployed contract addresses and writes them to `networks.json`.
+ * Returns a Promise that resolves once complete.
  */
-async function extract() {
+async function extractNetworks() {
   const networks = {};
   const artifacts = await getContractArtifacts();
   for await (let { artifact } of artifacts) {
@@ -74,14 +147,14 @@ async function extract() {
 if (require.main === module) {
   yargs
     .command({
-      command: "inject",
-      desc: "inject `networks.json` into truffle build artifacts",
-      handler: inject,
+      command: "normalize",
+      desc: "nomalizes contract artifacts so that build outputs are identical.",
+      handler: normalize,
     })
     .command({
-      command: "extract",
+      command: "extract-networks",
       desc: "extract deployed contract addresses to `networks.json`",
-      handler: extract,
+      handler: extractNetworks,
     })
     .demandCommand()
     .help()
@@ -89,6 +162,6 @@ if (require.main === module) {
 }
 
 module.exports = {
-  inject,
-  extract,
+  normalize,
+  extractNetworks,
 }

@@ -23,15 +23,15 @@
       "type": "function"
     }
   ],
-  "metadata": "{\"compiler\":{\"version\":\"0.5.12+commit.7709ece9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"constant\":true,\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"self\",\"type\":\"uint256\"}],\"name\":\"answer\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"methods\":{}},\"userdoc\":{\"methods\":{}}},\"settings\":{\"compilationTarget\":{\"/home/nlordell/Developer/Gnosis/ethcontract-rs/examples/truffle/contracts/SimpleLibrary.sol\":\"SimpleLibrary\"},\"evmVersion\":\"petersburg\",\"libraries\":{},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"/home/nlordell/Developer/Gnosis/ethcontract-rs/examples/truffle/contracts/SimpleLibrary.sol\":{\"keccak256\":\"0xae1d92c49a0293e0134fdfeace0f4d5c43742913a6820ab03db58e954bcd52b9\",\"urls\":[\"bzz-raw://87d5177ad4c93b17d39d75d202713dbac901fe7e7f464f39ca5a34a978ee4b63\",\"dweb:/ipfs/QmahY6qYVaCQWBR7vHkvXb167Q222mnGd5ZfmkA5RwoJKN\"]}},\"version\":1}",
-  "bytecode": "0x60b9610025600b82828239805160001a60731461001857fe5b30600052607381538281f3fe730000000000000000000000000000000000000000301460806040526004361060335760003560e01c806306f70295146038575b600080fd5b606160048036036020811015604c57600080fd5b81019080803590602001909291905050506077565b6040518082815260200191505060405180910390f35b6000602a8201905091905056fea265627a7a72315820b297a8b5bb01d49a2fe9652ac69c594cf05b85b148344963a923bae2a9303ffe64736f6c634300050c0032",
-  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040526004361060335760003560e01c806306f70295146038575b600080fd5b606160048036036020811015604c57600080fd5b81019080803590602001909291905050506077565b6040518082815260200191505060405180910390f35b6000602a8201905091905056fea265627a7a72315820b297a8b5bb01d49a2fe9652ac69c594cf05b85b148344963a923bae2a9303ffe64736f6c634300050c0032",
+  "metadata": "{\"compiler\":{\"version\":\"0.5.12+commit.7709ece9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"constant\":true,\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"self\",\"type\":\"uint256\"}],\"name\":\"answer\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"methods\":{}},\"userdoc\":{\"methods\":{}}},\"settings\":{\"compilationTarget\":{\"./contracts/SimpleLibrary.json\":\"SimpleLibrary\"},\"evmVersion\":\"petersburg\",\"libraries\":{},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"./contracts/SimpleLibrary.json\":{\"keccak256\":\"0xae1d92c49a0293e0134fdfeace0f4d5c43742913a6820ab03db58e954bcd52b9\",\"urls\":[\"bzz-raw://87d5177ad4c93b17d39d75d202713dbac901fe7e7f464f39ca5a34a978ee4b63\",\"dweb:/ipfs/QmahY6qYVaCQWBR7vHkvXb167Q222mnGd5ZfmkA5RwoJKN\"]}},\"version\":1}",
+  "bytecode": "0x60b9610025600b82828239805160001a60731461001857fe5b30600052607381538281f3fe730000000000000000000000000000000000000000301460806040526004361060335760003560e01c806306f70295146038575b600080fd5b606160048036036020811015604c57600080fd5b81019080803590602001909291905050506077565b6040518082815260200191505060405180910390f35b6000602a8201905091905056fea265627a7a72315820000000000000000000000000000000000000000000000000000000000000000064736f6c634300050c0032",
+  "deployedBytecode": "0x730000000000000000000000000000000000000000301460806040526004361060335760003560e01c806306f70295146038575b600080fd5b606160048036036020811015604c57600080fd5b81019080803590602001909291905050506077565b6040518082815260200191505060405180910390f35b6000602a8201905091905056fea265627a7a72315820000000000000000000000000000000000000000000000000000000000000000064736f6c634300050c0032",
   "sourceMap": "25:115:4:-;;132:2:-1;166:7;155:9;146:7;137:37;255:7;249:14;246:1;241:23;235:4;232:33;222:2;;269:9;222:2;293:9;290:1;283:20;323:4;314:7;306:22;347:7;338;331:24",
   "deployedSourceMap": "25:115:4:-;;;;;;;;;;;;;;;;;;;;;;;;51:87;;;;;;13:2:-1;8:3;5:11;2:2;;;29:1;26;19:12;2:2;51:87:4;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;102:7;131:2;124:4;:9;117:16;;51:87;;;:::o",
   "source": "pragma solidity ^0.5.0;\n\nlibrary SimpleLibrary {\n  function answer(uint256 self) public pure returns (uint256) {\n    return self + 42;\n  }\n}",
-  "sourcePath": "/home/nlordell/Developer/Gnosis/ethcontract-rs/examples/truffle/contracts/SimpleLibrary.sol",
+  "sourcePath": "./contracts/SimpleLibrary.json",
   "ast": {
-    "absolutePath": "/home/nlordell/Developer/Gnosis/ethcontract-rs/examples/truffle/contracts/SimpleLibrary.sol",
+    "absolutePath": "/contracts/SimpleLibrary.json",
     "exportedSymbols": {
       "SimpleLibrary": [
         181
@@ -215,7 +215,7 @@
     "src": "0:140:4"
   },
   "legacyAST": {
-    "absolutePath": "/home/nlordell/Developer/Gnosis/ethcontract-rs/examples/truffle/contracts/SimpleLibrary.sol",
+    "absolutePath": "/contracts/SimpleLibrary.json",
     "exportedSymbols": {
       "SimpleLibrary": [
         181
