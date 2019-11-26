@@ -26,6 +26,11 @@ pub enum DeployError {
     #[error("could not link library {0}")]
     Link(#[from] LinkError),
 
+    /// Attempted to deploy a contract when empty bytecode. This can happen when
+    /// attempting to deploy a contract that is actually an interface.
+    #[error("can not deploy contract with empty bytecode")]
+    EmptyBytecode,
+
     /// An error occured encoding deployment parameters with the contract ABI.
     #[error("error ABI ecoding deployment parameters: {0}")]
     Abi(#[from] AbiError),

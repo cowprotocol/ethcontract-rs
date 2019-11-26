@@ -96,6 +96,12 @@ impl Bytecode {
     pub fn requires_linking(&self) -> bool {
         self.undefined_libraries().next().is_some()
     }
+
+    /// Returns true if the bytecode is an empty bytecode.
+    pub fn is_empty(&self) -> bool {
+        // account for the 0x prefix
+        self.0.len() == 2
+    }
 }
 
 /// internal type for iterating though a bytecode's string code blocks skipping

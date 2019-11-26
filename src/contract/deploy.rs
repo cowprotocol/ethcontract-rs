@@ -141,9 +141,12 @@ where
         //   `rust-web3` code so that we can add things like signing support;
         //   luckily most of complicated bits can be reused from the tx code
 
+        if artifact.bytecode.is_empty() {
+            return Err(DeployError::EmptyBytecode);
+        }
+
         let code = artifact.bytecode.into_bytes()?;
         let params = params.into_tokens();
-
         let data = match (artifact.abi.constructor(), params.is_empty()) {
             (None, false) => return Err(AbiErrorKind::InvalidData.into()),
             (None, true) => code,
