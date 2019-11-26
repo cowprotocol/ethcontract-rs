@@ -80,6 +80,25 @@ function clearBytecodeSwarmHash(bytecode) {
 }
 
 /**
+ * Fixes paths in `solc` metadata string
+ */
+function fixMetadataPaths(metadata) {
+  return metadata.replace(new RegExp(PACKAGE_ROOT, "g"), ".");
+}
+
+/**
+ * Fixes absolute paths from an AST
+ */
+function fixAstPaths(ast) {
+  // this is super hacky but its the most relyable way to remove absolute paths
+  // from an AST since they are included in things like imports
+  return JSON.parse(
+    JSON.stringify(ast)
+      .replace(new RegExp(PACKAGE_ROOT, "g"), "")
+  );
+}
+
+/**
  * Normalizes contract artifacts so that consecutive builds in different
  * environments are identical.
  *
@@ -95,24 +114,14 @@ async function normalizeArtifacts() {
   const networks = JSON.parse(await fs.readFile(NETWORKS_JSON));
   const artifacts = await getContractArtifacts();
   for await (let { filename, filepath, artifact } of artifacts) {
-    const sourcePath = artifact.sourcePath;
-    const relativePath = `./contracts/${filename}`;
-    const fakeAbsolutePath = `/contracts/${filename}`;
-
     artifact = {
       ...artifact,
-      metadata: artifact.metadata.replace(new RegExp(sourcePath, "g"), relativePath),
+      metadata: fixMetadataPaths(artifact.metadata),
       bytecode: clearBytecodeSwarmHash(artifact.bytecode),
       deployedBytecode: clearBytecodeSwarmHash(artifact.deployedBytecode),
-      sourcePath: relativePath,
-      ast: {
-        ...artifact.ast,
-        absolutePath: fakeAbsolutePath,
-      },
-      legacyAST: {
-        ...artifact.legacyAST,
-        absolutePath: fakeAbsolutePath,
-      },
+      sourcePath: `./contracts/${filename}`,
+      ast: fixAstPaths(artifact.ast),
+      legacyAST: fixAstPaths(artifact.ast),
       networks: networks[artifact.contractName] || {},
       updatedAt: undefined,
     };

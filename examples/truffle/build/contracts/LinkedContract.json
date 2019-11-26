@@ -17,7 +17,7 @@
       "type": "function"
     }
   ],
-  "metadata": "{\"compiler\":{\"version\":\"0.5.12+commit.7709ece9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"constant\":true,\"inputs\":[],\"name\":\"callAnswer\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"methods\":{}},\"userdoc\":{\"methods\":{}}},\"settings\":{\"compilationTarget\":{\"./contracts/LinkedContract.json\":\"LinkedContract\"},\"evmVersion\":\"petersburg\",\"libraries\":{},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"./contracts/LinkedContract.json\":{\"keccak256\":\"0x70523568ce7e400fa5d94e53b4aae7886d6440842fb594b9153db22842768996\",\"urls\":[\"bzz-raw://56d3bbbe12706273ed37bd8061273a5a2a0b5a39a1e4aee6c05731a7aff66ae7\",\"dweb:/ipfs/QmSsUhwdKmcpmLYMEAS2MqHQ5D8Ch4JJUNpGX7HSgGnShA\"]},\"/home/nlordell/Developer/Gnosis/ethcontract-rs/examples/truffle/contracts/SimpleLibrary.sol\":{\"keccak256\":\"0xae1d92c49a0293e0134fdfeace0f4d5c43742913a6820ab03db58e954bcd52b9\",\"urls\":[\"bzz-raw://87d5177ad4c93b17d39d75d202713dbac901fe7e7f464f39ca5a34a978ee4b63\",\"dweb:/ipfs/QmahY6qYVaCQWBR7vHkvXb167Q222mnGd5ZfmkA5RwoJKN\"]}},\"version\":1}",
+  "metadata": "{\"compiler\":{\"version\":\"0.5.12+commit.7709ece9\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"constant\":true,\"inputs\":[],\"name\":\"callAnswer\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"methods\":{}},\"userdoc\":{\"methods\":{}}},\"settings\":{\"compilationTarget\":{\"./contracts/LinkedContract.sol\":\"LinkedContract\"},\"evmVersion\":\"petersburg\",\"libraries\":{},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"./contracts/LinkedContract.sol\":{\"keccak256\":\"0x70523568ce7e400fa5d94e53b4aae7886d6440842fb594b9153db22842768996\",\"urls\":[\"bzz-raw://56d3bbbe12706273ed37bd8061273a5a2a0b5a39a1e4aee6c05731a7aff66ae7\",\"dweb:/ipfs/QmSsUhwdKmcpmLYMEAS2MqHQ5D8Ch4JJUNpGX7HSgGnShA\"]},\"./contracts/SimpleLibrary.sol\":{\"keccak256\":\"0xae1d92c49a0293e0134fdfeace0f4d5c43742913a6820ab03db58e954bcd52b9\",\"urls\":[\"bzz-raw://87d5177ad4c93b17d39d75d202713dbac901fe7e7f464f39ca5a34a978ee4b63\",\"dweb:/ipfs/QmahY6qYVaCQWBR7vHkvXb167Q222mnGd5ZfmkA5RwoJKN\"]}},\"version\":1}",
   "bytecode": "0x608060405234801561001057600080fd5b5061010e806100206000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c8063bfa1efae14602d575b600080fd5b60336049565b6040518082815260200191505060405180910390f35b60008073__SimpleLibrary_________________________6306f7029590916040518263ffffffff1660e01b81526004018082815260200191505060206040518083038186803b158015609b57600080fd5b505af415801560ae573d6000803e3d6000fd5b505050506040513d602081101560c357600080fd5b810190808051906020019092919050505090509056fea265627a7a72315820000000000000000000000000000000000000000000000000000000000000000064736f6c634300050c0032",
   "deployedBytecode": "0x6080604052348015600f57600080fd5b506004361060285760003560e01c8063bfa1efae14602d575b600080fd5b60336049565b6040518082815260200191505060405180910390f35b60008073__SimpleLibrary_________________________6306f7029590916040518263ffffffff1660e01b81526004018082815260200191505060206040518083038186803b158015609b57600080fd5b505af415801560ae573d6000803e3d6000fd5b505050506040513d602081101560c357600080fd5b810190808051906020019092919050505090509056fea265627a7a72315820000000000000000000000000000000000000000000000000000000000000000064736f6c634300050c0032",
   "sourceMap": "56:157:1:-;;;;8:9:-1;5:2;;;30:1;27;20:12;5:2;56:157:1;;;;;;;",
@@ -25,7 +25,7 @@
   "source": "pragma solidity ^0.5.0;\n\nimport \"./SimpleLibrary.sol\";\n\ncontract LinkedContract {\n  using SimpleLibrary for uint256;\n  \n  function callAnswer() public pure returns (uint256) {\n    return uint256(0).answer();\n  }\n}",
   "sourcePath": "./contracts/LinkedContract.json",
   "ast": {
-    "absolutePath": "/contracts/LinkedContract.json",
+    "absolutePath": "/contracts/LinkedContract.sol",
     "exportedSymbols": {
       "LinkedContract": [
         77
@@ -46,7 +46,7 @@
         "src": "0:23:1"
       },
       {
-        "absolutePath": "/home/nlordell/Developer/Gnosis/ethcontract-rs/examples/truffle/contracts/SimpleLibrary.sol",
+        "absolutePath": "/contracts/SimpleLibrary.sol",
         "file": "./SimpleLibrary.sol",
         "id": 61,
         "nodeType": "ImportDirective",
@@ -259,7 +259,7 @@
     "src": "0:213:1"
   },
   "legacyAST": {
-    "absolutePath": "/contracts/LinkedContract.json",
+    "absolutePath": "/contracts/LinkedContract.sol",
     "exportedSymbols": {
       "LinkedContract": [
         77
@@ -280,7 +280,7 @@
         "src": "0:23:1"
       },
       {
-        "absolutePath": "/home/nlordell/Developer/Gnosis/ethcontract-rs/examples/truffle/contracts/SimpleLibrary.sol",
+        "absolutePath": "/contracts/SimpleLibrary.sol",
         "file": "./SimpleLibrary.sol",
         "id": 61,
         "nodeType": "ImportDirective",
