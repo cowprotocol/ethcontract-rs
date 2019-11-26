@@ -9,10 +9,12 @@ const assert = require("assert");
 const fs = require("fs").promises;
 const path = require("path");
 const yargs = require("yargs");
+const extractNetworks = require("@gnosis.pm/util-contracts/src/util/extractNetworks");
 
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
-const CONTRACTS_ROOT = path.join(PACKAGE_ROOT, "build", "contracts");
-const NETWORKS_JSON = path.join(PACKAGE_ROOT, "networks.json");
+const NETWORK_RESTORE_CONF = path.join(PACKAGE_ROOT, ".network-restore.conf.js");
+const CONTRACTS_ROOT = require(NETWORK_RESTORE_CONF).buildPath;
+const NETWORKS_JSON = require(NETWORK_RESTORE_CONF).networkFilePath;
 const DEVELOPMENT_NETWORK_ID = 5777;
 const ZERO_HASH = "".padEnd(64, "0");
 
@@ -89,7 +91,7 @@ function clearBytecodeSwarmHash(bytecode) {
  * - clear the swarm hash from the bytecode (this is a known issue and can be
  *   tracked here: https://github.com/trufflesuite/truffle/issues/1621)
  */
-async function normalize() {
+async function normalizeArtifacts() {
   const networks = JSON.parse(await fs.readFile(NETWORKS_JSON));
   const artifacts = await getContractArtifacts();
   for await (let { filename, filepath, artifact } of artifacts) {
@@ -123,25 +125,8 @@ async function normalize() {
  * Extracts deployed contract addresses and writes them to `networks.json`.
  * Returns a Promise that resolves once complete.
  */
-async function extractNetworks() {
-  const networks = {};
-  const artifacts = await getContractArtifacts();
-  for await (let { artifact } of artifacts) {
-    const contractNetworks = { ...artifact.networks };
-
-    // don't extract network information for the development network or events
-    delete contractNetworks[DEVELOPMENT_NETWORK_ID];
-    for (let networkId in contractNetworks) {
-      contractNetworks[networkId].events = {};
-    }
-
-    if (Object.keys(contractNetworks).length > 0) {
-      // only add to the networks JSON if we are deployed
-      networks[contract.contractName] = contractNetworks;
-    }
-  }
-
-  await fs.writeFile(NETWORKS_JSON, prettyJSON(networks));
+async function extractArtifactNetworks() {
+  await extractNetworks(NETWORK_RESTORE_CONF);
 }
 
 if (require.main === module) {
@@ -149,12 +134,12 @@ if (require.main === module) {
     .command({
       command: "normalize",
       desc: "nomalizes contract artifacts so that build outputs are identical.",
-      handler: normalize,
+      handler: normalizeArtifacts,
     })
     .command({
       command: "extract-networks",
       desc: "extract deployed contract addresses to `networks.json`",
-      handler: extractNetworks,
+      handler: extractArtifactNetworks,
     })
     .demandCommand()
     .help()
@@ -162,6 +147,6 @@ if (require.main === module) {
 }
 
 module.exports = {
-  normalize,
-  extractNetworks,
+  normalizeArtifacts,
+  extractArtifactNetworks,
 }
