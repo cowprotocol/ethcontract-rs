@@ -1,12 +1,15 @@
 {
   "name": "ethcontract-contracts",
   "version": "0.1.0",
-  "private": "true",
+  "private": true,
   "description": "Test contracts for ethcontract-rs runtime and proc macro.",
   "scripts": {
-    "develop": "truffle develop",
-    "build": "truffle build",
-    "start": "(echo 'migrate' && cat) | truffle develop",
+    "build": "rimraf build && truffle build && npm run networks:inject",
+    "prepublish": "npm run build && git diff --exit-code HEAD",
+    "deploy": "truffle migrate --reset --network rinkeby && npm run networks:extract",
+    "networks:inject": "node scripts/networks.js inject",
+    "networks:extract": "node scripts/networks.js extract",
+    "start": "truffle develop",
     "test": "truffle test"
   },
   "repository": {
@@ -21,6 +24,8 @@
   "homepage": "https://github.com/gnosis/ethcontract-rs",
   "devDependencies": {
     "@openzeppelin/contracts": "^2.4.0",
-    "truffle": "^5.1.0"
+    "rimraf": "^3.0.0",
+    "truffle": "^5.1.0",
+    "yargs": "^15.0.2"
   }
 }
