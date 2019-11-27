@@ -195,6 +195,11 @@ fn expand_deployed(cx: &Context) -> TokenStream {
 }
 
 fn expand_deploy(cx: &Context) -> Result<TokenStream> {
+    if cx.artifact.bytecode.is_empty() {
+        // do not generate deploy method for contracts that have empty bytecode
+        return Ok(quote! {});
+    }
+
     let ethcontract = &cx.runtime_crate;
 
     // TODO(nlordell): not sure how contructor documentation get generated as I

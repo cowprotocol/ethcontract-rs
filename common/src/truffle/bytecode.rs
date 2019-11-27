@@ -48,7 +48,7 @@ impl Bytecode {
             }
         }
 
-        Ok(Bytecode(s.to_string()))
+        Ok(Bytecode(s[2..].to_string()))
     }
 
     /// Link a library into the current bytecode.
@@ -83,7 +83,7 @@ impl Bytecode {
     pub fn into_bytes(self) -> Result<Bytes, LinkError> {
         match self.undefined_libraries().next() {
             Some(library) => Err(LinkError::UndefinedLibrary(library.to_string())),
-            None => Ok(Bytes(hex::decode(&self.0[2..]).expect("valid hex"))),
+            None => Ok(Bytes(hex::decode(&self.0).expect("valid hex"))),
         }
     }
 
@@ -95,6 +95,11 @@ impl Bytecode {
     /// Returns true if bytecode requires linking.
     pub fn requires_linking(&self) -> bool {
         self.undefined_libraries().next().is_some()
+    }
+
+    /// Returns true if the bytecode is an empty bytecode.
+    pub fn is_empty(&self) -> bool {
+        self.0 == ""
     }
 }
 
@@ -176,5 +181,20 @@ impl<'de> Visitor<'de> for BytecodeVisitor {
     {
         // TODO(nlordell): try to reuse this allocation
         self.visit_str(&v)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_bytecode_is_empty() {
+        assert!(Bytecode::default().is_empty());
+    }
+
+    #[test]
+    fn empty_hex_bytecode_is_empty() {
+        assert!(Bytecode::from_hex_str("0x").unwrap().is_empty());
     }
 }
