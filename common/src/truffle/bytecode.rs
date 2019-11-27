@@ -188,10 +188,12 @@ impl<'de> Visitor<'de> for BytecodeVisitor {
 mod tests {
     use super::*;
 
+    #[test]
     fn default_bytecode_is_empty() {
         assert!(Bytecode::default().is_empty());
     }
 
+    #[test]
     fn empty_hex_bytecode_is_empty() {
         assert!(Bytecode::from_hex_str("0x").unwrap().is_empty());
     }
