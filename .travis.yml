@@ -24,4 +24,3 @@ script:
   - cargo test --all-features --verbose --all
   - cargo fmt --all -- --check
   - cargo clippy --all --all-features --all-targets -- -D warnings
-
