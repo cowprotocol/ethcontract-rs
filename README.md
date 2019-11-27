@@ -29,21 +29,22 @@ for interacting with contract functions in a type-safe way.
 
 In order to run the example you need:
 - Rust >=1.39 for `async`/`await` support
-- NodeJS in order to compile truffle contracts and start development node
+- NodeJS in order to compile truffle contracts and start development node. Note
+  that the CI uses latest stable NodeJS, other versions might work but are not
+  tested or supported.
 
 ```sh
 $ cd examples/truffle
-$ npm run build
-$ npm run develop
+$ npm start
 ```
 
-Then in a sepate terminal window, you can run the example:
+Then in a separate terminal window, you can run the example:
 
 ```sh
 $ cargo run --example async
 ```
 
-This example deploys a ERC20 token and interacts with the contract with various
+This example deploys a ERC20 token and interacts with the contract from various
 accounts.
 
 ## Sample Contracts Documentation
@@ -51,13 +52,16 @@ accounts.
 We added some samples of generated contracts from our sample contract collection
 gated behind a feature. This feature is **only intended to be used for document
 generation**. In order to view the documentation for these contracts you need to
-first build the contracts and then generate documentation for the crate with the
-`samples` feature enabled:
+generate documentation for the crate with the `samples` feature enabled:
 
 ```sh
-$ (cd examples/truffle; npm run build)
 $ cargo doc --features samples --open
 ```
 
 This will open a browser at the documentation root. Look under the `samples`
 module for the sample contracts to get a feel for how the generated types look.
+
+## Adding Sample Contracts
+
+Unfortunately some careful consideration is needed when adding contracts to the
+examples truffle project. See [examples/truffle/README.md]() for more details.
