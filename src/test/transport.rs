@@ -68,7 +68,7 @@ impl TestTransport {
     }
 
     /// Assert that there are no more pending requests.
-    pub fn assert_no_more_requests(&mut self) {
+    pub fn assert_no_more_requests(&self) {
         let requests = self.requests.borrow();
         assert_eq!(
             self.asserted,

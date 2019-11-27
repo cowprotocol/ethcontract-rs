@@ -328,4 +328,16 @@ mod tests {
         // TODO(nlordell): implement this test - there is an open issue for this
         //   on github
     }
+
+    #[test]
+    fn deploy_fails_on_empty_bytecode() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let artifact = Artifact::empty();
+        let error = DeployBuilder::<_, Instance<_>>::new(web3, artifact, ()).err().unwrap();
+
+        assert_eq!(error.to_string(), DeployError::EmptyBytecode.to_string());
+        transport.assert_no_more_requests();
+    }
 }
