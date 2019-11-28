@@ -3,7 +3,7 @@ use ethsign::SecretKey;
 use std::env;
 use std::time::Duration;
 use web3::api::Web3;
-use web3::transports::Http;
+use web3::transports::WebSocket;
 use web3::types::H256;
 
 ethcontract::contract!("examples/truffle/build/contracts/DeployedContract.json");
@@ -23,17 +23,19 @@ async fn run() {
     };
     let infura_url = {
         let project_id = env::var("INFURA_PROJECT_ID").expect("INFURA_PROJECT_ID is not set");
-        format!("https://rinkeby.infura.io/v3/{}", project_id)
+        format!("wss://rinkeby.infura.io/ws/v3/{}", project_id)
     };
 
-    let (eloop, http) = Http::new(&infura_url).expect("transport");
+    // use a WebSocket transport to support confirmations
+    let (eloop, ws) = WebSocket::new(&infura_url).expect("transport");
     eloop.into_remote();
-    let web3 = Web3::new(http);
+    let web3 = Web3::new(ws);
 
     let instance = DeployedContract::deployed(&web3).await.expect("deployed");
 
+    println!("Account {:?}", account.address());
     println!(
-        "value before: {}",
+        "  value before: {}",
         instance
             .value()
             .from(account.address())
@@ -41,6 +43,7 @@ async fn run() {
             .await
             .expect("value")
     );
+    println!("  incrementing (this may take a while)...");
     instance
         .increment()
         .from(account.clone())
@@ -49,7 +52,7 @@ async fn run() {
         .await
         .expect("increment");
     println!(
-        "value after: {}",
+        "  value after: {}",
         instance
             .value()
             .from(account.address())
