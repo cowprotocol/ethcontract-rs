@@ -1,9 +1,5 @@
-const SimpleLibrary = artifacts.require("SimpleLibrary");
-const LinkedContract = artifacts.require("LinkedContract");
+const DeployedContract = artifacts.require("DeployedContract");
 
 module.exports = async function (deployer) {
-  await deployer.deploy(SimpleLibrary);
-
-  deployer.link(SimpleLibrary, LinkedContract);
-  await deployer.deploy(LinkedContract);
+  await deployer.deploy(DeployedContract);
 };

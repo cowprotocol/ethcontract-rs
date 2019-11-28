@@ -9,8 +9,9 @@ const {
 module.exports = {
   networks: {
     rinkeby: {
-      provider = () =>
+      provider: () =>
         new HDWalletProvider(PK, `https://rinkeby.infura.io/v3/${INFURA_PROJECT_ID}`),
+      network_id: 4,
     },
   },
 
