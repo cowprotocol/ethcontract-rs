@@ -4,7 +4,7 @@
 
 use crate::errors::ExecutionError;
 use crate::future::CompatQueryResult;
-use crate::transaction::{Account, SendFuture, EstimateGasFuture, SendAndConfirmFuture, TransactionBuilder};
+use crate::transaction::{Account, SendAndConfirmFuture, SendFuture, TransactionBuilder};
 use ethabi::Function;
 use futures::compat::Future01CompatExt;
 use std::future::Future;
