@@ -102,11 +102,6 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
         self.view().call()
     }
 
-    /// Estimate the gas required for this method call.
-    pub fn estimate_gas(self) -> EstimateGasFuture<T> {
-        self.tx.estimate_gas()
-    }
-
     /// Sign (if required) and send the method call transaction.
     pub fn send(self) -> SendFuture<T> {
         self.tx.send()
