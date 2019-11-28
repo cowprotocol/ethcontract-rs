@@ -23,6 +23,12 @@ ethcontract::contract!("path/to/truffle/build/contract/Contract.json");
 This will generate a new struct `ContractName` with contract generated methods
 for interacting with contract functions in a type-safe way.
 
+## Generator API
+
+As an alternative to the procedural macro, a generator API is provided for
+generating contract bindings from `build.rs` scripts. More information can be
+found in the `ethcontract-generate` [README](generate/README.md).
+
 ## Running the Examples
 
 In order to run local examples you need:
@@ -37,20 +43,27 @@ cd examples/truffle
 npm run build
 ```
 
-### Async Example
+### Truffle Examples
 
-This example deploys a ERC20 token and interacts with the contract with various
-accounts. First start the local development server:
+Truffle examples rely on the local truffle development server. In a separate
+terminal run:
 
 ```sh
 npm run develop
 ```
 
-Then in a sepate terminal window, you can run the example:
+- The async example deploys an ERC20 token and interacts with the contract with
+  various accounts. First start the local development server:
+  ```sh
+  cargo run --example async
+  ```
 
-```sh
-cargo run --example async
-```
+- The generator example (actually a separate crate to be able to have a build
+ script) demonstrates how the generator API can be used for creating type-safe
+ bindings to a smart contract with a `build.rs` build script.
+  ```sh
+  cargo run --package examples-generate
+  ```
 
 ### Rinkeby Example
 
