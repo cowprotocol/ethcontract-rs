@@ -1,11 +1,7 @@
-#[allow(warnings, unused)]
-mod contract {
-    include!(concat!(env!("OUT_DIR"), "/rust_coin.rs"));
-}
-
-use crate::contract::RustCoin;
 use web3::api::Web3;
 use web3::transports::Http;
+
+include!(concat!(env!("OUT_DIR"), "/rust_coin.rs"));
 
 fn main() {
     futures::executor::block_on(run());
@@ -24,7 +20,7 @@ async fn run() {
         .expect("deployment failed");
 
     println!(
-        "using {} ({}) at {:?}:",
+        "using {} ({}) at {:?}",
         instance.name().call().await.expect("get name failed"),
         instance.symbol().call().await.expect("get name failed"),
         instance.address()

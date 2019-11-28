@@ -71,10 +71,12 @@ pub(crate) fn expand_contract(args: &Args) -> Result<TokenStream> {
 
     Ok(quote! {
         #doc
+        #[allow(warnings)]
         pub struct #contract_name {
             instance: #ethcontract::DynInstance,
         }
 
+        #[allow(warnings, unused)]
         impl #contract_name {
             /// Retrieves the truffle artifact used to generate the type safe API
             /// for this contract.
