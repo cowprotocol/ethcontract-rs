@@ -8,15 +8,10 @@ const {
 
 module.exports = {
   networks: {
-    develop: {
-      host: "127.0.0.1",
-      port: 7545,
-      network_id: "*",
-    },
-
     rinkeby: {
-      provider = () =>
+      provider: () =>
         new HDWalletProvider(PK, `https://rinkeby.infura.io/v3/${INFURA_PROJECT_ID}`),
+      network_id: 4,
     },
   },
 
