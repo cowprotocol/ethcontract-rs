@@ -6,8 +6,8 @@
   "scripts": {
     "build": "truffle build && npm run network:inject",
     "deploy": "truffle migrate --network rinkeby && npm run network:extract",
-    "network:extract": "node node_modules/@gnosis.pm/util-contracts/src/extract_network_info.js",
-    "network:inject": "node node_modules/@gnosis.pm/util-contracts/src/inject_network_info.js",
+    "network:extract": "CONF_FILE=$(pwd)/.network-restore.conf.js node node_modules/@gnosis.pm/util-contracts/src/extract_network_info.js",
+    "network:inject": "CONF_FILE=$(pwd)/.network-restore.conf.js node node_modules/@gnosis.pm/util-contracts/src/inject_network_info.js",
     "start": "truffle develop",
     "test": "truffle test"
   },
