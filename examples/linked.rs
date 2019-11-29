@@ -19,7 +19,7 @@ async fn run() {
         .deploy()
         .await
         .expect("library deployment failure");
-    let instance = LinkedContract::deploy(&web3, 1337.into(), library.address())
+    let instance = LinkedContract::deploy(&web3, library.address(), 1337.into())
         .gas(4_712_388.into())
         .confirmations(0)
         .deploy()
