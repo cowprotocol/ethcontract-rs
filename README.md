@@ -49,7 +49,7 @@ Truffle examples rely on the local truffle development server. In a separate
 terminal run:
 
 ```sh
-npm run develop
+npm start
 ```
 
 - The async example deploys an ERC20 token and interacts with the contract with

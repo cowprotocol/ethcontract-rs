@@ -42,7 +42,7 @@ export ETHERSCAN_API_KEY="Etherscan API key"
 
 In order to deploy, the following NPM script should be used:
 ```sh
-npm run
+npm run deploy
 ```
 
 This will:
