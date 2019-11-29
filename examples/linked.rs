@@ -19,13 +19,21 @@ async fn run() {
         .deploy()
         .await
         .expect("library deployment failure");
-    let instance = LinkedContract::deploy(&web3, library.address())
+    let instance = LinkedContract::deploy(&web3, 1337.into(), library.address())
         .gas(4_712_388.into())
         .confirmations(0)
         .deploy()
         .await
         .expect("contract deployment failure");
 
+    println!(
+        "The value is {}",
+        instance
+            .value()
+            .call()
+            .await
+            .expect("get value failure")
+    );
     println!(
         "The answer is {}",
         instance
