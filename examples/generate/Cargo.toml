@@ -1,0 +1,14 @@
+[package]
+name = "examples-generate"
+version = "0.1.0"
+publish = false
+authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+ethcontract = { path = "../.." }
+futures = "0.3"
+web3 = "0.8"
+
+[build-dependencies]
+ethcontract-generate = { path = "../../generate" }
