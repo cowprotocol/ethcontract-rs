@@ -28,11 +28,7 @@ async fn run() {
 
     println!(
         "The value is {}",
-        instance
-            .value()
-            .call()
-            .await
-            .expect("get value failure")
+        instance.value().call().await.expect("get value failure")
     );
     println!(
         "The answer is {}",
