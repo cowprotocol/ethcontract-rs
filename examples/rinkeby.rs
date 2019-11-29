@@ -27,11 +27,13 @@ async fn run() {
     };
 
     // use a WebSocket transport to support confirmations
-    let (eloop, ws) = WebSocket::new(&infura_url).expect("transport");
+    let (eloop, ws) = WebSocket::new(&infura_url).expect("transport failed");
     eloop.into_remote();
     let web3 = Web3::new(ws);
 
-    let instance = DeployedContract::deployed(&web3).await.expect("deployed");
+    let instance = DeployedContract::deployed(&web3)
+        .await
+        .expect("locating deployed contract failed");
 
     println!("Account {:?}", account.address());
     println!(
@@ -41,7 +43,7 @@ async fn run() {
             .from(account.address())
             .call()
             .await
-            .expect("value")
+            .expect("get value failed")
     );
     println!("  incrementing (this may take a while)...");
     instance
@@ -50,7 +52,7 @@ async fn run() {
         .gas(1_000_000.into())
         .send_and_confirm(Duration::new(5, 0), 1)
         .await
-        .expect("increment");
+        .expect("increment failed");
     println!(
         "  value after: {}",
         instance
@@ -58,6 +60,6 @@ async fn run() {
             .from(account.address())
             .call()
             .await
-            .expect("value")
+            .expect("get value failed")
     );
 }

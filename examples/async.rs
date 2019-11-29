@@ -12,32 +12,37 @@ fn main() {
 }
 
 async fn run() {
-    let (eloop, http) = Http::new("http://localhost:9545").expect("transport");
+    let (eloop, http) = Http::new("http://localhost:9545").expect("transport failed");
     eloop.into_remote();
     let web3 = Web3::new(http);
 
-    let accounts = web3.eth().accounts().compat().await.expect("get accounts");
+    let accounts = web3
+        .eth()
+        .accounts()
+        .compat()
+        .await
+        .expect("get accounts failed");
 
     let instance = RustCoin::deploy(&web3)
         .gas(4_712_388.into())
         .confirmations(0)
         .deploy()
         .await
-        .expect("deploy");
-    let name = instance.name().call().await.expect("name");
+        .expect("deployment failed");
+    let name = instance.name().call().await.expect("get name failed");
     println!("Deployed {} at {:?}", name, instance.address());
 
     instance
         .transfer(accounts[1], 1_000_000.into())
         .send()
         .await
-        .expect("transfer 0->1");
+        .expect("transfer 0->1 failed");
     instance
         .transfer(accounts[2], 500_000.into())
         .from(Account::Local(accounts[1], None))
         .send()
         .await
-        .expect("transfer 1->2");
+        .expect("transfer 1->2 failed");
 
     print_balance_of(&instance, accounts[1]).await;
     print_balance_of(&instance, accounts[2]).await;
@@ -45,7 +50,7 @@ async fn run() {
     let key = SecretKey::from_raw(
         &"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
             .parse::<H256>()
-            .expect("valid hash")[..],
+            .expect("invalid hash")[..],
     )
     .expect("parse key");
     let x: Address = key.public().address().into();
@@ -65,19 +70,19 @@ async fn run() {
         })
         .compat()
         .await
-        .expect("send eth");
+        .expect("send eth failed");
 
     instance
         .transfer(x, 1_000_000.into())
         .send()
         .await
-        .expect("transfer 0->x");
+        .expect("transfer 0->x failed");
     instance
         .transfer(accounts[4], 420.into())
         .from(Account::Offline(key, None))
         .send()
         .await
-        .expect("transfer x->4");
+        .expect("transfer x->4 failed");
 
     print_balance_of(&instance, x).await;
     print_balance_of(&instance, accounts[4]).await;
@@ -88,6 +93,6 @@ async fn print_balance_of(instance: &RustCoin, account: Address) {
         .balance_of(account)
         .call()
         .await
-        .expect("balance of");
+        .expect("balance of failed");
     println!("Account {:?} has balance of {}", account, balance);
 }
