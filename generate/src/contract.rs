@@ -215,7 +215,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
     };
 
     // TODO(nlordell): we don't handle duplicate library names
-    let libraries: Vec<_> = cx
+    let lib_params: Vec<_> = cx
         .artifact
         .bytecode
         .undefined_libraries()
@@ -224,17 +224,22 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             kind: ParamType::Address,
         })
         .collect();
-    let lib_input = expand_inputs(cx, &libraries)?;
+    let lib_input = expand_inputs(cx, &lib_params)?;
 
-    let link = if libraries.is_empty() {
-        let link_libraries = libraries.iter().map(|lib| {
-            let name = Literal::string(&lib.name);
-            let address = ident!(&lib.name);
+    let link = if !lib_params.is_empty() {
+        let link_libraries = cx
+            .artifact
+            .bytecode
+            .undefined_libraries()
+            .zip(lib_params.iter())
+            .map(|(name, lib_param)| {
+                let name = Literal::string(&name);
+                let address = ident!(&lib_param.name);
 
-            quote! {
-                artifact.bytecode.link(#name, #address).expect("valid library");
-            }
-        });
+                quote! {
+                    artifact.bytecode.link(#name, #address).expect("valid library");
+                }
+            });
 
         quote! {
             let mut artifact = artifact;
