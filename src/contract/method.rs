@@ -4,13 +4,14 @@
 
 use crate::errors::ExecutionError;
 use crate::future::CompatQueryResult;
-use crate::transaction::{Account, SendFuture, TransactionBuilder};
+use crate::transaction::{Account, SendAndConfirmFuture, SendFuture, TransactionBuilder};
 use ethabi::Function;
 use futures::compat::Future01CompatExt;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::time::Duration;
 use web3::api::Web3;
 use web3::contract::tokens::Detokenize;
 use web3::contract::QueryResult;
@@ -82,8 +83,7 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
     }
 
     /// Extract inner `TransactionBuilder` from this `SendBuilder`. This exposes
-    /// `TransactionBuilder` only APIs such as `estimate_gas` and
-    /// `send_and_confirm`.
+    /// `TransactionBuilder` only APIs.
     pub fn into_inner(self) -> TransactionBuilder<T> {
         self.tx
     }
@@ -102,9 +102,19 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
         self.view().call()
     }
 
-    /// Sign (if required) and send the transaction.
+    /// Sign (if required) and send the method call transaction.
     pub fn send(self) -> SendFuture<T> {
         self.tx.send()
+    }
+
+    /// Send a transaction for the method call and wait for confirmation.
+    /// Returns the transaction receipt for inspection.
+    pub fn send_and_confirm(
+        self,
+        poll_interval: Duration,
+        confirmations: usize,
+    ) -> SendAndConfirmFuture<T> {
+        self.tx.send_and_confirm(poll_interval, confirmations)
     }
 }
 

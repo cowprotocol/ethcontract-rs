@@ -1,0 +1,18 @@
+{
+  "DeployedContract": {
+    "4": {
+      "events": {},
+      "links": {},
+      "address": "0xD944917755c3DC50EB8A291347Ac8e40510C7824",
+      "transactionHash": "0x0e17b4703bb58551c1ea649b0b31915385dda1d74109a436f24b09dc5b4873ce"
+    }
+  },
+  "Migrations": {
+    "4": {
+      "events": {},
+      "links": {},
+      "address": "0x614Ddc9511f0420B9Fa08A7E5e381e2cF6ca71b9",
+      "transactionHash": "0xd3d0527862a589366131247942837d815aba3715f538ce569132be666e988421"
+    }
+  }
+}

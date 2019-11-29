@@ -4,9 +4,11 @@
   "private": "true",
   "description": "Test contracts for ethcontract-rs runtime and proc macro.",
   "scripts": {
-    "develop": "truffle develop",
-    "build": "truffle build",
-    "start": "(echo 'migrate' && cat) | truffle develop",
+    "build": "truffle build && npm run network:inject",
+    "deploy": "truffle migrate --network rinkeby && truffle verify --network rinkeby && npm run network:extract",
+    "network:extract": "CONF_FILE=$(pwd)/.network-restore.conf.js node node_modules/@gnosis.pm/util-contracts/src/extract_network_info.js",
+    "network:inject": "CONF_FILE=$(pwd)/.network-restore.conf.js node node_modules/@gnosis.pm/util-contracts/src/inject_network_info.js",
+    "start": "truffle develop",
     "test": "truffle test"
   },
   "repository": {
@@ -20,7 +22,10 @@
   },
   "homepage": "https://github.com/gnosis/ethcontract-rs",
   "devDependencies": {
+    "@gnosis.pm/util-contracts": "^2.0.4",
     "@openzeppelin/contracts": "^2.4.0",
-    "truffle": "^5.1.0"
+    "@truffle/hdwallet-provider": "^1.0.26",
+    "truffle": "^5.1.1",
+    "truffle-plugin-verify": "^0.3.5"
   }
 }

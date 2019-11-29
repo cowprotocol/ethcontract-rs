@@ -3,6 +3,8 @@
 This subdirectory contains a truffle project with sample contracts used by the
 `ethcontract-rs` crate for its examples.
 
+- `DeployedContract.sol` a simple contract that is deployed on the Rinkeby
+  testnet and used for the rinkeby example.
 - `DocumentedContract.sol` a sample with contract level documentation. We use
   this to verify the `ethcontract-derive` is properly injecting the docstring
   for the generated struct.
@@ -18,11 +20,32 @@ This subdirectory contains a truffle project with sample contracts used by the
 This contract can be built with truffle. There is an NPM script for doing this:
 
 ```sh
-$ npm run build
+npm run build
 ```
 
 ## Development Server
 
 We use `truffle develop` for the development server (which uses ganache under
-the hood). The configuration for the development server is located in the
-`truffle-config.js` file.
+the hood). This is needed to run most examples.
+
+## Rinkeby Deployment
+
+The `DeployedContract` used in the rinkeby example must be deployed prior for
+the example to work as expected. For this to work a few secrets are needed.
+These are provided to truffle with environment variables:
+
+```sh
+export PK="private key"
+export INFURA_PROJECT_ID="Infura project ID"
+export ETHERSCAN_API_KEY="Etherscan API key"
+```
+
+In order to deploy, the following NPM script should be used:
+```sh
+npm run
+```
+
+This will:
+1. Build and deploy the contract using `$PK`'s account for paying gas fees and
+  the `$INFURA_PROJECT_ID` to connect to a node
+2. Verify the contract on Etherscan.io
