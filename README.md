@@ -52,17 +52,23 @@ terminal run:
 npm start
 ```
 
-- The async example deploys an ERC20 token and interacts with the contract with
-  various accounts. First start the local development server:
+- The `async` example deploys an ERC20 token and interacts with the contract
+  with various accounts. First start the local development server:
   ```sh
   cargo run --example async
   ```
 
-- The generator example (actually a separate crate to be able to have a build
+- The `generator` example (actually a separate crate to be able to have a build
  script) demonstrates how the generator API can be used for creating type-safe
  bindings to a smart contract with a `build.rs` build script.
   ```sh
   cargo run --package examples-generate
+  ```
+
+- The `linked` example deploys a library and a contract that links to it and
+  makes a method call.
+  ```sh
+  cargo run --example linked
   ```
 
 ### Rinkeby Example
