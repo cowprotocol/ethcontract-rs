@@ -3,13 +3,14 @@
 
 use crate::contract::Instance;
 use crate::errors::DeployError;
-use crate::future::{CompatCallFuture, PhantomDataUnpin, Web3Unpin};
+use crate::future::{CompatCallFuture, Web3Unpin};
 use crate::transaction::{Account, SendAndConfirmFuture, TransactionBuilder};
 use crate::truffle::{Abi, Artifact};
 use ethabi::ErrorKind as AbiErrorKind;
 use futures::compat::Future01CompatExt;
 use futures::ready;
 use std::future::Future;
+use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -43,7 +44,7 @@ where
     args: Option<(Web3Unpin<T>, Artifact)>,
     /// Underlying future for retrieving the network ID.
     network_id: CompatCallFuture<T, String>,
-    _deploy: PhantomDataUnpin<D>,
+    _deploy: PhantomData<Box<D>>,
 }
 
 impl<T, D> DeployedFuture<T, D>
@@ -119,7 +120,7 @@ where
     pub poll_interval: Option<Duration>,
     /// The number of confirmations to wait for.
     pub confirmations: Option<usize>,
-    _deploy: PhantomDataUnpin<D>,
+    _deploy: PhantomData<Box<D>>,
 }
 
 impl<T, D> DeployBuilder<T, D>
@@ -236,7 +237,7 @@ where
     args: Option<(Web3Unpin<T>, Abi)>,
     /// The future resolved when the deploy transaction is complete.
     tx: Result<SendAndConfirmFuture<T>, Option<DeployError>>,
-    _deploy: PhantomDataUnpin<D>,
+    _deploy: PhantomData<Box<D>>,
 }
 
 impl<T, D> DeployFuture<T, D>
