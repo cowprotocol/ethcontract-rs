@@ -7,6 +7,10 @@ jobs:
   allow_failures:
     - rust: nightly
   fast_finish: true
+  include:
+    - name: "Rust: stable - Examples"
+      language: rust
+      rust: stable
 
 cache:
   cargo: true
