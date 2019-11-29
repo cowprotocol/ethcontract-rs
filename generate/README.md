@@ -29,9 +29,16 @@ Then, in your `build.rs` include the following code:
 
 ```rs
 use ethcontract_generate::Builder;
+use std::env;
+use std::path::Path;
 
 fn main() {
-
+    let dest = env::var("OUT_DIR").unwrap();
+    Builder::new("path/to/truffle/build/contract/Contract.json")
+        .generate()
+        .unwrap()
+        .write_to_file(Path::new(&dest).join("rust_coin.rs"))
+        .unwrap();
 }
 ```
 
