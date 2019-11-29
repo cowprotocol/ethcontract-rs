@@ -59,8 +59,8 @@ npm start
   ```
 
 - The `generator` example (actually a separate crate to be able to have a build
- script) demonstrates how the generator API can be used for creating type-safe
- bindings to a smart contract with a `build.rs` build script.
+  script) demonstrates how the generator API can be used for creating type-safe
+  bindings to a smart contract with a `build.rs` build script.
   ```sh
   cargo run --package examples-generate
   ```
