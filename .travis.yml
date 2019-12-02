@@ -34,8 +34,10 @@ before_install:
   - rustup component add clippy rustfmt
   - |
     nvm install stable
-    npm install -g npm@latest
+    nvm alias default stable
     node --version
+  - |
+    npm install -g npm@latest
     npm --version
 
 install:
