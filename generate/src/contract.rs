@@ -252,7 +252,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
     Ok(quote! {
         #doc
         pub fn deploy<F, T>(
-            web3: &#ethcontract::web3::api::Web3<T> #input #lib_input ,
+            web3: &#ethcontract::web3::api::Web3<T> #lib_input #input ,
         ) -> #ethcontract::DynDeployBuilder<Self>
         where
             F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
