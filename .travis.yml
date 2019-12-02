@@ -15,7 +15,7 @@ jobs:
         - (cd examples/truffle; npm ci)
       script:
         - (cd examples/truffle; npm run build)
-        - docker run -d -p 9545:9545 trufflesuite/ganache-cli:v6.7.0 -p 9545
+        - docker run -d -p 9545:8545 trufflesuite/ganache-cli:v6.7.0
         - cargo run --example async
         - cargo run --example linked
         - cargo run --package examples-generate
