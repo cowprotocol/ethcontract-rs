@@ -71,10 +71,12 @@ pub(crate) fn expand_contract(args: &Args) -> Result<TokenStream> {
 
     Ok(quote! {
         #doc
+        #[allow(non_camel_case_types)]
         pub struct #contract_name {
             instance: #ethcontract::DynInstance,
         }
 
+        #[allow(dead_code)]
         impl #contract_name {
             /// Retrieves the truffle artifact used to generate the type safe API
             /// for this contract.
@@ -359,7 +361,7 @@ fn expand_inputs_call_arg(inputs: &[Param]) -> TokenStream {
         .iter()
         .enumerate()
         .map(|(i, param)| expand_input_name(i, &param.name));
-    quote! { ( #( #names ),* ) }
+    quote! { ( #( #names ,)* ) }
 }
 
 fn expand_fn_outputs(cx: &Context, function: &Function) -> Result<TokenStream> {
