@@ -15,6 +15,7 @@ jobs:
         - docker
       install:
         - (cd examples/truffle; npm ci)
+        - docker pull trufflesuite/ganache-cli:v6.7.0
       script:
         - (cd examples/truffle; npm run build)
         - docker run -d -p 9545:8545 trufflesuite/ganache-cli:v6.7.0
