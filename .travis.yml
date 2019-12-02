@@ -11,6 +11,8 @@ jobs:
     - name: "Rust: stable - Examples"
       language: rust
       rust: stable
+      services:
+        - docker
       install:
         - (cd examples/truffle; npm ci)
       script:
