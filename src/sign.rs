@@ -4,6 +4,7 @@
 
 use ethsign::{Error as EthsignError, SecretKey, Signature};
 use rlp::RlpStream;
+use tiny_keccak::{Hasher, Keccak};
 use web3::types::{Address, Bytes, U256};
 
 /// Raw transaction data to sign
@@ -27,10 +28,17 @@ impl<'a> TransactionData<'a> {
     pub fn sign(&self, key: &SecretKey, chain_id: Option<u64>) -> Result<Bytes, EthsignError> {
         let mut rlp = RlpStream::new();
         self.rlp_append_unsigned(&mut rlp, chain_id);
-        let hash = tiny_keccak::keccak256(&rlp.as_raw());
+
+        let hash = {
+            let mut output = [0u8; 32];
+            let mut hasher = Keccak::v256();
+            hasher.update(&rlp.as_raw());
+            hasher.finalize(&mut output);
+            output
+        };
         rlp.clear();
 
-        let sig = key.sign(&hash[..])?;
+        let sig = key.sign(&hash)?;
         self.rlp_append_signed(&mut rlp, sig, chain_id);
 
         Ok(rlp.out().into())
