@@ -13,7 +13,7 @@ Code generation for type-safe bindings to Ethereum smart contracts.
 
 [dependencies]
 anyhow = "1.0"
-ethabi = "8.0"
+ethabi = "9.0"
 ethcontract-common = { version = "0.1.0", path = "../common" }
 Inflector = "0.11"
 proc-macro2 = "1.0"
