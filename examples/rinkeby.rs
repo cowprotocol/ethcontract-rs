@@ -49,7 +49,6 @@ async fn run() {
     instance
         .increment()
         .from(account.clone())
-        .gas(1_000_000.into())
         .send_and_confirm(Duration::new(5, 0), 1)
         .await
         .expect("increment failed");
