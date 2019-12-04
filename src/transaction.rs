@@ -13,7 +13,8 @@ use std::pin::Pin;
 use std::str;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use web3::api::Web3;
+use web3::api::{Eth, Namespace, Web3};
+use web3::helpers::{self, CallFuture};
 use web3::types::{
     Address, Bytes, CallRequest, RawTransaction, TransactionCondition, TransactionReceipt,
     TransactionRequest, H256, U256,
@@ -199,20 +200,28 @@ impl<T: Transport> EstimateGasFuture<T> {
     /// Create a instance from a `TransactionBuilder`.
     pub fn from_builder(builder: TransactionBuilder<T>) -> EstimateGasFuture<T> {
         let eth = builder.web3.eth();
+
         let from = builder.from.map(|account| account.address());
         let to = builder.to.unwrap_or_else(Address::zero);
+        let request = CallRequest {
+            from,
+            to,
+            gas: None,
+            gas_price: None,
+            value: builder.value,
+            data: builder.data,
+        };
 
+        EstimateGasFuture::from_request(eth, request)
+    }
+
+    fn from_request(eth: Eth<T>, request: CallRequest) -> EstimateGasFuture<T> {
+        // NOTE(nlordell): work around issue tomusdrw/rust-web3#290; while this
+        //   bas been fixed in master, it has not been released yet
         EstimateGasFuture(
-            eth.estimate_gas(
-                CallRequest {
-                    from,
-                    to,
-                    gas: None,
-                    gas_price: None,
-                    value: builder.value,
-                    data: builder.data,
-                },
-                None,
+            CallFuture::new(
+                eth.transport()
+                    .execute("eth_estimateGas", vec![helpers::serialize(&request)]),
             )
             .compat(),
         )
@@ -378,7 +387,8 @@ impl<T: Transport> BuildState<T> {
 
                 let gas = maybe!(
                     builder.gas,
-                    eth.estimate_gas(
+                    EstimateGasFuture::from_request(
+                        eth.clone(),
                         CallRequest {
                             from: Some(from),
                             to,
@@ -386,9 +396,10 @@ impl<T: Transport> BuildState<T> {
                             gas_price: None,
                             value: builder.value,
                             data: builder.data.clone(),
-                        },
-                        None
+                        }
                     )
+                    .0
+                    .into_inner()
                 );
 
                 let gas_price = maybe!(builder.gas_price, eth.gas_price());
@@ -619,13 +630,10 @@ mod tests {
 
         transport.assert_request(
             "eth_estimateGas",
-            &[
-                json!({
-                    "to": to,
-                    "value": "0x2a",
-                }),
-                json!("latest"), // block number
-            ],
+            &[json!({
+                "to": to,
+                "value": "0x2a",
+            })],
         );
         transport.assert_no_more_requests();
 
@@ -779,13 +787,10 @@ mod tests {
         // assert that we ask the node for all the missing values
         transport.assert_request(
             "eth_estimateGas",
-            &[
-                json!({
-                    "from": from,
-                    "to": to,
-                }),
-                json!("latest"),
-            ],
+            &[json!({
+                "from": from,
+                "to": to,
+            })],
         );
         transport.assert_request("eth_gasPrice", &[]);
         transport.assert_request("eth_getTransactionCount", &[json!(from), json!("latest")]);
