@@ -49,6 +49,7 @@ Truffle examples rely on the local truffle development server. In a separate
 terminal run:
 
 ```sh
+cd examples/truffle
 npm start
 ```
 

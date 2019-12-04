@@ -3,6 +3,7 @@ rust:
   - stable
   - beta
   - nightly
+
 jobs:
   allow_failures:
     - rust: nightly
@@ -31,6 +32,11 @@ cache:
 
 before_install:
   - rustup component add clippy rustfmt
+  - nvm install stable && nvm alias default stable
+  - node --version
+  - npm install -g npm@latest
+  - npm --version
+
 install:
   - (cd examples/truffle; npm ci)
 
