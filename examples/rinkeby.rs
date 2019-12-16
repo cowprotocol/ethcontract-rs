@@ -43,11 +43,7 @@ async fn run() {
 
     println!(
         "  value before: {}",
-        instance
-            .value()
-            .call()
-            .await
-            .expect("get value failed")
+        instance.value().call().await.expect("get value failed")
     );
     println!("  incrementing (this may take a while)...");
     instance
@@ -57,10 +53,6 @@ async fn run() {
         .expect("increment failed");
     println!(
         "  value after: {}",
-        instance
-            .value()
-            .call()
-            .await
-            .expect("get value failed")
+        instance.value().call().await.expect("get value failed")
     );
 }

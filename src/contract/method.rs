@@ -60,7 +60,7 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
 
     /// Apply method defaults to this builder.
     pub fn with_defaults(mut self, defaults: &MethodDefaults) -> MethodBuilder<T, R> {
-        self.tx.from = self.tx.from.or(defaults.from.clone());
+        self.tx.from = self.tx.from.or_else(|| defaults.from.clone());
         self.tx.gas = self.tx.gas.or(defaults.gas);
         self.tx.gas_price = self.tx.gas_price.or(defaults.gas_price);
         self
