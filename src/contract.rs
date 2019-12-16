@@ -98,7 +98,6 @@ impl<T: Transport> Instance<T> {
     where
         S: AsRef<str>,
         P: Tokenize,
-        R: Detokenize,
     {
         let function = self.abi.function(name.as_ref())?;
         let data = function.encode_input(&params.into_tokens())?;

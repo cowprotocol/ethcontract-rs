@@ -23,7 +23,7 @@ use web3::Transport;
 /// transactions. This is useful when dealing with view functions.
 #[derive(Debug, Clone)]
 #[must_use = "methods do nothing unless you `.call()` or `.send()` them"]
-pub struct MethodBuilder<T: Transport, R: Detokenize> {
+pub struct MethodBuilder<T: Transport, R> {
     web3: Web3<T>,
     function: Function,
     /// transaction parameters
@@ -31,7 +31,7 @@ pub struct MethodBuilder<T: Transport, R: Detokenize> {
     _result: PhantomData<R>,
 }
 
-impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
+impl<T: Transport, R> MethodBuilder<T, R> {
     /// Creates a new builder for a transaction.
     pub fn new(
         web3: Web3<T>,
@@ -88,20 +88,6 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
         self.tx
     }
 
-    /// Demotes a `MethodBuilder` into a `ViewMethodBuilder` which has a more
-    /// restricted API and cannot actually send transactions.
-    pub fn view(self) -> ViewMethodBuilder<T, R> {
-        ViewMethodBuilder::from_method(self)
-    }
-
-    /// Call a contract method. Contract calls do not modify the blockchain and
-    /// as such do not require gas or signing. Note that doing a call with a
-    /// block number requires first demoting the `MethodBuilder` into a
-    /// `ViewMethodBuilder` and setting the block number for the call.
-    pub fn call(self) -> CallFuture<T, R> {
-        self.view().call()
-    }
-
     /// Sign (if required) and send the method call transaction.
     pub fn send(self) -> SendFuture<T> {
         self.tx.send()
@@ -115,6 +101,22 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
         confirmations: usize,
     ) -> SendAndConfirmFuture<T> {
         self.tx.send_and_confirm(poll_interval, confirmations)
+    }
+}
+
+impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
+    /// Demotes a `MethodBuilder` into a `ViewMethodBuilder` which has a more
+    /// restricted API and cannot actually send transactions.
+    pub fn view(self) -> ViewMethodBuilder<T, R> {
+        ViewMethodBuilder::from_method(self)
+    }
+
+    /// Call a contract method. Contract calls do not modify the blockchain and
+    /// as such do not require gas or signing. Note that doing a call with a
+    /// block number requires first demoting the `MethodBuilder` into a
+    /// `ViewMethodBuilder` and setting the block number for the call.
+    pub fn call(self) -> CallFuture<T, R> {
+        self.view().call()
     }
 }
 
