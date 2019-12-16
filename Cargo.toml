@@ -33,10 +33,13 @@ ethcontract-common = { version = "0.2.0", path = "./common" }
 ethcontract-derive = { version = "0.2.0", path = "./derive" }
 ethsign = "0.7"
 futures = { version = "0.3", features = ["compat"] }
-jsonrpc-core = "11.0"
+jsonrpc-core = "13.2"
 lazy_static = "1.4"
 rlp = "0.4"
 serde_json = "1.0"
 thiserror = "1.0"
 tiny-keccak = { version = "2.0", features = ["keccak"] }
 web3 = "0.8"
+
+[patch.crates-io]
+web3 = { git = "https://github.com/graphprotocol/rust-web3", branch = "graph-patches" }
