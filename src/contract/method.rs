@@ -18,6 +18,17 @@ use web3::contract::QueryResult;
 use web3::types::{Address, BlockNumber, Bytes, CallRequest, U256};
 use web3::Transport;
 
+/// Default options to be applied to `MethodBuilder` or `ViewMethodBuilder`.
+#[derive(Clone, Debug, Default)]
+pub struct MethodDefaults {
+    /// Default sender of the transaction with the signing strategy to use.
+    pub from: Option<Account>,
+    /// Default gas amount to use for transaction.
+    pub gas: Option<U256>,
+    /// Default gas price to use for transaction.
+    pub gas_price: Option<U256>,
+}
+
 /// Data used for building a contract method call or transaction. The method
 /// builder can be demoted into a `CallBuilder` to not allow sending of
 /// transactions. This is useful when dealing with view functions.
@@ -45,6 +56,14 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
             tx: TransactionBuilder::new(web3).to(address).data(data),
             _result: PhantomData,
         }
+    }
+
+    /// Apply method defaults to this builder.
+    pub fn with_defaults(mut self, defaults: &MethodDefaults) -> MethodBuilder<T, R> {
+        self.tx.from = self.tx.from.or(defaults.from.clone());
+        self.tx.gas = self.tx.gas.or(defaults.gas);
+        self.tx.gas_price = self.tx.gas_price.or(defaults.gas_price);
+        self
     }
 
     /// Specify the signing method to use for the transaction, if not specified
@@ -136,6 +155,12 @@ impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
             m: method,
             block: None,
         }
+    }
+
+    /// Apply method defaults to this builder.
+    pub fn with_defaults(mut self, defaults: &MethodDefaults) -> ViewMethodBuilder<T, R> {
+        self.m = self.m.with_defaults(defaults);
+        self
     }
 
     /// Specify the account the transaction is being sent from.

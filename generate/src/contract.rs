@@ -132,6 +132,17 @@ pub(crate) fn expand_contract(args: &Args) -> Result<TokenStream> {
 
             #deploy
 
+            /// Retrieve a reference to the contract instance's method defaults.
+            pub fn defaults(&self) -> &#ethcontract::contract::MethodDefaults {
+                &self.instance.defaults
+            }
+
+            /// Retrieve a mutable reference to the contract instance's method
+            /// defaults.
+            pub fn defaults_mut(&mut self) -> &mut #ethcontract::contract::MethodDefaults {
+                &mut self.instance.defaults
+            }
+
             #( #functions )*
         }
 

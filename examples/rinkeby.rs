@@ -31,16 +31,20 @@ async fn run() {
     eloop.into_remote();
     let web3 = Web3::new(ws);
 
-    let instance = DeployedContract::deployed(&web3)
-        .await
-        .expect("locating deployed contract failed");
-
     println!("Account {:?}", account.address());
+
+    let instance = {
+        let mut instance = DeployedContract::deployed(&web3)
+            .await
+            .expect("locating deployed contract failed");
+        instance.defaults_mut().from = Some(account);
+        instance
+    };
+
     println!(
         "  value before: {}",
         instance
             .value()
-            .from(account.address())
             .call()
             .await
             .expect("get value failed")
@@ -48,7 +52,6 @@ async fn run() {
     println!("  incrementing (this may take a while)...");
     instance
         .increment()
-        .from(account.clone())
         .send_and_confirm(Duration::new(5, 0), 1)
         .await
         .expect("increment failed");
@@ -56,7 +59,6 @@ async fn run() {
         "  value after: {}",
         instance
             .value()
-            .from(account.address())
             .call()
             .await
             .expect("get value failed")
