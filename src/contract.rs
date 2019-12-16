@@ -43,9 +43,10 @@ impl<T: Transport> Instance<T> {
         DeployedFuture::from_args(web3, artifact)
     }
 
-    /// Deploys a contract with the specified `web3` provider with the given
-    /// `Artifact` byte code.
-    pub fn deploy<P>(
+    /// Creates a contract builder with the specified `web3` provider and the
+    /// given `Artifact` byte code. This allows the contract deployment
+    /// transaction to be configured before deploying the contract.
+    pub fn builder<P>(
         web3: Web3<T>,
         artifact: Artifact,
         params: P,
