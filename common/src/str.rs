@@ -60,10 +60,10 @@ mod tests {
         for (value, matched, expected) in &[
             ("abcdefg", false, "abcdefg"),
             ("abfoocdefg", true, "abbarcdefg"),
-            ("abfoocdfooefgfoo", true, "abbarcdfooefgfoo"),
+            ("abfoocdfooefgfoo", true, "abbarcdbarefgbar"),
         ] {
             let mut value = (*value).to_string();
-            assert_eq!(value.replace_once_in_place("foo", "bar"), *matched);
+            assert_eq!(value.replace_all_in_place("foo", "bar"), *matched);
             assert_eq!(&value, expected);
         }
     }
