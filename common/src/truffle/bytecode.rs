@@ -3,6 +3,7 @@ use crate::str::{AddressHexExt, StringReplaceExt};
 use hex;
 use serde::de::{Error as DeError, Visitor};
 use serde::{Deserialize, Deserializer};
+use std::collections::HashSet;
 use std::fmt::{Formatter, Result as FmtResult};
 use std::mem;
 use web3::types::{Address, Bytes};
@@ -71,7 +72,7 @@ impl Bytecode {
         //   `LinkedContract` contract for and example of how it looks like
         let placeholder = format!("__{:_<38}", name);
         let address = address.to_fixed_hex();
-        let matched = self.0.replace_once_in_place(&placeholder, &address);
+        let matched = self.0.replace_all_in_place(&placeholder, &address);
         if !matched {
             return Err(LinkError::NotFound(name.to_string()));
         }
@@ -89,7 +90,10 @@ impl Bytecode {
 
     /// Iterator over all libraries remaining in the bytecode.
     pub fn undefined_libraries(&self) -> LibIter<'_> {
-        LibIter(&self.0)
+        LibIter {
+            cursor: &self.0,
+            seen: HashSet::new(),
+        }
     }
 
     /// Returns true if bytecode requires linking.
@@ -131,21 +135,27 @@ impl<'a> Iterator for CodeIter<'a> {
 }
 
 /// An iterator over link placeholders in the bytecode.
-pub struct LibIter<'a>(&'a str);
+pub struct LibIter<'a> {
+    cursor: &'a str,
+    seen: HashSet<&'a str>,
+}
 
 impl<'a> Iterator for LibIter<'a> {
     type Item = &'a str;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let pos = self.0.find("__")?;
+        while let Some(pos) = self.cursor.find("__") {
+            // NOTE(nlordell): this won't panic since we only constrcut this iterator
+            //   on valid Bytecode instances where this has been verified
+            let (placeholder, tail) = self.cursor[pos..].split_at(40);
+            let lib = placeholder.trim_matches('_');
 
-        // NOTE(nlordell): this won't panic since we only constrcut this iterator
-        //   on valid Bytecode instances where this has been verified
-        let (placeholder, tail) = self.0[pos..].split_at(40);
-
-        self.0 = tail;
-
-        Some(placeholder.trim_matches('_'))
+            self.cursor = tail;
+            if self.seen.insert(lib) {
+                return Some(lib);
+            }
+        }
+        None
     }
 }
 
