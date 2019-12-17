@@ -22,7 +22,7 @@ async fn run() {
         .await
         .expect("get accounts failed");
 
-    let instance = RustCoin::deploy(&web3)
+    let instance = RustCoin::builder(&web3)
         .gas(4_712_388.into())
         .confirmations(0)
         .deploy()

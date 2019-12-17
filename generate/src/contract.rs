@@ -253,7 +253,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
 
     Ok(quote! {
         #doc
-        pub fn deploy<F, T>(
+        pub fn builder<F, T>(
             web3: &#ethcontract::web3::api::Web3<T> #lib_input #input ,
         ) -> #ethcontract::DynDeployBuilder<Self>
         where
@@ -383,16 +383,17 @@ fn expand_type(cx: &Context, kind: &ParamType) -> Result<TokenStream> {
 
     match kind {
         ParamType::Address => Ok(quote! { #ethcontract::Address }),
-        ParamType::Bytes => Ok(quote! { #ethcontract::web3::types::Bytes }),
-        ParamType::Int(n) | ParamType::Uint(n) => match n {
+        ParamType::Address => Ok(quote! { #ethcontract::web3::types::Address }),
+        ParamType::Bytes => Ok(quote! { Vec<u8> }),
+        ParamType::Int(n) | ParamType::Uint(n) => match n / 8 {
             // TODO(nlordell): for now, not all uint/int types implement the
             //   `Tokenizable` trait, only `u64`, `U128`, and `U256` so we need
             //   to map solidity int/uint types to those; eventually we should
             //   add more implementations to the `web3` crate
-            8 | 16 | 32 | 64 => Ok(quote! { u64 }),
-            128 => Ok(quote! { #ethcontract::web3::types::U128 }),
-            256 => Ok(quote! { #ethcontract::U256 }),
-            n => Err(anyhow!("unsupported solidity type int{}", n)),
+            1..=8 => Ok(quote! { u64 }),
+            9..=16 => Ok(quote! { #ethcontract::web3::types::U128 }),
+            17..=32 => Ok(quote! { #ethcontract::U256 }),
+            _ => Err(anyhow!("unsupported solidity type int{}", n)),
         },
         ParamType::Bool => Ok(quote! { bool }),
         ParamType::String => Ok(quote! { String }),

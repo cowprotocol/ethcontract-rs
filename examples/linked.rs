@@ -13,13 +13,13 @@ async fn run() {
     eloop.into_remote();
     let web3 = Web3::new(http);
 
-    let library = SimpleLibrary::deploy(&web3)
+    let library = SimpleLibrary::builder(&web3)
         .gas(4_712_388.into())
         .confirmations(0)
         .deploy()
         .await
         .expect("library deployment failure");
-    let instance = LinkedContract::deploy(&web3, library.address(), 1337.into())
+    let instance = LinkedContract::builder(&web3, library.address(), 1337.into())
         .gas(4_712_388.into())
         .confirmations(0)
         .deploy()
