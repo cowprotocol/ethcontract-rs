@@ -4,7 +4,7 @@ use web3::types::Address;
 
 /// Extension trait for in place `String` replacement.
 pub trait StringReplaceExt {
-    /// Replace a single match of a pattern string with another.
+    /// Replace all matches of a pattern string with another.
     ///
     /// # Returns
     ///
