@@ -253,7 +253,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
 
     Ok(quote! {
         #doc
-        pub fn deploy<F, T>(
+        pub fn builder<F, T>(
             web3: &#ethcontract::web3::api::Web3<T> #lib_input #input ,
         ) -> #ethcontract::DynDeployBuilder<Self>
         where

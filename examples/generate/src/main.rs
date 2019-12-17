@@ -12,7 +12,7 @@ async fn run() {
     eloop.into_remote();
     let web3 = Web3::new(http);
 
-    let instance = RustCoin::deploy(&web3)
+    let instance = RustCoin::builder(&web3)
         .gas(4_712_388.into())
         .confirmations(0)
         .deploy()
