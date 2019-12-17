@@ -118,21 +118,21 @@ pub(crate) fn expand_contract(args: &Args) -> Result<TokenStream> {
                 Self{ instance }
             }
 
-            /// Retrieve a reference the undelying base `ethcontract::Instance`
-            /// being used by this contract.
-            pub fn base_instance(&self) -> &#ethcontract::DynInstance {
-                &self.instance
-            }
-
-            /// Retrieve a mutable reference the undelying base
-            /// `ethcontract::Instance` being used by this contract.
-            pub fn base_instance_mut(&mut self) -> &mut #ethcontract::DynInstance {
-                &mut self.instance
-            }
-
             /// Returns the contract address being used by this instance.
             pub fn address(&self) -> #ethcontract::web3::types::Address {
                 self.instance.address()
+            }
+
+            /// Returns a reference to the default method options used by this
+            /// contract.
+            pub fn defaults(&self) -> &#ethcontract::contract::MethodDefaults {
+                &self.instance.defaults
+            }
+
+            /// Returns a mutable reference to the default method options used
+            /// by this contract.
+            pub fn defaults_mut(&mut self) -> &mut #ethcontract::contract::MethodDefaults {
+                &mut self.instance.defaults
             }
 
             #deployed
