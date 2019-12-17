@@ -383,7 +383,6 @@ fn expand_type(cx: &Context, kind: &ParamType) -> Result<TokenStream> {
 
     match kind {
         ParamType::Address => Ok(quote! { #ethcontract::Address }),
-        ParamType::Address => Ok(quote! { #ethcontract::web3::types::Address }),
         ParamType::Bytes => Ok(quote! { Vec<u8> }),
         ParamType::Int(n) | ParamType::Uint(n) => match n / 8 {
             // TODO(nlordell): for now, not all uint/int types implement the
