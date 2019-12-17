@@ -80,9 +80,9 @@ pub(crate) fn expand_contract(args: &Args) -> Result<TokenStream> {
         impl #contract_name {
             /// Retrieves the truffle artifact used to generate the type safe API
             /// for this contract.
-            pub fn artifact() -> &'static #ethcontract::truffle::Artifact {
+            pub fn artifact() -> &'static #ethcontract::Artifact {
                 use #ethcontract::foreign::lazy_static;
-                use #ethcontract::truffle::Artifact;
+                use #ethcontract::Artifact;
 
                 lazy_static! {
                     pub static ref ARTIFACT: Artifact = {
@@ -100,13 +100,13 @@ pub(crate) fn expand_contract(args: &Args) -> Result<TokenStream> {
             /// `Abi` is actually deployed at the given address.
             pub fn at<F, T>(
                 web3: &#ethcontract::web3::api::Web3<T>,
-                address: #ethcontract::web3::types::Address,
+                address: #ethcontract::Address,
             ) -> Self
             where
                 F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
                 T: #ethcontract::web3::Transport<Out = F> + 'static,
             {
-                use #ethcontract::contract::Instance;
+                use #ethcontract::Instance;
                 use #ethcontract::transport::DynTransport;
                 use #ethcontract::web3::api::Web3;
 
@@ -124,7 +124,7 @@ pub(crate) fn expand_contract(args: &Args) -> Result<TokenStream> {
             }
 
             /// Returns the contract address being used by this instance.
-            pub fn address(&self) -> #ethcontract::web3::types::Address {
+            pub fn address(&self) -> #ethcontract::Address {
                 self.instance.address()
             }
 
@@ -135,13 +135,13 @@ pub(crate) fn expand_contract(args: &Args) -> Result<TokenStream> {
             #( #functions )*
         }
 
-        impl #ethcontract::contract::Deploy<#ethcontract::DynTransport> for #contract_name {
+        impl #ethcontract::contract::Deploy<#ethcontract::transport::DynTransport> for #contract_name {
             fn deployed_at(
-                web3: #ethcontract::web3::api::Web3<#ethcontract::DynTransport>,
+                web3: #ethcontract::web3::api::Web3<#ethcontract::transport::DynTransport>,
                 abi: #ethcontract::truffle::Abi,
-                at: #ethcontract::web3::types::Address,
+                at: #ethcontract::Address,
             ) -> Self {
-                use #ethcontract::contract::Instance;
+                use #ethcontract::Instance;
 
                 // NOTE(nlordell): we need to make sure that we were deployed
                 //   with the correct ABI; luckily Abi implementes PartialEq
@@ -170,14 +170,14 @@ fn expand_deployed(cx: &Context) -> TokenStream {
         /// `Abi` is actually deployed at the given address.
         pub fn deployed<F, T>(
             web3: &#ethcontract::web3::api::Web3<T>,
-        ) -> #ethcontract::contract::DeployedFuture<#ethcontract::DynTransport, Self>
+        ) -> #ethcontract::contract::DeployedFuture<#ethcontract::transport::DynTransport, Self>
         where
             F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
             T: #ethcontract::web3::Transport<Out = F> + 'static,
         {
+            use #ethcontract::Artifact;
             use #ethcontract::contract::DeployedFuture;
             use #ethcontract::transport::DynTransport;
-            use #ethcontract::truffle::Artifact;
             use #ethcontract::web3::api::Web3;
 
             let transport = DynTransport::new(web3.transport().clone());
@@ -260,9 +260,8 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
             T: #ethcontract::web3::Transport<Out = F> + 'static,
         {
+            use #ethcontract::{Artifact, DynTransport};
             use #ethcontract::contract::DeployBuilder;
-            use #ethcontract::transport::DynTransport;
-            use #ethcontract::truffle::Artifact;
             use #ethcontract::web3::api::Web3;
 
             let transport = DynTransport::new(web3.transport().clone());
@@ -383,7 +382,7 @@ fn expand_type(cx: &Context, kind: &ParamType) -> Result<TokenStream> {
     let ethcontract = &cx.runtime_crate;
 
     match kind {
-        ParamType::Address => Ok(quote! { #ethcontract::web3::types::Address }),
+        ParamType::Address => Ok(quote! { #ethcontract::Address }),
         ParamType::Bytes => Ok(quote! { #ethcontract::web3::types::Bytes }),
         ParamType::Int(n) | ParamType::Uint(n) => match n {
             // TODO(nlordell): for now, not all uint/int types implement the
@@ -392,7 +391,7 @@ fn expand_type(cx: &Context, kind: &ParamType) -> Result<TokenStream> {
             //   add more implementations to the `web3` crate
             8 | 16 | 32 | 64 => Ok(quote! { u64 }),
             128 => Ok(quote! { #ethcontract::web3::types::U128 }),
-            256 => Ok(quote! { #ethcontract::web3::types::U256 }),
+            256 => Ok(quote! { #ethcontract::U256 }),
             n => Err(anyhow!("unsupported solidity type int{}", n)),
         },
         ParamType::Bool => Ok(quote! { bool }),
