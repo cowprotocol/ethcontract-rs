@@ -1,10 +1,8 @@
-use ethcontract::transaction::Account;
-use ethsign::SecretKey;
+use ethcontract::web3::api::Web3;
+use ethcontract::web3::transports::WebSocket;
+use ethcontract::{Account, SecretKey, H256};
 use std::env;
 use std::time::Duration;
-use web3::api::Web3;
-use web3::transports::WebSocket;
-use web3::types::H256;
 
 ethcontract::contract!("examples/truffle/build/contracts/DeployedContract.json");
 

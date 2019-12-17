@@ -1,6 +1,6 @@
 //! Module with common error types.
 
-use ethabi::{Error as AbiError, ErrorKind as AbiErrorKind};
+use crate::truffle::abi::{Error as AbiError, ErrorKind as AbiErrorKind};
 use ethsign::Error as SignError;
 use std::num::ParseIntError;
 use thiserror::Error;

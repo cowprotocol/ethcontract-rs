@@ -92,11 +92,14 @@ pub mod transport;
 
 pub use crate::contract::Instance;
 use crate::contract::{DeployBuilder, MethodBuilder, ViewMethodBuilder};
+pub use crate::transaction::Account;
 pub use crate::transport::DynTransport;
-pub use ethcontract_common::truffle;
+pub use ethcontract_common::truffle::{self, Artifact};
 pub use ethcontract_derive::contract;
+pub use ethsign::{self, Protected, SecretKey};
 pub use serde_json as json;
 pub use web3;
+pub use web3::types::{Address, BlockNumber, TransactionCondition, H256, U256};
 
 /// Type alias for a contract `Instance` with an underyling `DynTransport`.
 pub type DynInstance = Instance<DynTransport>;

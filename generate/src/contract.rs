@@ -6,7 +6,7 @@
 
 use crate::Args;
 use anyhow::{anyhow, Result};
-use ethabi::{Function, Param, ParamType};
+use ethcontract_common::truffle::abi::{Function, Param, ParamType};
 use ethcontract_common::truffle::Artifact;
 use inflector::Inflector;
 use proc_macro2::{Ident, Literal, TokenStream};

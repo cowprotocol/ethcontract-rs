@@ -1,5 +1,5 @@
-use web3::api::Web3;
-use web3::transports::Http;
+use ethcontract::web3::api::Web3;
+use ethcontract::web3::transports::Http;
 
 ethcontract::contract!("examples/truffle/build/contracts/SimpleLibrary.json");
 ethcontract::contract!("examples/truffle/build/contracts/LinkedContract.json");
