@@ -28,9 +28,10 @@ jobs:
         - cargo run --example rinkeby
 
 cache:
-  cargo: true
   directories:
+    - $HOME/.cargo
     - $HOME/.npm
+    - $HOME/.rustup
 
 before_install:
   - rustup component add clippy rustfmt
