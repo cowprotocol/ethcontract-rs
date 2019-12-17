@@ -5,7 +5,7 @@
 use crate::errors::ExecutionError;
 use crate::future::CompatQueryResult;
 use crate::transaction::{Account, SendAndConfirmFuture, SendFuture, TransactionBuilder};
-use ethabi::Function;
+use crate::truffle::abi::Function;
 use futures::compat::Future01CompatExt;
 use std::future::Future;
 use std::marker::PhantomData;

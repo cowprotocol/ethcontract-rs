@@ -6,8 +6,8 @@ mod deploy;
 mod method;
 
 use crate::errors::{DeployError, LinkError};
+use crate::truffle::abi::Result as AbiResult;
 use crate::truffle::{Abi, Artifact, Bytecode};
-use ethabi::Result as AbiResult;
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes};

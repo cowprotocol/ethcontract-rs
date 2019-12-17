@@ -10,7 +10,7 @@ use std::path::Path;
 use web3::types::Address;
 
 pub use self::bytecode::Bytecode;
-pub use ethabi::Contract as Abi;
+pub use ethabi::{self as abi, Contract as Abi};
 
 /// Represents a truffle artifact.
 #[derive(Clone, Debug, Deserialize)]
