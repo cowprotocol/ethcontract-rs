@@ -216,7 +216,6 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
         None => (quote! {}, quote! {()}),
     };
 
-    // TODO(nlordell): we don't handle duplicate library names
     let lib_params: Vec<_> = cx
         .artifact
         .bytecode

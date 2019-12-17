@@ -4,7 +4,7 @@ use web3::types::Address;
 
 /// Extension trait for in place `String` replacement.
 pub trait StringReplaceExt {
-    /// Replace a single match of a pattern string with another.
+    /// Replace all matches of a pattern string with another.
     ///
     /// # Returns
     ///
@@ -13,27 +13,29 @@ pub trait StringReplaceExt {
     /// # Panics
     ///
     /// Panics if the replacement string size does not match the search pattern.
-    fn replace_once_in_place(&mut self, from: &str, to: &str) -> bool;
+    fn replace_all_in_place(&mut self, from: &str, to: &str) -> bool;
 }
 
 impl StringReplaceExt for String {
-    fn replace_once_in_place(&mut self, from: &str, to: &str) -> bool {
+    fn replace_all_in_place(&mut self, from: &str, to: &str) -> bool {
         let len = from.len();
         if to.len() != len {
             panic!("mismatch length of from and to string");
         }
 
-        if let Some(start) = self.find(from) {
+        let mut found = false;
+        while let Some(start) = self.find(from) {
             let end = start + len;
 
-            // NOTE(nlordell): safe since the to string is valid utf-8
+            // NOTE(nlordell): safe since the to string is valid utf-8 and
+            //   `str::len()` returns byte length and not character length
             let section = unsafe { self[start..end].as_bytes_mut() };
             section.copy_from_slice(to.as_bytes());
 
-            true
-        } else {
-            false
+            found = true
         }
+
+        found
     }
 }
 
@@ -58,10 +60,10 @@ mod tests {
         for (value, matched, expected) in &[
             ("abcdefg", false, "abcdefg"),
             ("abfoocdefg", true, "abbarcdefg"),
-            ("abfoocdfooefgfoo", true, "abbarcdfooefgfoo"),
+            ("abfoocdfooefgfoo", true, "abbarcdbarefgbar"),
         ] {
             let mut value = (*value).to_string();
-            assert_eq!(value.replace_once_in_place("foo", "bar"), *matched);
+            assert_eq!(value.replace_all_in_place("foo", "bar"), *matched);
             assert_eq!(&value, expected);
         }
     }
