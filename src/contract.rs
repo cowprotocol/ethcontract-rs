@@ -14,7 +14,7 @@ use web3::types::{Address, Bytes};
 use web3::Transport;
 
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture};
-pub use self::method::{CallFuture, MethodBuilder, ViewMethodBuilder};
+pub use self::method::{CallFuture, MethodBuilder, MethodDefaults, ViewMethodBuilder};
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
@@ -22,6 +22,9 @@ pub struct Instance<T: Transport> {
     web3: Web3<T>,
     abi: Abi,
     address: Address,
+    /// Default method parameters to use when sending method transactions or
+    /// querying method calls.
+    pub defaults: MethodDefaults,
 }
 
 impl<T: Transport> Instance<T> {
@@ -31,7 +34,12 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
     pub fn at(web3: Web3<T>, abi: Abi, address: Address) -> Instance<T> {
-        Instance { web3, abi, address }
+        Instance {
+            web3,
+            abi,
+            address,
+            defaults: MethodDefaults::default(),
+        }
     }
 
     /// Locates a deployed contract based on the current network ID reported by
@@ -109,12 +117,10 @@ impl<T: Transport> Instance<T> {
         let function = function.clone();
         let data = Bytes(data);
 
-        Ok(MethodBuilder::new(
-            self.web3(),
-            function,
-            self.address,
-            data,
-        ))
+        Ok(
+            MethodBuilder::new(self.web3(), function, self.address, data)
+                .with_defaults(&self.defaults),
+        )
     }
 
     /// Returns a view method builder to setup a call to a smart contract. View
