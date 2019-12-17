@@ -145,7 +145,7 @@ impl<'a> Iterator for LibIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(pos) = self.cursor.find("__") {
-            // NOTE(nlordell): this won't panic since we only constrcut this iterator
+            // NOTE(nlordell): this won't panic since we only construct this iterator
             //   on valid Bytecode instances where this has been verified
             let (placeholder, tail) = self.cursor[pos..].split_at(40);
             let lib = placeholder.trim_matches('_');
