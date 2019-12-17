@@ -37,7 +37,7 @@ async fn run() {
         let mut instance = DeployedContract::deployed(&web3)
             .await
             .expect("locating deployed contract failed");
-        instance.defaults_mut().from = Some(account);
+        instance.base_instance_mut().defaults.from = Some(account);
         instance
     };
 

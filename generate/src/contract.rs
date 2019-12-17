@@ -118,14 +118,15 @@ pub(crate) fn expand_contract(args: &Args) -> Result<TokenStream> {
                 Self{ instance }
             }
 
-            /// Retrieve the undelying instance being used by this contract.
-            pub fn instance(&self) -> &#ethcontract::DynInstance {
+            /// Retrieve a reference the undelying base `ethcontract::Instance`
+            /// being used by this contract.
+            pub fn base_instance(&self) -> &#ethcontract::DynInstance {
                 &self.instance
             }
 
-            /// Retrieve a mutable reference to the undelying instance being
-            /// used by this contract.
-            pub fn instance_mut(&self) -> &mut #ethcontract::DynInstance {
+            /// Retrieve a mutable reference the undelying base
+            /// `ethcontract::Instance` being used by this contract.
+            pub fn base_instance_mut(&mut self) -> &mut #ethcontract::DynInstance {
                 &mut self.instance
             }
 
