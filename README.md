@@ -35,12 +35,13 @@ In order to run local examples you need:
 - Rust >=1.39 for `async`/`await` support
 - NodeJS in order to compile truffle contracts and, depending on the example,
   start development node
+- Yarn is used as the package manager
 
 For all examples, the smart contracts must first be built:
 
 ```sh
 cd examples/truffle
-npm run build
+yarn run build
 ```
 
 ### Truffle Examples
@@ -50,7 +51,7 @@ terminal run:
 
 ```sh
 cd examples/truffle
-npm start
+yarn run start
 ```
 
 - The `async` example deploys an ERC20 token and interacts with the contract
@@ -94,7 +95,7 @@ first build the contracts and then generate documentation for the crate with the
 `samples` feature enabled:
 
 ```sh
-(cd examples/truffle; npm run build)
+(cd examples/truffle; yarn run build)
 cargo doc --features samples --open
 ```
 

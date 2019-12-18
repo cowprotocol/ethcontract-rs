@@ -4,8 +4,8 @@
   "private": "true",
   "description": "Test contracts for ethcontract-rs runtime and proc macro.",
   "scripts": {
-    "build": "truffle build && npm run network:inject",
-    "deploy": "truffle migrate --network rinkeby && truffle verify --network rinkeby && npm run network:extract",
+    "build": "truffle build && yarn run network:inject",
+    "deploy": "truffle migrate --network rinkeby && truffle verify --network rinkeby && yarn run network:extract",
     "network:extract": "CONF_FILE=$(pwd)/.network-restore.conf.js node node_modules/@gnosis.pm/util-contracts/src/extract_network_info.js",
     "network:inject": "CONF_FILE=$(pwd)/.network-restore.conf.js node node_modules/@gnosis.pm/util-contracts/src/inject_network_info.js",
     "start": "truffle develop",
