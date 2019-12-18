@@ -17,10 +17,10 @@ jobs:
       services:
         - docker
       install:
-        - (cd examples/truffle; npm ci)
+        - (cd examples/truffle; yarn install)
         - docker pull trufflesuite/ganache-cli:v6.7.0
       script:
-        - (cd examples/truffle; npm run build)
+        - (cd examples/truffle; yarn run build)
         - docker run -d -p 9545:8545 trufflesuite/ganache-cli:v6.7.0
         - RUSTC_WRAPPER=sccache cargo run --example async
         - RUSTC_WRAPPER=sccache cargo run --example linked
@@ -30,9 +30,10 @@ jobs:
 cache:
   directories:
     - $HOME/.cache/sccache
+    - $HOME/.cache/yarn
     - $HOME/.cargo
-    - $HOME/.npm
     - $HOME/.rustup
+    - examples/truffle/node_modules
 
 before_install:
   - rustup toolchain add stable
@@ -45,14 +46,14 @@ before_install:
   - sccache --version
   - nvm install stable && nvm alias default stable
   - node --version
-  - npm install -g npm@latest
-  - npm --version
+  - npm install -g yarn@latest
+  - yarn --version
 
 install:
-  - (cd examples/truffle; npm ci)
+  - (cd examples/truffle; yarn install)
 
 script:
-  - (cd examples/truffle; npm run build)
+  - (cd examples/truffle; yarn run build)
   - RUSTC_WRAPPER=sccache cargo build --all-features --verbose --all
   - RUSTC_WRAPPER=sccache cargo test --all-features --verbose --all
   - RUSTC_WRAPPER=sccache cargo fmt --all -- --check
