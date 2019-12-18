@@ -22,19 +22,26 @@ jobs:
       script:
         - (cd examples/truffle; npm run build)
         - docker run -d -p 9545:8545 trufflesuite/ganache-cli:v6.7.0
-        - cargo run --example async
-        - cargo run --example linked
-        - cargo run --package examples-generate
-        - cargo run --example rinkeby
+        - RUSTC_WRAPPER=sccache cargo run --example async
+        - RUSTC_WRAPPER=sccache cargo run --example linked
+        - RUSTC_WRAPPER=sccache cargo run --package examples-generate
+        - RUSTC_WRAPPER=sccache cargo run --example rinkeby
 
 cache:
   directories:
+    - $HOME/.cache/sccache
     - $HOME/.cargo
     - $HOME/.npm
     - $HOME/.rustup
 
 before_install:
   - rustup component add clippy rustfmt
+  - cargo clippy --version
+  - cargo fmt --version
+  - cargo install cargo-update || echo "cargo-update already installed"
+  - cargo install sccache || echo "sccache already installed"
+  - cargo install-update -a
+  - sccache --version
   - nvm install stable && nvm alias default stable
   - node --version
   - npm install -g npm@latest
@@ -45,7 +52,10 @@ install:
 
 script:
   - (cd examples/truffle; npm run build)
-  - cargo build --all-features --verbose --all
-  - cargo test --all-features --verbose --all
-  - cargo fmt --all -- --check
-  - cargo clippy --all --all-features --all-targets -- -D warnings
+  - RUSTC_WRAPPER=sccache cargo build --all-features --verbose --all
+  - RUSTC_WRAPPER=sccache cargo test --all-features --verbose --all
+  - RUSTC_WRAPPER=sccache cargo fmt --all -- --check
+  - RUSTC_WRAPPER=sccache cargo clippy --all --all-features --all-targets -- -D warnings
+
+before_cache:
+  - rm -rf "$TRAVIS_HOME/.cargo/registry"
