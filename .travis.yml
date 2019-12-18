@@ -35,12 +35,13 @@ cache:
     - $HOME/.rustup
 
 before_install:
+  - rustup toolchain add stable
   - rustup component add clippy rustfmt
   - cargo clippy --version
   - cargo fmt --version
-  - cargo install cargo-update || echo "cargo-update already installed"
-  - cargo install sccache || echo "sccache already installed"
-  - cargo install-update -a
+  - cargo +stable install cargo-update || echo "cargo-update already installed"
+  - cargo +stable install sccache || echo "sccache already installed"
+  - cargo +stable install-update -a
   - sccache --version
   - nvm install stable && nvm alias default stable
   - node --version
