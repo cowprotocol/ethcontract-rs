@@ -20,7 +20,7 @@ This subdirectory contains a truffle project with sample contracts used by the
 This contract can be built with truffle. There is an NPM script for doing this:
 
 ```sh
-npm run build
+yarn run build
 ```
 
 ## Development Server
@@ -42,7 +42,7 @@ export ETHERSCAN_API_KEY="Etherscan API key"
 
 In order to deploy, the following NPM script should be used:
 ```sh
-npm run deploy
+yarn run deploy
 ```
 
 This will:
