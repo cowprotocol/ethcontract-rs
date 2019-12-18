@@ -77,6 +77,7 @@ pub(crate) fn expand_contract(args: &Args) -> Result<TokenStream> {
         }
 
         #[allow(dead_code)]
+        #[allow(clippy::too_many_arguments, clippy::type_complexity)]
         impl #contract_name {
             /// Retrieves the truffle artifact used to generate the type safe API
             /// for this contract.
