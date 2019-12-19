@@ -83,21 +83,21 @@ impl<T: Transport, R> MethodBuilder<T, R> {
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
     pub fn gas_price(mut self, value: U256) -> MethodBuilder<T, R> {
-        self.tx = self.tx.gas(value);
+        self.tx = self.tx.gas_price(value);
         self
     }
 
     /// Specify what how much ETH to transfer with the transaction, if not
     /// specified then no ETH will be sent.
     pub fn value(mut self, value: U256) -> MethodBuilder<T, R> {
-        self.tx = self.tx.gas(value);
+        self.tx = self.tx.value(value);
         self
     }
 
     /// Specify the nonce for the transation, if not specified will use the
     /// current transaction count for the signing account.
     pub fn nonce(mut self, value: U256) -> MethodBuilder<T, R> {
-        self.tx = self.tx.gas(value);
+        self.tx = self.tx.nonce(value);
         self
     }
 
@@ -181,14 +181,14 @@ impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
     pub fn gas_price(mut self, value: U256) -> ViewMethodBuilder<T, R> {
-        self.m = self.m.gas(value);
+        self.m = self.m.gas_price(value);
         self
     }
 
     /// Specify what how much ETH to transfer with the transaction, if not
     /// specified then no ETH will be sent.
     pub fn value(mut self, value: U256) -> ViewMethodBuilder<T, R> {
-        self.m = self.m.gas(value);
+        self.m = self.m.value(value);
         self
     }
 
@@ -247,5 +247,113 @@ impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
         self.inner()
             .poll(cx)
             .map(|result| result.map_err(ExecutionError::from))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test::prelude::*;
+    use crate::truffle::abi::{Param, ParamType};
+
+    fn test_function() -> Function {
+        Function {
+            name: "test".to_owned(),
+            inputs: Vec::new(),
+            outputs: vec![Param {
+                name: "".to_owned(),
+                kind: ParamType::Uint(256),
+            }],
+            constant: false,
+        }
+    }
+
+    #[test]
+    fn method_tx_options() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let address = addr!("0x0123456789012345678901234567890123456789");
+        let from = addr!("0x9876543210987654321098765432109876543210");
+        let tx = MethodBuilder::<_, U256>::new(web3, test_function(), address, bytes!("0x1337"))
+            .from(Account::Local(from, None))
+            .gas(1.into())
+            .gas_price(2.into())
+            .value(28.into())
+            .nonce(42.into())
+            .into_inner();
+
+        assert_eq!(tx.from.map(|a| a.address()), Some(from));
+        assert_eq!(tx.to, Some(address));
+        assert_eq!(tx.gas, Some(1.into()));
+        assert_eq!(tx.gas_price, Some(2.into()));
+        assert_eq!(tx.value, Some(28.into()));
+        assert_eq!(tx.data, Some(bytes!("0x1337")));
+        assert_eq!(tx.nonce, Some(42.into()));
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn view_method_tx_options() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let address = addr!("0x0123456789012345678901234567890123456789");
+        let from = addr!("0x9876543210987654321098765432109876543210");
+        let tx = ViewMethodBuilder::<_, U256>::from_method(MethodBuilder::new(
+            web3,
+            test_function(),
+            address,
+            bytes!("0x1337"),
+        ))
+        .from(from)
+        .gas(1.into())
+        .gas_price(2.into())
+        .value(28.into())
+        .m
+        .into_inner();
+
+        assert_eq!(tx.from.map(|a| a.address()), Some(from));
+        assert_eq!(tx.to, Some(address));
+        assert_eq!(tx.gas, Some(1.into()));
+        assert_eq!(tx.gas_price, Some(2.into()));
+        assert_eq!(tx.value, Some(28.into()));
+        assert_eq!(tx.data, Some(bytes!("0x1337")));
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn method_to_view_method_preserves_options() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let address = addr!("0x0123456789012345678901234567890123456789");
+        let tx = MethodBuilder::<_, U256>::new(web3, test_function(), address, bytes!("0x1337"))
+            .gas(42.into())
+            .view();
+
+        assert_eq!(tx.m.tx.gas, Some(42.into()));
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn method_defaults_are_applied() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0x9876543210987654321098765432109876543210");
+        let address = addr!("0x0123456789012345678901234567890123456789");
+        let tx = MethodBuilder::<_, U256>::new(web3, test_function(), address, bytes!("0x1337"))
+            .with_defaults(&MethodDefaults {
+                from: Some(Account::Local(from, None)),
+                gas: Some(1.into()),
+                gas_price: Some(2.into()),
+            })
+            .into_inner();
+
+        assert_eq!(tx.from.map(|a| a.address()), Some(from));
+        assert_eq!(tx.gas, Some(1.into()));
+        assert_eq!(tx.gas_price, Some(2.into()));
+        transport.assert_no_more_requests();
     }
 }
