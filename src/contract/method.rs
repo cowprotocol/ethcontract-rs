@@ -256,8 +256,8 @@ mod tests {
     use crate::test::prelude::*;
     use crate::truffle::abi::{Param, ParamType};
 
-    fn test_function() -> Function {
-        Function {
+    fn test_abi_function() -> (Function, Bytes) {
+        let function = Function {
             name: "test".to_owned(),
             inputs: Vec::new(),
             outputs: vec![Param {
@@ -265,7 +265,12 @@ mod tests {
                 kind: ParamType::Uint(256),
             }],
             constant: false,
-        }
+        };
+        let data = function
+            .encode_input(&[])
+            .expect("error encoding empty input");
+
+        (function, Bytes(data))
     }
 
     #[test]
@@ -275,7 +280,8 @@ mod tests {
 
         let address = addr!("0x0123456789012345678901234567890123456789");
         let from = addr!("0x9876543210987654321098765432109876543210");
-        let tx = MethodBuilder::<_, U256>::new(web3, test_function(), address, bytes!("0x1337"))
+        let (function, data) = test_abi_function();
+        let tx = MethodBuilder::<_, U256>::new(web3, function, address, data.clone())
             .from(Account::Local(from, None))
             .gas(1.into())
             .gas_price(2.into())
@@ -288,51 +294,81 @@ mod tests {
         assert_eq!(tx.gas, Some(1.into()));
         assert_eq!(tx.gas_price, Some(2.into()));
         assert_eq!(tx.value, Some(28.into()));
-        assert_eq!(tx.data, Some(bytes!("0x1337")));
+        assert_eq!(tx.data, Some(data));
         assert_eq!(tx.nonce, Some(42.into()));
         transport.assert_no_more_requests();
     }
 
     #[test]
-    fn view_method_tx_options() {
-        let transport = TestTransport::new();
+    fn view_method_call() {
+        let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
         let address = addr!("0x0123456789012345678901234567890123456789");
         let from = addr!("0x9876543210987654321098765432109876543210");
+        let (function, data) = test_abi_function();
         let tx = ViewMethodBuilder::<_, U256>::from_method(MethodBuilder::new(
             web3,
-            test_function(),
+            function,
             address,
-            bytes!("0x1337"),
+            data.clone(),
         ))
         .from(from)
         .gas(1.into())
         .gas_price(2.into())
         .value(28.into())
-        .m
-        .into_inner();
+        .block(BlockNumber::Number(100));
 
-        assert_eq!(tx.from.map(|a| a.address()), Some(from));
-        assert_eq!(tx.to, Some(address));
-        assert_eq!(tx.gas, Some(1.into()));
-        assert_eq!(tx.gas_price, Some(2.into()));
-        assert_eq!(tx.value, Some(28.into()));
-        assert_eq!(tx.data, Some(bytes!("0x1337")));
+        transport.add_response(json!(
+            "0x000000000000000000000000000000000000000000000000000000000000002a"
+        )); // call response
+        let result = tx.call().wait().expect("call error");
+
+        assert_eq!(result, 42.into());
+        transport.assert_request(
+            "eth_call",
+            &[
+                json!({
+                    "from": from,
+                    "to": address,
+                    "gas": "0x1",
+                    "gasPrice": "0x2",
+                    "value": "0x1c",
+                    "data": data,
+                }),
+                json!("0x64"),
+            ],
+        );
         transport.assert_no_more_requests();
     }
 
     #[test]
     fn method_to_view_method_preserves_options() {
-        let transport = TestTransport::new();
+        let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
         let address = addr!("0x0123456789012345678901234567890123456789");
-        let tx = MethodBuilder::<_, U256>::new(web3, test_function(), address, bytes!("0x1337"))
+        let (function, data) = test_abi_function();
+        let tx = MethodBuilder::<_, U256>::new(web3, function, address, data.clone())
             .gas(42.into())
             .view();
 
-        assert_eq!(tx.m.tx.gas, Some(42.into()));
+        transport.add_response(json!(
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+        ));
+        tx.call().wait().expect("call error");
+
+        transport.assert_request(
+            "eth_call",
+            &[
+                json!({
+                    "to": address,
+                    "gas": "0x2a",
+                    "data": data,
+                }),
+                json!("latest"),
+            ],
+        );
         transport.assert_no_more_requests();
     }
 
@@ -343,7 +379,8 @@ mod tests {
 
         let from = addr!("0x9876543210987654321098765432109876543210");
         let address = addr!("0x0123456789012345678901234567890123456789");
-        let tx = MethodBuilder::<_, U256>::new(web3, test_function(), address, bytes!("0x1337"))
+        let (function, data) = test_abi_function();
+        let tx = MethodBuilder::<_, U256>::new(web3, function, address, data)
             .with_defaults(&MethodDefaults {
                 from: Some(Account::Local(from, None)),
                 gas: Some(1.into()),
