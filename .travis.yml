@@ -73,5 +73,4 @@ deploy:
   provider: script
   script: bash ci/deploy.sh
   on:
-    branch: master
     tags: true
