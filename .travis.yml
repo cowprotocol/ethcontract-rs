@@ -68,3 +68,10 @@ script:
 
 before_cache:
   - rm -rf "$TRAVIS_HOME/.cargo/registry"
+
+deploy:
+  provider: script
+  script: bash ci/deploy.sh
+  on:
+    branch: master
+    tags: true
