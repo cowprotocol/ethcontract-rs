@@ -41,7 +41,7 @@ For all examples, the smart contracts must first be built:
 
 ```sh
 cd examples/truffle
-yarn run build
+yarn && yarn build
 ```
 
 ### Truffle Examples
@@ -51,7 +51,7 @@ terminal run:
 
 ```sh
 cd examples/truffle
-yarn run start
+yarn start
 ```
 
 - The `async` example deploys an ERC20 token and interacts with the contract
@@ -95,7 +95,7 @@ first build the contracts and then generate documentation for the crate with the
 `samples` feature enabled:
 
 ```sh
-(cd examples/truffle; yarn run build)
+(cd examples/truffle; yarn && yarn build)
 cargo doc --features samples --open
 ```
 
