@@ -35,6 +35,7 @@ EOF
 	shift
 done
 
+echo "SOME_TEST_VAR=$SOME_TEST_VAR"
 
 function check_manifest_version {
 	version=$(cat $1 | grep '^version' | sed -n 's/version = "\(.*\)"/v\1/p')
