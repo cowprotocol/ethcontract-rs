@@ -2,6 +2,7 @@ if: (branch = master) OR (type = pull_request) OR (tag IS present)
 
 language: rust
 rust:
+  - 1.39.0
   - stable
   - beta
   - nightly

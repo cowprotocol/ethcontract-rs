@@ -23,6 +23,13 @@ ethcontract::contract!("path/to/truffle/build/contract/Contract.json");
 This will generate a new struct `ContractName` with contract generated methods
 for interacting with contract functions in a type-safe way.
 
+### Minimum Supported Rust Version
+
+The minimum supported Rust version is 1.39. This is required for `async`/`await`
+support which is used by one of the examples. Note that the core libraries
+probably work with some earlier versions of Rust but they are not officially
+supported or tested.
+
 ## Generator API
 
 As an alternative to the procedural macro, a generator API is provided for
@@ -31,11 +38,9 @@ found in the `ethcontract-generate` [README](generate/README.md).
 
 ## Running the Examples
 
-In order to run local examples you need:
-- Rust >=1.39 for `async`/`await` support
-- NodeJS in order to compile truffle contracts and, depending on the example,
-  start development node
-- Yarn is used as the package manager
+In order to run local examples you will additionally need:
+- NodeJS
+- Yarn
 
 For all examples, the smart contracts must first be built:
 
