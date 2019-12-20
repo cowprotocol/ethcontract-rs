@@ -10,7 +10,7 @@ while [[ $# -gt 0 ]]; do
 		--token) token="$2"; shift;;
 		--tag) tag="$2"; shift;;
 		--dry-run) options+="--dry-run ";;
-		-v|--verbose) options+="--verbose ";;
+		-v|-vv|--verbose) options+="--verbose ";;
 		-h|--help) cat << EOF
 ci/deploy.sh
 Deploy the workspace to crates.io
