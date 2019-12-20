@@ -10,7 +10,7 @@ while [[ $# -gt 0 ]]; do
 		--token) token="$2"; shift;;
 		--tag) tag="$2"; shift;;
 		--dry-run) options+="--dry-run ";;
-		-v|--verbose) options+="--verbose ";;
+		-v|-vv|--verbose) options+="--verbose ";;
 		-h|--help) cat << EOF
 ci/deploy.sh
 Deploy the workspace to crates.io
@@ -35,7 +35,6 @@ EOF
 	shift
 done
 
-
 function check_manifest_version {
 	version=$(cat $1 | grep '^version' | sed -n 's/version = "\(.*\)"/v\1/p')
 	if [[ ! $version = $tag ]]; then
@@ -51,6 +50,11 @@ check_manifest_version Cargo.toml
 
 function cargo_publish {
 	(cd $1; cargo publish --token $CARGO_TOKEN $options)
+
+	# NOTE(nlordell): For some reason, the next publish fails on not being able
+	#   to find the new version; maybe it takes a second for crates.io to update
+	#   its index
+	sleep 10
 }
 
 cargo_publish common

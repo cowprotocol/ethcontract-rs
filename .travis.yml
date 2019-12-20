@@ -1,5 +1,10 @@
 if: (branch = master) OR (type = pull_request) OR (tag IS present)
+stages:
+  - name: "Build and Test"
+  - name: "Deploy"
+    if: tag IS present
 
+stage: "Build and Test"
 language: rust
 rust:
   - stable
@@ -17,20 +22,31 @@ jobs:
   fast_finish: true
   include:
     - name: "Rust: stable - Examples"
-      language: rust
       rust: stable
       services:
         - docker
       install:
-        - (cd examples/truffle; yarn install)
         - docker pull trufflesuite/ganache-cli:v6.7.0
       script:
-        - (cd examples/truffle; yarn run build)
         - docker run -d -p 9545:8545 trufflesuite/ganache-cli:v6.7.0
         - cargo run --example async
         - cargo run --example linked
         - cargo run --package examples-generate
         - cargo run --example rinkeby
+
+    - stage: "Deploy"
+      name: "crates.io"
+      rust: stable
+      env:
+        - RUSTC_WRAPPER=
+      before_install: skip
+      before_script: skip
+      script: skip
+      deploy:
+        provider: script
+        script: bash ci/deploy.sh
+        on:
+          tags: true
 
 cache:
   directories:
@@ -56,11 +72,10 @@ before_install:
   - npm install -g yarn@latest
   - yarn --version
 
-install:
-  - (cd examples/truffle; yarn install)
+before_script:
+  - (cd examples/truffle; yarn --frozen-lockfile && yarn build)
 
 script:
-  - (cd examples/truffle; yarn run build)
   - cargo build --all-features --verbose --all
   - cargo test --all-features --verbose --all
   - cargo fmt --all -- --check
@@ -68,9 +83,3 @@ script:
 
 before_cache:
   - rm -rf "$TRAVIS_HOME/.cargo/registry"
-
-deploy:
-  provider: script
-  script: bash ci/deploy.sh
-  on:
-    tags: true
