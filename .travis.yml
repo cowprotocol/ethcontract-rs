@@ -18,7 +18,8 @@ env:
 
 jobs:
   allow_failures:
-    - rust: nightly
+    - stage: "Build and Test"
+      rust: nightly
   fast_finish: true
   include:
     - name: "Rust: stable - Examples"
