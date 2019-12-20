@@ -52,8 +52,8 @@ function cargo_publish {
 	(cd $1; cargo publish --token $CARGO_TOKEN $options)
 
 	# NOTE(nlordell): For some reason, the next publish fails on not being able
-	#   to find the new version; maybe it takes a second for cargo to update its
-	#   internal registry
+	#   to find the new version; maybe it takes a second for crates.io to update
+	#   its index
 	sleep 10
 }
 
