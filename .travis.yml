@@ -49,6 +49,8 @@ jobs:
       deploy:
         provider: script
         script: bash ci/deploy.sh
+        on:
+          tags: true
 
 cache:
   directories:
