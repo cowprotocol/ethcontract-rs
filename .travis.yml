@@ -73,7 +73,7 @@ before_install:
   - yarn --version
 
 before_script:
-  - (cd examples/truffle; yarn && yarn build)
+  - (cd examples/truffle; yarn --frozen-lockfile && yarn build)
 
 script:
   - cargo build --all-features --verbose --all
