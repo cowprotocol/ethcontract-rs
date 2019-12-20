@@ -9,6 +9,7 @@ language: rust
 rust:
   - stable
   - beta
+  - nightly
 env:
   global:
     - SCCACHE_VERSION=0.2.12
@@ -17,7 +18,7 @@ env:
 
 jobs:
   allow_failures:
-    - name: "Rust: nightly"
+    - rust: nightly
   fast_finish: true
   include:
     - stage: "Build and Test"
@@ -33,10 +34,6 @@ jobs:
         - cargo run --example linked
         - cargo run --package examples-generate
         - cargo run --example rinkeby
-
-    - stage: "Build and Test"
-      name: "Rust: nightly"
-      rust: nightly
 
     - stage: "Deploy"
       name: "crates.io"
