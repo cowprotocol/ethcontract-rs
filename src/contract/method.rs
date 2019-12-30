@@ -253,9 +253,9 @@ lazy_static! {
 ///
 /// This is required since Geth returns a success result from an `eth_call` that
 /// reverts (or if an invalid opcode is executed) while other nodes like Ganache
-/// encode this information in a JSON RPC error. On a revert of invalid opcode,
-/// the result is a `0x` empty data while on a revert with message, it is an ABI
-/// encoded `Error(string)` function call data.
+/// encode this information in a JSON RPC error. On a revert or invalid opcode,
+/// the result is `0x` (empty data), while on a revert with message, it is an
+/// ABI encoded `Error(string)` function call data.
 fn decode_geth_call_result<R: Detokenize>(
     function: &Function,
     bytes: Vec<u8>,
@@ -266,7 +266,7 @@ fn decode_geth_call_result<R: Detokenize>(
         // with messages.
         Err(ExecutionError::InvalidOpcode)
     } else if (bytes.len() + 28) % 32 == 0 && bytes[0..4] == ERROR_SELECTOR[..] {
-        // check to make sure that the length is of the form `4 + n * 32`
+        // check to make sure that the length is of the form `4 + (n * 32)`
         // bytes and it starts with `keccak256("Error(string)")` which means
         // it is an encoded revert message from Geth nodes.
         let message = abi::decode(&[ParamType::String], &bytes[4..])?
