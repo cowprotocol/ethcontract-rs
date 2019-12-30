@@ -450,10 +450,7 @@ mod tests {
         let address = addr!("0x0123456789012345678901234567890123456789");
         let (function, data) = test_abi_function();
         let tx = ViewMethodBuilder::<_, U256>::from_method(MethodBuilder::new(
-            web3,
-            function,
-            address,
-            data,
+            web3, function, address, data,
         ));
 
         transport.add_response(json!(
@@ -478,10 +475,7 @@ mod tests {
         let address = addr!("0x0123456789012345678901234567890123456789");
         let (function, data) = test_abi_function();
         let tx = ViewMethodBuilder::<_, U256>::from_method(MethodBuilder::new(
-            web3,
-            function,
-            address,
-            data,
+            web3, function, address, data,
         ));
 
         transport.add_response(json!("0x"));
