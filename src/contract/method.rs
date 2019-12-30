@@ -244,6 +244,7 @@ impl<T: Transport, R: Detokenize> CallFuture<T, R> {
 }
 
 lazy_static! {
+    /// The ABI function selector for identifying encoded revert messages.
     static ref ERROR_SELECTOR: [u8; 4] = hash::function_selector("Error(string)");
 }
 
