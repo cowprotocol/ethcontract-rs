@@ -154,12 +154,12 @@ mod tests {
     #[test]
     fn execution_error_from_ganache_revert() {
         let web3_err = ganache_rpc_error(json!({
-            "stack": "RuntimeError: VM Exception while processing transaction: revert contract reverted as requested ...",
             "0x991fef26454cd1b52e37041295833c24b883e03a2c654fd03bb67e66955e540b": {
                "error": "revert",
                "program_counter": 42,
                "return": "0x",
             },
+            "stack": "RuntimeError: VM Exception while processing transaction: revert ...",
             "name": "RuntimeError",
         }));
         let err = ExecutionError::from(web3_err);
@@ -177,13 +177,13 @@ mod tests {
     #[test]
     fn execution_error_from_ganache_invalid_opcode() {
         let web3_err = ganache_rpc_error(json!({
-            "stack": "RuntimeError: VM Exception while processing transaction: revert contract reverted as requested ...",
-            "name": "RuntimeError",
             "0x991fef26454cd1b52e37041295833c24b883e03a2c654fd03bb67e66955e540b": {
                "error": "invalid opcode",
                "program_counter": 42,
                "return": "0x",
             },
+            "stack": "RuntimeError: VM Exception while processing transaction: invalid opcode...",
+            "name": "RuntimeError",
         }));
         let err = ExecutionError::from(web3_err);
 
