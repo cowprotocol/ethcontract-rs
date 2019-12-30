@@ -55,7 +55,7 @@ impl From<AbiErrorKind> for DeployError {
 pub enum ExecutionError {
     /// An error occured while performing a web3 call.
     #[error("web3 error: {0}")]
-    Web3(#[from] Web3Error),
+    Web3(Web3Error),
 
     /// An error occured while performing a web3 contract call.
     #[error("web3 contract error: {0}")]
@@ -68,4 +68,24 @@ pub enum ExecutionError {
     /// An error occured while signing a transaction offline.
     #[error("offline sign error: {0}")]
     Sign(#[from] SignError),
+
+    /// A contract call reverted.
+    #[error("contract call reverted with message: {0:?}")]
+    CallRevert(Option<String>),
+
+    /// A contract call executed an invalid opcode.
+    #[error("contract call executed an invalid opcode")]
+    CallInvalidOpcode,
+}
+
+impl From<Web3Error> for ExecutionError {
+    fn from(err: Web3Error) -> ExecutionError {
+        ExecutionError::Web3(err)
+    }
+}
+
+impl From<AbiError> for ExecutionError {
+    fn from(err: AbiError) -> ExecutionError {
+        ExecutionError::Web3Contract(err.into())
+    }
 }
