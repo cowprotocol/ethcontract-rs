@@ -3,10 +3,13 @@
 //! [Instance::method](ethcontract::contract::Instance::method).
 
 use crate::errors::ExecutionError;
-use crate::future::CompatQueryResult;
+use crate::future::CompatCallFuture;
+use crate::hash;
 use crate::transaction::{Account, SendAndConfirmFuture, SendFuture, TransactionBuilder};
-use crate::truffle::abi::Function;
+use crate::truffle::abi::{self, Function, ParamType};
 use futures::compat::Future01CompatExt;
+use futures::ready;
+use lazy_static::lazy_static;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -14,7 +17,6 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use web3::api::Web3;
 use web3::contract::tokens::Detokenize;
-use web3::contract::QueryResult;
 use web3::types::{Address, BlockNumber, Bytes, CallRequest, U256};
 use web3::Transport;
 
@@ -209,14 +211,22 @@ impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
 /// Future representing a pending contract call (i.e. query) to be resolved when
 /// the call completes.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct CallFuture<T: Transport, R: Detokenize>(CompatQueryResult<T, R>);
+pub struct CallFuture<T: Transport, R: Detokenize> {
+    function: Function,
+    call: CompatCallFuture<T, Bytes>,
+    _result: PhantomData<Box<R>>,
+}
 
 impl<T: Transport, R: Detokenize> CallFuture<T, R> {
     /// Construct a new `CallFuture` from a `CallBuilder`.
     fn from_builder(builder: ViewMethodBuilder<T, R>) -> CallFuture<T, R> {
-        CallFuture(
-            QueryResult::new(
-                builder.m.web3.eth().call(
+        CallFuture {
+            function: builder.m.function,
+            call: builder
+                .m
+                .web3
+                .eth()
+                .call(
                     CallRequest {
                         from: builder.m.tx.from.map(|account| account.address()),
                         to: builder.m.tx.to.unwrap_or_default(),
@@ -226,17 +236,50 @@ impl<T: Transport, R: Detokenize> CallFuture<T, R> {
                         data: builder.m.tx.data,
                     },
                     builder.block,
-                ),
-                builder.m.function,
-            )
-            .compat(),
-        )
+                )
+                .compat(),
+            _result: PhantomData,
+        }
     }
+}
 
-    /// Get a pinned reference to the inner `QueryResult` web3 future taht is
-    /// actually driving the query.
-    fn inner(self: Pin<&mut Self>) -> Pin<&mut CompatQueryResult<T, R>> {
-        Pin::new(&mut self.get_mut().0)
+lazy_static! {
+    /// The ABI function selector for identifying encoded revert messages.
+    static ref ERROR_SELECTOR: [u8; 4] = hash::function_selector("Error(string)");
+}
+
+/// Decodes the raw bytes result from an `eth_call` request to check for reverts
+/// and encoded revert messages.
+///
+/// This is required since Geth returns a success result from an `eth_call` that
+/// reverts (or if an invalid opcode is executed) while other nodes like Ganache
+/// encode this information in a JSON RPC error. On a revert or invalid opcode,
+/// the result is `0x` (empty data), while on a revert with message, it is an
+/// ABI encoded `Error(string)` function call data.
+fn decode_geth_call_result<R: Detokenize>(
+    function: &Function,
+    bytes: Vec<u8>,
+) -> Result<R, ExecutionError> {
+    if bytes.is_empty() {
+        // Geth does this on `revert()` without a message and `invalid()`,
+        // just treat them all as `invalid()` as generally contracts revert
+        // with messages.
+        Err(ExecutionError::InvalidOpcode)
+    } else if (bytes.len() + 28) % 32 == 0 && bytes[0..4] == ERROR_SELECTOR[..] {
+        // check to make sure that the length is of the form `4 + (n * 32)`
+        // bytes and it starts with `keccak256("Error(string)")` which means
+        // it is an encoded revert message from Geth nodes.
+        let message = abi::decode(&[ParamType::String], &bytes[4..])?
+            .pop()
+            .expect("decoded single parameter will yield single token")
+            .to_string()
+            .expect("decoded string parameter will always be a string");
+
+        Err(ExecutionError::Revert(Some(message)))
+    } else {
+        // just a plain ol' regular result, try and decode it
+        let result = R::from_tokens(function.decode_output(&bytes)?)?;
+        Ok(result)
     }
 }
 
@@ -244,9 +287,14 @@ impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
     type Output = Result<R, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.inner()
-            .poll(cx)
-            .map(|result| result.map_err(ExecutionError::from))
+        let unpinned = self.get_mut();
+        let result = ready!(Pin::new(&mut unpinned.call).poll(cx));
+
+        Poll::Ready(
+            result
+                .map_err(ExecutionError::from)
+                .and_then(|bytes| decode_geth_call_result(&unpinned.function, bytes.0)),
+        )
     }
 }
 
@@ -392,5 +440,53 @@ mod tests {
         assert_eq!(tx.gas, Some(1.into()));
         assert_eq!(tx.gas_price, Some(2.into()));
         transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn method_call_geth_revert_with_message() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let address = addr!("0x0123456789012345678901234567890123456789");
+        let (function, data) = test_abi_function();
+        let tx = ViewMethodBuilder::<_, U256>::from_method(MethodBuilder::new(
+            web3, function, address, data,
+        ));
+
+        transport.add_response(json!(
+            "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000076d65737361676500000000000000000000000000000000000000000000000000"
+        )); // call response
+        let result = tx.call().wait();
+        assert!(
+            match &result {
+                Err(ExecutionError::Revert(Some(ref reason))) if reason == "message" => true,
+                _ => false,
+            },
+            "unexpected result {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn method_call_geth_revert() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let address = addr!("0x0123456789012345678901234567890123456789");
+        let (function, data) = test_abi_function();
+        let tx = ViewMethodBuilder::<_, U256>::from_method(MethodBuilder::new(
+            web3, function, address, data,
+        ));
+
+        transport.add_response(json!("0x"));
+        let result = tx.call().wait();
+        assert!(
+            match &result {
+                Err(ExecutionError::InvalidOpcode) => true,
+                _ => false,
+            },
+            "unexpected result {:?}",
+            result
+        );
     }
 }
