@@ -432,4 +432,43 @@ mod tests {
         assert_eq!(tx.gas_price, Some(2.into()));
         transport.assert_no_more_requests();
     }
+
+    #[test]
+    fn method_call_geth_revert() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let address = addr!("0x0123456789012345678901234567890123456789");
+        let (function, data) = test_abi_function();
+        let tx = ViewMethodBuilder::<_, U256>::from_method(MethodBuilder::new(
+            web3,
+            function,
+            address,
+            data.clone(),
+        ));
+
+        transport.add_response(json!(
+            "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000076d65737361676500000000000000000000000000000000000000000000000000"
+        )); // call response
+        let result = tx.clone().call().wait();
+        assert!(
+            match &result {
+                Err(ExecutionError::CallRevert(Some(ref message))) if message == "message" => true,
+                _ => false,
+            },
+            "unexpected result {:?}",
+            result
+        );
+
+        transport.add_response(json!("0x"));
+        let result = tx.call().wait();
+        assert!(
+            match &result {
+                Err(ExecutionError::CallInvalidOpcode) => true,
+                _ => false,
+            },
+            "unexpected result {:?}",
+            result
+        );
+    }
 }
