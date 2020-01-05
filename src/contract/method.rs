@@ -2,7 +2,7 @@
 //! intended to be used directly but to be used by a contract `Instance` with
 //! [Instance::method](ethcontract::contract::Instance::method).
 
-use crate::errors::ExecutionError;
+use crate::errors::{ExecutionError, MethodError};
 use crate::future::CompatCallFuture;
 use crate::hash;
 use crate::transaction::{Account, SendAndConfirmFuture, SendFuture, TransactionBuilder};
@@ -110,8 +110,8 @@ impl<T: Transport, R> MethodBuilder<T, R> {
     }
 
     /// Sign (if required) and send the method call transaction.
-    pub fn send(self) -> SendFuture<T> {
-        self.tx.send()
+    pub fn send(self) -> MethodSendFuture<T> {
+        MethodFuture::new(self.function, self.tx.send())
     }
 
     /// Send a transaction for the method call and wait for confirmation.
@@ -120,10 +120,49 @@ impl<T: Transport, R> MethodBuilder<T, R> {
         self,
         poll_interval: Duration,
         confirmations: usize,
-    ) -> SendAndConfirmFuture<T> {
-        self.tx.send_and_confirm(poll_interval, confirmations)
+    ) -> MethodSendAndConfirmFuture<T> {
+        MethodFuture::new(
+            self.function,
+            self.tx.send_and_confirm(poll_interval, confirmations),
+        )
     }
 }
+
+/// Future that wraps an inner transaction execution future to add method
+/// information to the error.
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct MethodFuture<F> {
+    function: Function,
+    inner: F,
+}
+
+impl<F> MethodFuture<F> {
+    /// Creates a new `MethodFuture` from a function ABI declaration and an
+    /// inner future.
+    fn new(function: Function, inner: F) -> MethodFuture<F> {
+        MethodFuture { function, inner }
+    }
+}
+
+impl<T, F> Future for MethodFuture<F>
+where
+    F: Future<Output = Result<T, ExecutionError>> + Unpin,
+{
+    type Output = Result<T, MethodError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let unpinned = self.get_mut();
+        let result = ready!(Pin::new(&mut unpinned.inner).poll(cx));
+
+        Poll::Ready(result.map_err(|err| MethodError::new(&unpinned.function, err)))
+    }
+}
+
+/// A type alias for a `MethodFuture` wrapped `SendFuture`.
+pub type MethodSendFuture<T> = MethodFuture<SendFuture<T>>;
+
+/// A type alias for a `MethodFuture` wrapped `SendAndConfirmFuture`.
+pub type MethodSendAndConfirmFuture<T> = MethodFuture<SendAndConfirmFuture<T>>;
 
 impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
     /// Demotes a `MethodBuilder` into a `ViewMethodBuilder` which has a more
@@ -218,7 +257,7 @@ pub struct CallFuture<T: Transport, R: Detokenize> {
 }
 
 impl<T: Transport, R: Detokenize> CallFuture<T, R> {
-    /// Construct a new `CallFuture` from a `CallBuilder`.
+    /// Construct a new `CallFuture` from a `ViewMethodBuilder`.
     fn from_builder(builder: ViewMethodBuilder<T, R>) -> CallFuture<T, R> {
         CallFuture {
             function: builder.m.function,
@@ -284,7 +323,7 @@ fn decode_geth_call_result<R: Detokenize>(
 }
 
 impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
-    type Output = Result<R, ExecutionError>;
+    type Output = Result<R, MethodError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let unpinned = self.get_mut();
@@ -293,7 +332,8 @@ impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
         Poll::Ready(
             result
                 .map_err(ExecutionError::from)
-                .and_then(|bytes| decode_geth_call_result(&unpinned.function, bytes.0)),
+                .and_then(|bytes| decode_geth_call_result(&unpinned.function, bytes.0))
+                .map_err(|err| MethodError::new(&unpinned.function, err)),
         )
     }
 }
@@ -459,7 +499,10 @@ mod tests {
         let result = tx.call().wait();
         assert!(
             match &result {
-                Err(ExecutionError::Revert(Some(ref reason))) if reason == "message" => true,
+                Err(MethodError {
+                    inner: ExecutionError::Revert(Some(ref reason)),
+                    ..
+                }) if reason == "message" => true,
                 _ => false,
             },
             "unexpected result {:?}",
@@ -482,7 +525,10 @@ mod tests {
         let result = tx.call().wait();
         assert!(
             match &result {
-                Err(ExecutionError::InvalidOpcode) => true,
+                Err(MethodError {
+                    inner: ExecutionError::InvalidOpcode,
+                    ..
+                }) => true,
                 _ => false,
             },
             "unexpected result {:?}",
