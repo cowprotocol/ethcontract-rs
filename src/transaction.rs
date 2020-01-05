@@ -1,6 +1,8 @@
 //! Implementation for setting up, signing, estimating gas and sending
 //! transactions on the Ethereum network.
 
+pub mod confirm;
+
 use crate::errors::ExecutionError;
 use crate::future::{CompatCallFuture, CompatSendTxWithConfirmation, MaybeReady, Web3Unpin};
 use crate::sign::TransactionData;
@@ -99,6 +101,14 @@ pub struct TransactionBuilder<T: Transport> {
     /// Optional nonce to use. Defaults to the signing account's current
     /// transaction count.
     pub nonce: Option<U256>,
+    /// Optional block confirmations to wait for. Defaults to 1 confirmation
+    /// which means waiting the transaction to be mined in a single block. Use 0
+    /// to send the transaction and only place it in the mem-pool and not wait
+    /// for it to be mined.
+    pub confirmations: Option<usize>,
+    /// Options poll timeout used for waiting for block confirmations. Defaults
+    /// to 7 seconds.
+    pub poll_timeout: Option<Duration>,
 }
 
 impl<T: Transport> TransactionBuilder<T> {
@@ -113,6 +123,8 @@ impl<T: Transport> TransactionBuilder<T> {
             value: None,
             data: None,
             nonce: None,
+            confirmations: None,
+            poll_timeout: None,
         }
     }
 
