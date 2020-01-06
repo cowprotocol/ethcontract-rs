@@ -1,6 +1,6 @@
 //! Module with common error types.
 
-use crate::truffle::abi::{Error as AbiError, ErrorKind as AbiErrorKind};
+use crate::truffle::abi::{Error as AbiError, ErrorKind as AbiErrorKind, Function};
 use ethsign::Error as SignError;
 use jsonrpc_core::Error as JsonrpcError;
 use std::num::ParseIntError;
@@ -63,8 +63,8 @@ pub enum ExecutionError {
     #[error("abi decode error: {0}")]
     AbiDecode(#[from] Web3ContractError),
 
-    /// An error occured while parsing numbers received from Web3 calls.
-    #[error("parse error: {0}")]
+    /// An error occured while parsing chain ID received from a Web3 call.
+    #[error("parse chain ID error: {0}")]
     Parse(#[from] ParseIntError),
 
     /// An error occured while signing a transaction offline.
@@ -121,11 +121,57 @@ fn get_error_param<'a>(err: &'a JsonrpcError, name: &str) -> Option<&'a str> {
         .as_str()
 }
 
+/// Error that can occur while executing a contract call or transaction.
+#[derive(Debug, Error)]
+#[error("method '{signature}' failure: {inner}")]
+pub struct MethodError {
+    /// The signature of the failed method.
+    pub signature: String,
+
+    /// The inner execution error that for the method transaction that failed.
+    #[source]
+    pub inner: ExecutionError,
+}
+
+impl MethodError {
+    /// Create a new `MethodError` from an ABI function specification and an
+    /// inner `ExecutionError`.
+    pub fn new<I: Into<ExecutionError>>(function: &Function, inner: I) -> MethodError {
+        MethodError::from_parts(function_signature(function), inner.into())
+    }
+
+    /// Create a `MethodError` from its signature and inner `ExecutionError`.
+    pub fn from_parts(signature: String, inner: ExecutionError) -> MethodError {
+        MethodError { signature, inner }
+    }
+}
+
+fn function_signature(function: &Function) -> String {
+    format!(
+        "{}({})",
+        function.name,
+        function
+            .inputs
+            .iter()
+            .map(|input| input.kind.to_string())
+            .collect::<Vec<_>>()
+            .join(","),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use jsonrpc_core::ErrorCode;
     use serde_json::{json, Value};
+
+    fn ganache_rpc_error(data: Value) -> Web3Error {
+        Web3Error::Rpc(JsonrpcError {
+            code: ErrorCode::from(-32000),
+            message: "error".to_owned(),
+            data: Some(data),
+        })
+    }
 
     #[test]
     fn execution_error_from_ganache_revert_with_message() {
@@ -197,11 +243,18 @@ mod tests {
         );
     }
 
-    fn ganache_rpc_error(data: Value) -> Web3Error {
-        Web3Error::Rpc(JsonrpcError {
-            code: ErrorCode::from(-32000),
-            message: "error".to_owned(),
-            data: Some(data),
-        })
+    #[test]
+    fn format_function_signature() {
+        for (f, expected) in &[
+            (r#"{"name":"foo","inputs":[],"outputs":[]}"#, "foo()"),
+            (
+                r#"{"name":"bar","inputs":[{"name":"a","type":"uint256"},{"name":"b","type":"bool"}],"outputs":[]}"#,
+                "bar(uint256,bool)",
+            ),
+        ] {
+            let function: Function = serde_json::from_str(f).expect("invalid function JSON");
+            let signature = function_signature(&function);
+            assert_eq!(signature, *expected);
+        }
     }
 }

@@ -14,7 +14,10 @@ use web3::types::{Address, Bytes};
 use web3::Transport;
 
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture};
-pub use self::method::{CallFuture, MethodBuilder, MethodDefaults, ViewMethodBuilder};
+pub use self::method::{
+    CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendAndConfirmFuture,
+    MethodSendFuture, ViewMethodBuilder,
+};
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
