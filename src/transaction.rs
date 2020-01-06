@@ -46,6 +46,99 @@ impl Account {
     }
 }
 
+/// The confirmation to use for the transaction.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Confirm {
+    /// Skip confirmation and have the transaction send future resolve
+    /// immediately after it was received by the node and placed in the pending
+    /// transaction pool.
+    Skip,
+    /// Wait for confirmation for `usize` blocks polling every `Duration` for
+    /// new blocks.
+    ///
+    /// The number of block confirmations is defined as the number of extra
+    /// block confirmations to wait for after the transaction has been mined.
+    ///
+    /// The polling interval can be used in two ways depending on whether the
+    /// node with the current transport supports the creation of filters and
+    /// more specifically `eth_newBlockFilter`. If it is supported then the
+    /// specified duration is the interval between `eth_getFilterChanges` calls
+    /// for receiving new block updates. In the case the node does not support
+    /// filters, it is the interval between `eth_blockNumber` calls polling for
+    /// new blocks.
+    Blocks(usize, Duration),
+}
+
+/// The default poll interval to use for confirming transactions.
+pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(5);
+
+impl Confirm {
+    /// Create new confirmation options from the specified number of extra
+    /// blocks to wait for with the default poll interval.
+    pub fn with_confirmations(count: usize) -> Confirm {
+        Confirm::Blocks(count, DEFAULT_POLL_INTERVAL)
+    }
+}
+
+impl Default for Confirm {
+    fn default() -> Self {
+        Confirm::with_confirmations(0)
+    }
+}
+
+/// Represents the result of a sent transaction that can either be a transaction
+/// hash, in the case the transaction was not confirmed, or a full transaction
+/// receipt is the `TransactionBuilder` was configured to wait for confirmation
+/// blocks.
+///
+/// Note that the result will always be a `TransactionResult::Hash` if
+/// `Confirm::Skip` was used and `TransactionResult::Receipt` if
+/// `Confirm::Blocks` was used.
+#[derive(Clone, Debug)]
+pub enum TransactionResult {
+    /// A transaction hash, this variant happens if and only if confirmation was
+    /// skipped.
+    Hash(H256),
+    /// A transaction receipt, this variant happens if and only if the
+    /// transaction was configured to wait for confirmations.
+    Receipt(TransactionReceipt),
+}
+
+impl TransactionResult {
+    /// Returns true if the `TransactionResult` is a `Hash` variant, i.e. it is
+    /// only a hash and does not contain the transaction receipt.
+    pub fn is_hash(&self) -> bool {
+        match self {
+            TransactionResult::Hash(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Get the transaction hash.
+    pub fn hash(&self) -> H256 {
+        match self {
+            TransactionResult::Hash(hash) => *hash,
+            TransactionResult::Receipt(tx) => tx.transaction_hash,
+        }
+    }
+
+    /// Returns true if the `TransactionResult` is a `Receipt` variant, i.e. the
+    /// transaction was confirmed and the full transaction receipt is available.
+    pub fn is_receipt(&self) -> bool {
+        self.as_receipt().is_some()
+    }
+
+    /// Extract a `TransactionReceipt` from the result. This will return `None`
+    /// if the result is only a hash and the transaction receipt is not
+    /// available.
+    pub fn as_receipt(&self) -> Option<&TransactionReceipt> {
+        match self {
+            TransactionResult::Receipt(ref tx) => Some(tx),
+            _ => None,
+        }
+    }
+}
+
 /// Represents a prepared and optionally signed transaction that is ready for
 /// sending created by a `TransactionBuilder`.
 #[derive(Clone, Debug, PartialEq)]
@@ -101,14 +194,12 @@ pub struct TransactionBuilder<T: Transport> {
     /// Optional nonce to use. Defaults to the signing account's current
     /// transaction count.
     pub nonce: Option<U256>,
-    /// Optional block confirmations to wait for. Defaults to 1 confirmation
-    /// which means waiting the transaction to be mined in a single block. Use 0
-    /// to send the transaction and only place it in the mem-pool and not wait
-    /// for it to be mined.
-    pub confirmations: Option<usize>,
-    /// Options poll timeout used for waiting for block confirmations. Defaults
-    /// to 7 seconds.
-    pub poll_timeout: Option<Duration>,
+    /// Optional confirmation settings. Defaults to waiting the transaction to
+    /// be mined without any extra confirmation blocks.
+    ///
+    /// See `Confirm` documentation for more details on the exact semantics of
+    /// confirmation.
+    pub confirm: Option<Confirm>,
 }
 
 impl<T: Transport> TransactionBuilder<T> {
@@ -123,8 +214,7 @@ impl<T: Transport> TransactionBuilder<T> {
             value: None,
             data: None,
             nonce: None,
-            confirmations: None,
-            poll_timeout: None,
+            confirm: None,
         }
     }
 
@@ -174,6 +264,31 @@ impl<T: Transport> TransactionBuilder<T> {
     /// current transaction count for the signing account.
     pub fn nonce(mut self, value: U256) -> TransactionBuilder<T> {
         self.nonce = Some(value);
+        self
+    }
+
+    /// Specify the confirmation options, if not specified will use the default
+    /// confirmation options.
+    pub fn confirm(mut self, value: Confirm) -> TransactionBuilder<T> {
+        self.confirm = Some(value);
+        self
+    }
+
+    /// Specify the number of confirmations to use for the confirmation options.
+    pub fn confirmations(mut self, value: usize) -> TransactionBuilder<T> {
+        self.confirm = match self.confirm {
+            Some(Confirm::Blocks(_, poll_interval)) => Some(Confirm::Blocks(value, poll_interval)),
+            _ => Some(Confirm::with_confirmations(value)),
+        };
+        self
+    }
+
+    /// Specify the poll interval to use for the confirmation options.
+    pub fn poll_interval(mut self, value: Duration) -> TransactionBuilder<T> {
+        self.confirm = match self.confirm {
+            Some(Confirm::Blocks(count, _)) => Some(Confirm::Blocks(count, value)),
+            _ => Some(Confirm::Blocks(0, value)),
+        };
         self
     }
 
