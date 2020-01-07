@@ -181,21 +181,21 @@ where
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
     pub fn gas_price(mut self, value: U256) -> DeployBuilder<T, D> {
-        self.tx = self.tx.gas(value);
+        self.tx = self.tx.gas_price(value);
         self
     }
 
     /// Specify what how much ETH to transfer with the transaction, if not
     /// specified then no ETH will be sent.
     pub fn value(mut self, value: U256) -> DeployBuilder<T, D> {
-        self.tx = self.tx.gas(value);
+        self.tx = self.tx.value(value);
         self
     }
 
     /// Specify the nonce for the transation, if not specified will use the
     /// current transaction count for the signing account.
     pub fn nonce(mut self, value: U256) -> DeployBuilder<T, D> {
-        self.tx = self.tx.gas(value);
+        self.tx = self.tx.nonce(value);
         self
     }
 
@@ -296,7 +296,7 @@ mod tests {
     use super::*;
     use crate::contract::Instance;
     use crate::test::prelude::*;
-    use crate::truffle::{Artifact, Network};
+    use crate::truffle::{Artifact, Bytecode, Network};
 
     #[test]
     fn deployed() {
@@ -322,6 +322,36 @@ mod tests {
         transport.assert_no_more_requests();
 
         assert_eq!(instance.address(), address);
+    }
+
+    #[test]
+    fn deploy_tx_options() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0x9876543210987654321098765432109876543210");
+        let bytecode = Bytecode::from_hex_str("0x42").unwrap();
+        let artifact = Artifact {
+            bytecode: bytecode.clone(),
+            ..Artifact::empty()
+        };
+        let tx = DeployBuilder::<_, Instance<_>>::new(web3, artifact, ())
+            .expect("error creating deploy builder")
+            .from(Account::Local(from, None))
+            .gas(1.into())
+            .gas_price(2.into())
+            .value(28.into())
+            .nonce(42.into())
+            .into_inner();
+
+        assert_eq!(tx.from.map(|a| a.address()), Some(from));
+        assert_eq!(tx.to, None);
+        assert_eq!(tx.gas, Some(1.into()));
+        assert_eq!(tx.gas_price, Some(2.into()));
+        assert_eq!(tx.value, Some(28.into()));
+        assert_eq!(tx.data, Some(bytecode.into_bytes().unwrap()));
+        assert_eq!(tx.nonce, Some(42.into()));
+        transport.assert_no_more_requests();
     }
 
     #[test]
