@@ -11,6 +11,7 @@ use crate::future::{CompatCallFuture, Web3Unpin};
 use futures::compat::{Compat01As03, Future01CompatExt};
 use futures::future::{self, TryJoin};
 use futures::ready;
+use futures_timer::Delay;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -93,14 +94,17 @@ enum ConfirmState<T: Transport> {
     Checking(CheckFuture<T>),
     /// The future is waiting for the block filter to be created so that it can
     /// wait for blocks to go by.
-    CreatingFilter(CompatCreateFilter<T, H256>, u64),
+    CreatingFilter(CompatCreateFilter<T, H256>, U256, u64),
     /// The future is waiting for new blocks to be mined and added to the chain
     /// so that the transaction can be confirmed the desired number of blocks.
     WaitingForBlocks(CompatFilterFuture<T, H256>),
     /// The future is waiting for a poll timeout. This state happens when the
     /// node does not support block filters for the given transport (like Infura
     /// over HTTPS) so we need to fallback to polling.
-    WaitingForPollTimeout,
+    PollDelay(Delay, U256),
+    /// The future is checking that the current block number has reached a
+    /// certain target after waiting the poll delay.
+    PollCheckingBlockNumber(CompatCallFuture<T, U256>, U256),
 }
 
 impl<T: Transport> ConfirmFuture<T> {
@@ -165,10 +169,11 @@ impl<T: Transport> Future for ConfirmFuture<T> {
 
                     ConfirmState::CreatingFilter(
                         unpinned.web3.eth_filter().create_blocks_filter().compat(),
+                        target_block_num,
                         remaining_confirmations.as_u64(),
                     )
                 }
-                ConfirmState::CreatingFilter(ref mut create_filter, count) => {
+                ConfirmState::CreatingFilter(ref mut create_filter, target_block_num, count) => {
                     match ready!(Pin::new(create_filter).poll(cx)) {
                         Ok(filter) => ConfirmState::WaitingForBlocks(
                             filter
@@ -181,7 +186,10 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                             // NOTE: In the case we fail to create a filter
                             //   (usually because the node doesn't support pub/
                             //   sub) then fall back to polling.
-                            ConfirmState::WaitingForPollTimeout
+                            ConfirmState::PollDelay(
+                                Delay::new(unpinned.params.poll_interval),
+                                *target_block_num,
+                            )
                         }
                     }
                 }
@@ -191,7 +199,28 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         Err((err, _)) => return Poll::Ready(Err(err.into())),
                     }
                 }
-                ConfirmState::WaitingForPollTimeout => todo!("polling is currently not supported"),
+                ConfirmState::PollDelay(ref mut delay, target_block_num) => {
+                    ready!(Pin::new(delay).poll(cx));
+                    ConfirmState::PollCheckingBlockNumber(
+                        unpinned.web3.eth().block_number().compat(),
+                        *target_block_num,
+                    )
+                }
+                ConfirmState::PollCheckingBlockNumber(ref mut block_num, target_block_num) => {
+                    let block_num = match ready!(Pin::new(block_num).poll(cx)) {
+                        Ok(block_num) => block_num,
+                        Err(err) => return Poll::Ready(Err(err.into())),
+                    };
+
+                    if block_num == *target_block_num {
+                        ConfirmState::Check
+                    } else {
+                        ConfirmState::PollDelay(
+                            Delay::new(unpinned.params.poll_interval),
+                            *target_block_num,
+                        )
+                    }
+                }
             }
         }
     }
