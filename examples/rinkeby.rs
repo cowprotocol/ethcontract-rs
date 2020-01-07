@@ -2,7 +2,6 @@ use ethcontract::web3::api::Web3;
 use ethcontract::web3::transports::WebSocket;
 use ethcontract::{Account, SecretKey, H256};
 use std::env;
-use std::time::Duration;
 
 ethcontract::contract!("examples/truffle/build/contracts/DeployedContract.json");
 
@@ -46,7 +45,8 @@ async fn run() {
     println!("  incrementing (this may take a while)...");
     instance
         .increment()
-        .send_and_confirm(Duration::new(5, 0), 1)
+        .confirmations(1) // wait for 1 block confirmation
+        .send()
         .await
         .expect("increment failed");
     println!(

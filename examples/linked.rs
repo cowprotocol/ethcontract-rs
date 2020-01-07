@@ -15,13 +15,11 @@ async fn run() {
 
     let library = SimpleLibrary::builder(&web3)
         .gas(4_712_388.into())
-        .confirmations(0)
         .deploy()
         .await
         .expect("library deployment failure");
     let instance = LinkedContract::builder(&web3, library.address(), 1337.into())
         .gas(4_712_388.into())
-        .confirmations(0)
         .deploy()
         .await
         .expect("contract deployment failure");

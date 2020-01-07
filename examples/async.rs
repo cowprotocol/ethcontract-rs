@@ -24,7 +24,6 @@ async fn run() {
 
     let instance = RustCoin::builder(&web3)
         .gas(4_712_388.into())
-        .confirmations(0)
         .deploy()
         .await
         .expect("deployment failed");

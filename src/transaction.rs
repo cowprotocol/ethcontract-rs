@@ -78,6 +78,7 @@ impl Default for ResolveCondition {
 /// `Confirm::Skip` was used and `TransactionResult::Receipt` if
 /// `Confirm::Blocks` was used.
 #[derive(Clone, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum TransactionResult {
     /// A transaction hash, this variant happens if and only if confirmation was
     /// skipped.
@@ -506,7 +507,7 @@ impl<T: Transport> Future for BuildFuture<T> {
     type Output = Result<Transaction, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        match &mut Pin::into_inner(self).state {
+        match &mut self.get_mut().state {
             BuildState::DefaultAccount { request, inner } => {
                 Pin::new(inner).poll(cx).map(|accounts| {
                     let accounts = accounts?;
@@ -592,13 +593,13 @@ impl<T: Transport> Future for SendFuture<T> {
     type Output = Result<TransactionResult, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = Pin::into_inner(self);
+        let unpinned = self.get_mut();
         loop {
             unpinned.state = match &mut unpinned.state {
                 SendState::Building(ref mut build) => {
                     let tx = match ready!(Pin::new(build).poll(cx)) {
                         Ok(tx) => tx,
-                        Err(err) => return Poll::Ready(Err(err.into())),
+                        Err(err) => return Poll::Ready(Err(err)),
                     };
 
                     let eth = unpinned.web3.eth();
@@ -713,7 +714,7 @@ mod tests {
         transport.assert_no_more_requests();
 
         // assert the tx hash is what we expect it to be
-        assert_eq!(tx, hash);
+        assert_eq!(tx.hash(), hash);
     }
 
     #[test]

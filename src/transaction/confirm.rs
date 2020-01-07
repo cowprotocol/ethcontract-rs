@@ -121,7 +121,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
     type Output = Result<TransactionReceipt, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = Pin::into_inner(self);
+        let unpinned = self.get_mut();
         loop {
             unpinned.state = match &mut unpinned.state {
                 ConfirmState::Check => ConfirmState::Checking(future::try_join(
