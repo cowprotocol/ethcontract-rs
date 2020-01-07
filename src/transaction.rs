@@ -4,17 +4,17 @@
 pub mod confirm;
 
 use crate::errors::ExecutionError;
-use crate::future::{CompatCallFuture, CompatSendTxWithConfirmation, MaybeReady, Web3Unpin};
+use crate::future::{CompatCallFuture, MaybeReady, Web3Unpin};
 use crate::sign::TransactionData;
+use crate::transaction::confirm::{ConfirmFuture, ConfirmParams};
 use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
-use futures::future::{self, TryFuture, TryJoin4};
+use futures::future::{self, TryJoin4};
 use futures::ready;
 use std::future::Future;
 use std::pin::Pin;
 use std::str;
 use std::task::{Context, Poll};
-use std::time::Duration;
 use web3::api::{Eth, Namespace, Web3};
 use web3::helpers::{self, CallFuture};
 use web3::types::{
@@ -46,43 +46,26 @@ impl Account {
     }
 }
 
-/// The confirmation to use for the transaction.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Confirm {
-    /// Skip confirmation and have the transaction send future resolve
-    /// immediately after it was received by the node and placed in the pending
-    /// transaction pool.
-    Skip,
-    /// Wait for confirmation for `usize` blocks polling every `Duration` for
-    /// new blocks.
+/// The condition on which a transaction's `SendFuture` gets resolved.
+#[derive(Clone, Debug)]
+pub enum ResolveCondition {
+    /// The transaction's `SendFuture` gets resolved immediately after it was
+    /// added to the pending transaction pool. This skips confirmation and
+    /// provides no guarantees that the transaction was mined or confirmed.
+    Pending,
+    /// Wait for confirmation with the specified `ConfirmParams`. A confirmed
+    /// transaction is always mined. There is a chance, however, that the block
+    /// in which the transaction was mined becomes an ommer block. Confirming
+    /// with a higher block count significantly decreases this probability.
     ///
-    /// The number of block confirmations is defined as the number of extra
-    /// block confirmations to wait for after the transaction has been mined.
-    ///
-    /// The polling interval can be used in two ways depending on whether the
-    /// node with the current transport supports the creation of filters and
-    /// more specifically `eth_newBlockFilter`. If it is supported then the
-    /// specified duration is the interval between `eth_getFilterChanges` calls
-    /// for receiving new block updates. In the case the node does not support
-    /// filters, it is the interval between `eth_blockNumber` calls polling for
-    /// new blocks.
-    Blocks(usize, Duration),
+    /// See `ConfirmParams` documentation for more details on the exact
+    /// semantics confirmation.
+    Confirmed(ConfirmParams),
 }
 
-/// The default poll interval to use for confirming transactions.
-pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(5);
-
-impl Confirm {
-    /// Create new confirmation options from the specified number of extra
-    /// blocks to wait for with the default poll interval.
-    pub fn with_confirmations(count: usize) -> Confirm {
-        Confirm::Blocks(count, DEFAULT_POLL_INTERVAL)
-    }
-}
-
-impl Default for Confirm {
+impl Default for ResolveCondition {
     fn default() -> Self {
-        Confirm::with_confirmations(0)
+        ResolveCondition::Confirmed(Default::default())
     }
 }
 
@@ -194,12 +177,9 @@ pub struct TransactionBuilder<T: Transport> {
     /// Optional nonce to use. Defaults to the signing account's current
     /// transaction count.
     pub nonce: Option<U256>,
-    /// Optional confirmation settings. Defaults to waiting the transaction to
-    /// be mined without any extra confirmation blocks.
-    ///
-    /// See `Confirm` documentation for more details on the exact semantics of
-    /// confirmation.
-    pub confirm: Option<Confirm>,
+    /// Optional resolve conditions. Defaults to waiting the transaction to be
+    /// mined without any extra confirmation blocks.
+    pub resolve: Option<ResolveCondition>,
 }
 
 impl<T: Transport> TransactionBuilder<T> {
@@ -214,7 +194,7 @@ impl<T: Transport> TransactionBuilder<T> {
             value: None,
             data: None,
             nonce: None,
-            confirm: None,
+            resolve: None,
         }
     }
 
@@ -267,27 +247,26 @@ impl<T: Transport> TransactionBuilder<T> {
         self
     }
 
-    /// Specify the confirmation options, if not specified will use the default
-    /// confirmation options.
-    pub fn confirm(mut self, value: Confirm) -> TransactionBuilder<T> {
-        self.confirm = Some(value);
+    /// Specify the resolve condition, if not specified will default to waiting
+    /// for the transaction to be mined (but not confirmed by any extra blocks).
+    pub fn resolve(mut self, value: ResolveCondition) -> TransactionBuilder<T> {
+        self.resolve = Some(value);
         self
     }
 
     /// Specify the number of confirmations to use for the confirmation options.
+    /// This is a utility method for specifying the resolve condition.
     pub fn confirmations(mut self, value: usize) -> TransactionBuilder<T> {
-        self.confirm = match self.confirm {
-            Some(Confirm::Blocks(_, poll_interval)) => Some(Confirm::Blocks(value, poll_interval)),
-            _ => Some(Confirm::with_confirmations(value)),
-        };
-        self
-    }
-
-    /// Specify the poll interval to use for the confirmation options.
-    pub fn poll_interval(mut self, value: Duration) -> TransactionBuilder<T> {
-        self.confirm = match self.confirm {
-            Some(Confirm::Blocks(count, _)) => Some(Confirm::Blocks(count, value)),
-            _ => Some(Confirm::Blocks(0, value)),
+        self.resolve = match self.resolve {
+            Some(ResolveCondition::Confirmed(params)) => {
+                Some(ResolveCondition::Confirmed(ConfirmParams {
+                    confirmations: value,
+                    ..params
+                }))
+            }
+            _ => Some(ResolveCondition::Confirmed(
+                ConfirmParams::with_confirmations(value),
+            )),
         };
         self
     }
@@ -306,16 +285,6 @@ impl<T: Transport> TransactionBuilder<T> {
     /// hash that can be used to retrieve transaction information.
     pub fn send(self) -> SendFuture<T> {
         SendFuture::from_builder(self)
-    }
-
-    /// Send a transaction and wait for confirmation. Returns the transaction
-    /// receipt for inspection.
-    pub fn send_and_confirm(
-        self,
-        poll_interval: Duration,
-        confirmations: usize,
-    ) -> SendAndConfirmFuture<T> {
-        SendAndConfirmFuture::from_builder_with_confirm(self, poll_interval, confirmations)
     }
 }
 
@@ -374,27 +343,6 @@ pub struct BuildFuture<T: Transport> {
     state: BuildState<T>,
 }
 
-impl<T: Transport> BuildFuture<T> {
-    /// Create an instance from a `TransactionBuilder`.
-    pub fn from_builder(builder: TransactionBuilder<T>) -> BuildFuture<T> {
-        BuildFuture {
-            state: BuildState::from_builder(builder),
-        }
-    }
-
-    fn state(self: Pin<&mut Self>) -> &mut BuildState<T> {
-        &mut self.get_mut().state
-    }
-}
-
-impl<T: Transport> Future for BuildFuture<T> {
-    type Output = Result<Transaction, ExecutionError>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.state().poll_unpinned(cx)
-    }
-}
-
 /// Type alias for a call future that might already be resolved.
 type MaybeCallFuture<T, R> = MaybeReady<CompatCallFuture<T, R>>;
 
@@ -448,10 +396,10 @@ enum BuildState<T: Transport> {
     },
 }
 
-impl<T: Transport> BuildState<T> {
-    /// Create a `BuildState` from a `TransactionBuilder`
-    fn from_builder(builder: TransactionBuilder<T>) -> BuildState<T> {
-        match builder.from {
+impl<T: Transport> BuildFuture<T> {
+    /// Create an instance from a `TransactionBuilder`.
+    pub fn from_builder(builder: TransactionBuilder<T>) -> Self {
+        let state = match builder.from {
             None => BuildState::DefaultAccount {
                 request: Some(TransactionRequest {
                     from: Address::zero(),
@@ -548,11 +496,17 @@ impl<T: Transport> BuildState<T> {
                     params: future::try_join4(gas, gas_price, nonce, chain_id),
                 }
             }
-        }
-    }
+        };
 
-    fn poll_unpinned(&mut self, cx: &mut Context) -> Poll<Result<Transaction, ExecutionError>> {
-        match self {
+        BuildFuture { state }
+    }
+}
+
+impl<T: Transport> Future for BuildFuture<T> {
+    type Output = Result<Transaction, ExecutionError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        match &mut Pin::into_inner(self).state {
             BuildState::DefaultAccount { request, inner } => {
                 Pin::new(inner).poll(cx).map(|accounts| {
                     let accounts = accounts?;
@@ -600,137 +554,88 @@ impl<T: Transport> BuildState<T> {
 /// Future for optionally signing and then sending a transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SendFuture<T: Transport> {
+    web3: Web3Unpin<T>,
+    /// The confirmation options to use for the transaction once it has been
+    /// sent. Stored as an option as we require transfer of ownership.
+    resolve: Option<ResolveCondition>,
     /// Internal execution state.
-    state: ExecutionState<T, Web3Unpin<T>, CompatCallFuture<T, H256>>,
+    state: SendState<T>,
+}
+
+/// The state of the send future.
+enum SendState<T: Transport> {
+    /// The transaction is being built into a request or a signed raw
+    /// transaction.
+    Building(BuildFuture<T>),
+    /// The transaction is being sent to the node.
+    Sending(CompatCallFuture<T, H256>),
+    /// The transaction is being confirmed.
+    Confirming(ConfirmFuture<T>),
 }
 
 impl<T: Transport> SendFuture<T> {
     /// Creates a new future from a `TransactionBuilder`
-    pub fn from_builder(builder: TransactionBuilder<T>) -> SendFuture<T> {
+    pub fn from_builder(mut builder: TransactionBuilder<T>) -> SendFuture<T> {
         let web3 = builder.web3.clone().into();
-        let state = ExecutionState::from_builder_with_data(builder, web3);
+        let resolve = Some(builder.resolve.take().unwrap_or_default());
+        let state = SendState::Building(BuildFuture::from_builder(builder));
 
-        SendFuture { state }
-    }
-
-    fn state(
-        self: Pin<&mut Self>,
-    ) -> &mut ExecutionState<T, Web3Unpin<T>, CompatCallFuture<T, H256>> {
-        &mut self.get_mut().state
+        SendFuture {
+            web3,
+            resolve,
+            state,
+        }
     }
 }
 
 impl<T: Transport> Future for SendFuture<T> {
-    type Output = Result<H256, ExecutionError>;
+    type Output = Result<TransactionResult, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.state().poll_unpinned(cx, |web3, tx| match tx {
-            Transaction::Request(tx) => web3.eth().send_transaction(tx).compat(),
-            Transaction::Raw(tx) => web3.eth().send_raw_transaction(tx).compat(),
-        })
-    }
-}
-
-/// Future for optinally signing and then sending a transaction with
-/// confirmation.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct SendAndConfirmFuture<T: Transport> {
-    /// Internal execution state.
-    state: ExecutionState<T, (Web3Unpin<T>, Duration, usize), CompatSendTxWithConfirmation<T>>,
-}
-
-impl<T: Transport> SendAndConfirmFuture<T> {
-    /// Creates a new future from a `TransactionBuilder`
-    pub fn from_builder_with_confirm(
-        builder: TransactionBuilder<T>,
-        poll_interval: Duration,
-        confirmations: usize,
-    ) -> SendAndConfirmFuture<T> {
-        let web3 = builder.web3.clone().into();
-        let state =
-            ExecutionState::from_builder_with_data(builder, (web3, poll_interval, confirmations));
-
-        SendAndConfirmFuture { state }
-    }
-
-    fn state(
-        self: Pin<&mut Self>,
-    ) -> &mut ExecutionState<T, (Web3Unpin<T>, Duration, usize), CompatSendTxWithConfirmation<T>>
-    {
-        &mut self.get_mut().state
-    }
-}
-
-impl<T: Transport> Future for SendAndConfirmFuture<T> {
-    type Output = Result<TransactionReceipt, ExecutionError>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.as_mut()
-            .state()
-            .poll_unpinned(cx, |(web3, poll_interval, confirmations), tx| match tx {
-                Transaction::Request(tx) => web3
-                    .send_transaction_with_confirmation(tx, poll_interval, confirmations)
-                    .compat(),
-                Transaction::Raw(tx) => web3
-                    .send_raw_transaction_with_confirmation(tx, poll_interval, confirmations)
-                    .compat(),
-            })
-    }
-}
-
-/// Internal execution state for preparing and executing transactions.
-enum ExecutionState<T, D, F>
-where
-    T: Transport,
-    F: TryFuture + Unpin,
-    F::Error: Into<ExecutionError>,
-{
-    /// Waiting for the transaction to be prepared to be sent.
-    Building(BuildFuture<T>, Option<D>),
-    /// Sending the request and waiting for the future to resolve.
-    Sending(F),
-}
-
-impl<T, D, F> ExecutionState<T, D, F>
-where
-    T: Transport,
-    F: TryFuture + Unpin,
-    F::Error: Into<ExecutionError>,
-{
-    /// Create a `ExecutionState` from a `TransactionBuilder`
-    fn from_builder_with_data(builder: TransactionBuilder<T>, data: D) -> ExecutionState<T, D, F> {
-        let build = BuildFuture::from_builder(builder);
-        let data = Some(data);
-
-        ExecutionState::Building(build, data)
-    }
-
-    /// Poll the state to drive the execution of its inner futures.
-    fn poll_unpinned<S>(
-        &mut self,
-        cx: &mut Context,
-        mut send_fn: S,
-    ) -> Poll<Result<F::Ok, ExecutionError>>
-    where
-        S: FnMut(D, Transaction) -> F,
-    {
+        let unpinned = Pin::into_inner(self);
         loop {
-            match self {
-                ExecutionState::Building(build, data) => {
-                    let tx = ready!(Pin::new(build).poll(cx).map_err(ExecutionError::from));
-                    let tx = match tx {
+            unpinned.state = match &mut unpinned.state {
+                SendState::Building(ref mut build) => {
+                    let tx = match ready!(Pin::new(build).poll(cx)) {
                         Ok(tx) => tx,
-                        Err(err) => return Poll::Ready(Err(err)),
+                        Err(err) => return Poll::Ready(Err(err.into())),
                     };
 
-                    let data = data.take().expect("called once");
-                    let send = send_fn(data, tx);
-                    *self = ExecutionState::Sending(send);
+                    let eth = unpinned.web3.eth();
+                    let send = match tx {
+                        Transaction::Request(tx) => eth.send_transaction(tx).compat(),
+                        Transaction::Raw(tx) => eth.send_raw_transaction(tx).compat(),
+                    };
+
+                    SendState::Sending(send)
                 }
-                ExecutionState::Sending(ref mut send) => {
-                    return Pin::new(send)
-                        .try_poll(cx)
-                        .map_err(Into::<ExecutionError>::into)
+                SendState::Sending(ref mut send) => {
+                    let tx_hash = match ready!(Pin::new(send).poll(cx)) {
+                        Ok(tx_hash) => tx_hash,
+                        Err(err) => return Poll::Ready(Err(err.into())),
+                    };
+
+                    let confirm = match unpinned
+                        .resolve
+                        .take()
+                        .expect("confirmation called more than once")
+                    {
+                        ResolveCondition::Pending => {
+                            return Poll::Ready(Ok(TransactionResult::Hash(tx_hash)))
+                        }
+                        ResolveCondition::Confirmed(params) => {
+                            ConfirmFuture::new(&unpinned.web3, tx_hash, params)
+                        }
+                    };
+
+                    SendState::Confirming(confirm)
+                }
+                SendState::Confirming(ref mut confirm) => {
+                    return Pin::new(confirm).poll(cx).map(|result| {
+                        result
+                            .map(TransactionResult::Receipt)
+                            .map_err(ExecutionError::from)
+                    })
                 }
             }
         }

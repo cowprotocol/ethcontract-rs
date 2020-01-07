@@ -4,7 +4,7 @@
 use crate::contract::Instance;
 use crate::errors::DeployError;
 use crate::future::{CompatCallFuture, Web3Unpin};
-use crate::transaction::{Account, SendAndConfirmFuture, TransactionBuilder};
+use crate::transaction::{Account, SendFuture, TransactionBuilder, TransactionResult};
 use crate::truffle::abi::ErrorKind as AbiErrorKind;
 use crate::truffle::{Abi, Artifact};
 use futures::compat::Future01CompatExt;
@@ -13,7 +13,6 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::Duration;
 use web3::api::Web3;
 use web3::contract::tokens::Tokenize;
 use web3::types::{Address, Bytes, U256};
@@ -116,10 +115,6 @@ where
     abi: Abi,
     /// The underlying transaction used t
     tx: TransactionBuilder<T>,
-    /// The poll interval for confirming the contract deployed.
-    pub poll_interval: Option<Duration>,
-    /// The number of confirmations to wait for.
-    pub confirmations: Option<usize>,
     _deploy: PhantomData<Box<D>>,
 }
 
@@ -157,9 +152,7 @@ where
         Ok(DeployBuilder {
             web3: web3.clone(),
             abi: artifact.abi,
-            tx: TransactionBuilder::new(web3).data(data),
-            poll_interval: None,
-            confirmations: None,
+            tx: TransactionBuilder::new(web3).data(data).confirmations(0),
             _deploy: Default::default(),
         })
     }
@@ -181,35 +174,29 @@ where
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
     pub fn gas_price(mut self, value: U256) -> DeployBuilder<T, D> {
-        self.tx = self.tx.gas(value);
+        self.tx = self.tx.gas_price(value);
         self
     }
 
     /// Specify what how much ETH to transfer with the transaction, if not
     /// specified then no ETH will be sent.
     pub fn value(mut self, value: U256) -> DeployBuilder<T, D> {
-        self.tx = self.tx.gas(value);
+        self.tx = self.tx.value(value);
         self
     }
 
     /// Specify the nonce for the transation, if not specified will use the
     /// current transaction count for the signing account.
     pub fn nonce(mut self, value: U256) -> DeployBuilder<T, D> {
-        self.tx = self.tx.gas(value);
-        self
-    }
-
-    /// Specify the poll interval to use for confirming the deployment, if not
-    /// specified will use a period of 7 seconds.
-    pub fn poll_interval(mut self, value: Duration) -> DeployBuilder<T, D> {
-        self.poll_interval = Some(value);
+        self.tx = self.tx.nonce(value);
         self
     }
 
     /// Specify the number of confirmations to wait for when confirming the
-    /// transaction, if not specified will wait for 1 confirmation.
+    /// transaction, if not specified will wait for the transaction to be mined
+    /// without any extra confirmations.
     pub fn confirmations(mut self, value: usize) -> DeployBuilder<T, D> {
-        self.confirmations = Some(value);
+        self.tx = self.tx.confirmations(value);
         self
     }
 
@@ -236,7 +223,7 @@ where
     /// The deployment args
     args: Option<(Web3Unpin<T>, Abi)>,
     /// The future resolved when the deploy transaction is complete.
-    tx: Result<SendAndConfirmFuture<T>, Option<DeployError>>,
+    send: SendFuture<T>,
     _deploy: PhantomData<Box<D>>,
 }
 
@@ -247,13 +234,9 @@ where
 {
     /// Create an instance from a `DeployBuilder`.
     pub fn from_builder(builder: DeployBuilder<T, D>) -> DeployFuture<T, D> {
-        // NOTE(nlordell): arbitrary default values taken from `rust-web3`
-        let poll_interval = builder.poll_interval.unwrap_or(Duration::from_secs(7));
-        let confirmations = builder.confirmations.unwrap_or(1);
-
         DeployFuture {
             args: Some((builder.web3.into(), builder.abi)),
-            tx: Ok(builder.tx.send_and_confirm(poll_interval, confirmations)),
+            send: builder.tx.send(),
             _deploy: Default::default(),
         }
     }
@@ -268,26 +251,23 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let unpinned = self.get_mut();
-        match unpinned.tx {
-            Ok(ref mut tx) => {
-                let tx = ready!(Pin::new(tx).poll(cx).map_err(DeployError::from));
-                let tx = match tx {
-                    Ok(tx) => tx,
-                    Err(err) => return Poll::Ready(Err(err)),
-                };
-                let address = match tx.contract_address {
-                    Some(address) => address,
-                    None => {
-                        return Poll::Ready(Err(DeployError::Failure(tx.transaction_hash)));
-                    }
-                };
 
-                let (web3, abi) = unpinned.args.take().expect("called once");
+        let tx = match ready!(Pin::new(&mut unpinned.send).poll(cx)) {
+            Ok(TransactionResult::Receipt(tx)) => tx,
+            Ok(TransactionResult::Hash(tx)) => return Poll::Ready(Err(DeployError::Pending(tx))),
+            Err(err) => return Poll::Ready(Err(err.into())),
+        };
 
-                Poll::Ready(Ok(D::deployed_at(web3.into(), abi, address)))
+        let address = match tx.contract_address {
+            Some(address) => address,
+            None => {
+                return Poll::Ready(Err(DeployError::Failure(tx.transaction_hash)));
             }
-            Err(ref mut err) => Poll::Ready(Err(err.take().expect("called once"))),
-        }
+        };
+
+        let (web3, abi) = unpinned.args.take().expect("called more than once");
+
+        Poll::Ready(Ok(D::deployed_at(web3.into(), abi, address)))
     }
 }
 

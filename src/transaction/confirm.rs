@@ -15,7 +15,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use web3::api::{CreateFilter, FilterStream};
+use web3::api::{CreateFilter, FilterStream, Web3};
 use web3::futures::stream::{Skip as Skip01, StreamFuture as StreamFuture01};
 use web3::futures::Stream as Stream01;
 use web3::types::{TransactionReceipt, H256, U256};
@@ -40,12 +40,42 @@ pub struct ConfirmParams {
     pub block_timeout: usize,
 }
 
+/// The default poll interval to use for confirming transactions.
+pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(5);
+
+/// The default poll interval to use for confirming transactions.
+pub const DEFAULT_BLOCK_TIMEOUT: usize = 25;
+
+impl ConfirmParams {
+    /// Create new confirmation options from the specified number of extra
+    /// blocks to wait for with the default poll interval.
+    pub fn with_confirmations(count: usize) -> Self {
+        ConfirmParams {
+            confirmations: count,
+            poll_interval: DEFAULT_POLL_INTERVAL,
+            block_timeout: DEFAULT_BLOCK_TIMEOUT,
+        }
+    }
+}
+
+impl Default for ConfirmParams {
+    fn default() -> Self {
+        ConfirmParams::with_confirmations(0)
+    }
+}
+
 /// A future that resolves once a transaction is confirmed.
 pub struct ConfirmFuture<T: Transport> {
     web3: Web3Unpin<T>,
+    /// The transaction hash that is being confirmed.
     tx: H256,
+    /// The confirmation parameters (like number of confirming blocks to wait
+    /// for and polling interval).
     params: ConfirmParams,
+    /// The current block number when confirmation started. This is used for
+    /// timeouts.
     starting_block_num: Option<U256>,
+    /// The current state of the confirmation.
     state: ConfirmState<T>,
 }
 
@@ -71,6 +101,20 @@ enum ConfirmState<T: Transport> {
     /// node does not support block filters for the given transport (like Infura
     /// over HTTPS) so we need to fallback to polling.
     WaitingForPollTimeout,
+}
+
+impl<T: Transport> ConfirmFuture<T> {
+    /// Create a new `ConfirmFuture` with a `web3` provider for the specified
+    /// transaction hash and with the specified parameters.
+    pub fn new(web3: &Web3<T>, tx: H256, params: ConfirmParams) -> Self {
+        ConfirmFuture {
+            web3: web3.clone().into(),
+            tx,
+            params,
+            starting_block_num: None,
+            state: ConfirmState::Check,
+        }
+    }
 }
 
 impl<T: Transport> Future for ConfirmFuture<T> {

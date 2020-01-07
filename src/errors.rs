@@ -40,6 +40,11 @@ pub enum DeployError {
     #[error("error executing contract deployment transaction: {0}")]
     Tx(#[from] ExecutionError),
 
+    /// Transaction was unable to confirm and is still pending. The contract
+    /// address cannot be determined.
+    #[error("contract deployment transaction pending: {0}")]
+    Pending(H256),
+
     /// Transaction failure (e.g. out of gas).
     #[error("contract deployment transaction failed: {0}")]
     Failure(H256),
