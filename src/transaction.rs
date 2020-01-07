@@ -1,6 +1,8 @@
 //! Implementation for setting up, signing, estimating gas and sending
 //! transactions on the Ethereum network.
 
+pub mod confirm;
+
 use crate::errors::ExecutionError;
 use crate::future::{CompatCallFuture, CompatSendTxWithConfirmation, MaybeReady, Web3Unpin};
 use crate::sign::TransactionData;

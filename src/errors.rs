@@ -78,6 +78,10 @@ pub enum ExecutionError {
     /// A contract call executed an invalid opcode.
     #[error("contract call executed an invalid opcode")]
     InvalidOpcode,
+
+    /// A contract transaction failed to confirm within the block timeout limit.
+    #[error("contract transaction timed-out")]
+    ConfirmTimeout,
 }
 
 impl From<Web3Error> for ExecutionError {
