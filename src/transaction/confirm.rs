@@ -7,7 +7,7 @@
 //! some of this can move upstream into the `web3` crate.
 
 use crate::errors::ExecutionError;
-use crate::future::{CompatCallFuture, Web3Unpin};
+use crate::future::{CompatCallFuture, MaybeReady, Web3Unpin};
 use futures::compat::{Compat01As03, Future01CompatExt};
 use futures::future::{self, TryJoin};
 use futures::ready;
@@ -43,8 +43,10 @@ pub struct ConfirmParams {
 }
 
 /// The default poll interval to use for confirming transactions.
+///
+/// Note that this is 7
 #[cfg(not(test))]
-pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(5);
+pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(7);
 #[cfg(test)]
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(0);
 
@@ -140,7 +142,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
         loop {
             unpinned.state = match &mut unpinned.state {
                 ConfirmState::Check => ConfirmState::Checking(future::try_join(
-                    unpinned.web3.eth().block_number().compat(),
+                    MaybeReady::future(unpinned.web3.eth().block_number().compat()),
                     unpinned
                         .web3
                         .eth()
@@ -224,7 +226,14 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                     };
 
                     if block_num == *target_block_num {
-                        ConfirmState::Check
+                        ConfirmState::Checking(future::try_join(
+                            MaybeReady::ready(Ok(block_num)),
+                            unpinned
+                                .web3
+                                .eth()
+                                .transaction_receipt(unpinned.tx)
+                                .compat(),
+                        ))
                     } else {
                         ConfirmState::PollDelay(
                             Delay::new(unpinned.params.poll_interval),
@@ -258,7 +267,7 @@ impl<T: Transport> Debug for ConfirmState<T> {
 /// calls. Used when checking that the transaction has been confirmed by enough
 /// blocks.
 type CheckFuture<T> =
-    TryJoin<CompatCallFuture<T, U256>, CompatCallFuture<T, Option<TransactionReceipt>>>;
+    TryJoin<MaybeReady<CompatCallFuture<T, U256>>, CompatCallFuture<T, Option<TransactionReceipt>>>;
 
 /// A type alias for a future creating a `eth_newBlockFilter` filter.
 type CompatCreateFilter<T, R> = Compat01As03<CreateFilter<T, R>>;
@@ -288,15 +297,51 @@ mod tests {
     }
 
     #[test]
+    fn confirm_mined_transaction() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let hash = H256::repeat_byte(0xff);
+
+        // transaction pending
+        transport.add_response(json!("0x1"));
+        transport.add_response(json!(null));
+        // filter created
+        transport.add_response(json!("0xf0"));
+        // polled block filter for 1 new block
+        transport.add_response(json!([]));
+        transport.add_response(json!([]));
+        transport.add_response(json!([H256::repeat_byte(2)]));
+        // check transaction was mined
+        transport.add_response(json!("0x2"));
+        transport.add_response(generate_tx_receipt(hash, 2));
+
+        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::mined())
+            .wait()
+            .expect("transaction confirmation failed");
+
+        assert_eq!(confirm.transaction_hash, hash);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_request("eth_newBlockFilter", &[]);
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
     fn confirm_auto_mined_transaction() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
         let hash = H256::repeat_byte(0xff);
-        let block = U256::from(1);
 
-        transport.add_response(json!(block));
-        transport.add_response(generate_tx_receipt(hash, block));
+        transport.add_response(json!("0x1"));
+        transport.add_response(generate_tx_receipt(hash, 1));
+
         let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::mined())
             .wait()
             .expect("transaction confirmation failed");
@@ -356,7 +401,45 @@ mod tests {
     }
 
     #[test]
-    fn confirmations_with_polling() {}
+    fn confirmations_with_polling() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let hash = H256::repeat_byte(0xff);
+
+        // transaction pending
+        transport.add_response(json!("0x1"));
+        transport.add_response(json!(null));
+        // filter created not supported
+        transport.add_response(json!({ "error": "eth_newBlockFilter not supported" }));
+        // poll block number until new block is found
+        transport.add_response(json!("0x1"));
+        transport.add_response(json!("0x1"));
+        transport.add_response(json!("0x2"));
+        transport.add_response(json!("0x2"));
+        transport.add_response(json!("0x2"));
+        transport.add_response(json!("0x3"));
+        // check transaction was mined - note that the block number doesn't get
+        // re-queried and is re-used from the polling loop.
+        transport.add_response(generate_tx_receipt(hash, 2));
+
+        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(1))
+            .wait()
+            .expect("transaction confirmation failed");
+
+        assert_eq!(confirm.transaction_hash, hash);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_request("eth_newBlockFilter", &[]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_no_more_requests();
+    }
 
     #[test]
     fn confirmations_with_reorg_tx_receipt() {

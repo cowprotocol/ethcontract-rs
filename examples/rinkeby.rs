@@ -23,7 +23,9 @@ async fn run() {
         format!("wss://rinkeby.infura.io/ws/v3/{}", project_id)
     };
 
-    // use a WebSocket transport to support confirmations
+    // NOTE: Use a WebSocket transport for `eth_newBlockFilter` support on
+    //   Infura, filters are disabled over HTTPS. Filters are needed for
+    //   confirmation support.
     let (eloop, ws) = WebSocket::new(&infura_url).expect("transport failed");
     eloop.into_remote();
     let web3 = Web3::new(ws);
