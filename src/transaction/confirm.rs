@@ -39,7 +39,7 @@ pub struct ConfirmParams {
     /// the node (for example when using Infura over HTTP(S)).
     pub poll_interval: Duration,
     /// The maximum number of blocks to wait for a transaction to get confirmed.
-    pub block_timeout: usize,
+    pub block_timeout: Option<usize>,
 }
 
 /// The default poll interval to use for confirming transactions.
@@ -52,7 +52,7 @@ pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(7);
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(0);
 
 /// The default block timeout to use for confirming transactions.
-pub const DEFAULT_BLOCK_TIMEOUT: usize = 25;
+pub const DEFAULT_BLOCK_TIMEOUT: Option<usize> = Some(25);
 
 impl ConfirmParams {
     /// Create new confirmation parameters for just confirming that the
@@ -174,11 +174,14 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         return Poll::Ready(Ok(tx.unwrap()));
                     }
 
-                    let starting_block_num = *unpinned.starting_block_num.get_or_insert(block_num);
-                    if block_num.saturating_sub(starting_block_num)
-                        > U256::from(unpinned.params.block_timeout)
-                    {
-                        return Poll::Ready(Err(ExecutionError::ConfirmTimeout));
+                    if let Some(block_timeout) = unpinned.params.block_timeout {
+                        let starting_block_num =
+                            *unpinned.starting_block_num.get_or_insert(block_num);
+                        let elapsed_blocks = block_num.saturating_sub(starting_block_num);
+
+                        if elapsed_blocks > U256::from(block_timeout) {
+                            return Poll::Ready(Err(ExecutionError::ConfirmTimeout));
+                        }
                     }
 
                     ConfirmState::CreatingFilter(
@@ -558,7 +561,10 @@ mod tests {
 
         let hash = H256::repeat_byte(0xff);
         let params = ConfirmParams::mined();
-        let timeout = params.block_timeout + 1;
+        let timeout = params
+            .block_timeout
+            .expect("default confirm parameters have a block timeout")
+            + 1;
 
         // wait for the transaction a total of block timeout + 1 times
         for i in 0..timeout {
