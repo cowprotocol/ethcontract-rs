@@ -19,7 +19,7 @@ use web3::api::{Eth, Namespace, Web3};
 use web3::helpers::{self, CallFuture};
 use web3::types::{
     Address, Bytes, CallRequest, RawTransaction, TransactionCondition, TransactionReceipt,
-    TransactionRequest, H256, U256,
+    TransactionRequest, H256, U256, U64,
 };
 use web3::Transport;
 
@@ -633,10 +633,11 @@ impl<T: Transport> Future for SendFuture<T> {
                 }
                 SendState::Confirming(ref mut confirm) => {
                     return Pin::new(confirm).poll(cx).map(|result| {
-                        todo!("check the receipt for reverts");
-                        result
-                            .map(TransactionResult::Receipt)
-                            .map_err(ExecutionError::from)
+                        let tx = result?;
+                        match tx.status {
+                            Some(U64([1])) => Ok(TransactionResult::Receipt(tx)),
+                            _ => Err(ExecutionError::Failure(tx.transaction_hash)),
+                        }
                     })
                 }
             }

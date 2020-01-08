@@ -2,7 +2,7 @@
 //! new contracts.
 
 use crate::contract::Instance;
-use crate::errors::DeployError;
+use crate::errors::{DeployError, ExecutionError};
 use crate::future::{CompatCallFuture, Web3Unpin};
 use crate::transaction::{Account, SendFuture, TransactionBuilder, TransactionResult};
 use crate::truffle::abi::ErrorKind as AbiErrorKind;
@@ -261,7 +261,9 @@ where
         let address = match tx.contract_address {
             Some(address) => address,
             None => {
-                return Poll::Ready(Err(DeployError::Failure(tx.transaction_hash)));
+                return Poll::Ready(Err(DeployError::Tx(ExecutionError::Failure(
+                    tx.transaction_hash,
+                ))));
             }
         };
 

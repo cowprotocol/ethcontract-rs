@@ -44,10 +44,6 @@ pub enum DeployError {
     /// address cannot be determined.
     #[error("contract deployment transaction pending: {0}")]
     Pending(H256),
-
-    /// Transaction failure (e.g. out of gas).
-    #[error("contract deployment transaction failed: {0}")]
-    Failure(H256),
 }
 
 impl From<AbiErrorKind> for DeployError {
@@ -85,8 +81,12 @@ pub enum ExecutionError {
     InvalidOpcode,
 
     /// A contract transaction failed to confirm within the block timeout limit.
-    #[error("contract transaction timed-out")]
+    #[error("transaction timed-out")]
     ConfirmTimeout,
+
+    /// Transaction failure (e.g. out of gas or revert).
+    #[error("transaction failed: {0}")]
+    Failure(H256),
 }
 
 impl From<Web3Error> for ExecutionError {
