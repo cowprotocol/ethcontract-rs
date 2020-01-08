@@ -1,6 +1,6 @@
 use crate::contract::{types, Context};
 use crate::util;
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use ethcontract_common::truffle::abi::{Function, Param};
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
@@ -14,10 +14,7 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
         .artifact
         .abi
         .functions()
-        .map(|function| {
-            expand_function(&cx, function)
-                .with_context(|| format!("error expanding function '{}'", function.name))
-        })
+        .map(|function| expand_function(&cx, function))
         .collect::<Result<Vec<_>>>()?;
 
     if functions.is_empty() {
