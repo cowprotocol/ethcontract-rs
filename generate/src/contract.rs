@@ -11,10 +11,11 @@ mod types;
 
 use crate::util;
 use crate::Args;
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use ethcontract_common::truffle::Artifact;
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
+use std::env;
 use std::fs;
 
 /// Internal shared context for generating smart contract bindings.
@@ -34,10 +35,19 @@ pub(crate) struct Context {
 impl Context {
     /// Create a context from the code generation arguments.
     fn from_args(args: &Args) -> Result<Self> {
-        let full_path = fs::canonicalize(&args.artifact_path)?;
+        let full_path = fs::canonicalize(&args.artifact_path).with_context(|| {
+            format!(
+                "unable to open file from working dir {} with path {}",
+                env::current_dir()
+                    .map(|path| path.display().to_string())
+                    .unwrap_or_else(|err| format!("??? ({})", err)),
+                args.artifact_path.display(),
+            )
+        })?;
         let artifact_path = Literal::string(&full_path.to_string_lossy());
 
-        let artifact = Artifact::load(&full_path)?;
+        let artifact = Artifact::load(&full_path)
+            .with_context(|| format!("failed to parse JSON from file {}", full_path.display()))?;
 
         let runtime_crate = util::ident(&args.runtime_crate_name);
         let contract_name = util::ident(&artifact.contract_name);
