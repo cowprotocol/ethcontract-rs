@@ -198,8 +198,9 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         ),
                         Err(_) => {
                             // NOTE: In the case we fail to create a filter
-                            //   (usually because the node doesn't support pub/
-                            //   sub) then fall back to polling.
+                            //   (usually because the node doesn't support
+                            //   filters like Infura over HTTPS) then fall back
+                            //   to polling.
                             ConfirmState::PollDelay(
                                 Delay::new(unpinned.params.poll_interval),
                                 *target_block_num,
