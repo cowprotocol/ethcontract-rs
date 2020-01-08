@@ -633,6 +633,7 @@ impl<T: Transport> Future for SendFuture<T> {
                 }
                 SendState::Confirming(ref mut confirm) => {
                     return Pin::new(confirm).poll(cx).map(|result| {
+                        todo!("check the receipt for reverts");
                         result
                             .map(TransactionResult::Receipt)
                             .map_err(ExecutionError::from)
