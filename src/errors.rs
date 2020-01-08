@@ -47,7 +47,7 @@ pub enum DeployError {
 }
 
 impl From<AbiErrorKind> for DeployError {
-    fn from(err: AbiErrorKind) -> DeployError {
+    fn from(err: AbiErrorKind) -> Self {
         DeployError::Abi(err.into())
     }
 }
@@ -90,7 +90,7 @@ pub enum ExecutionError {
 }
 
 impl From<Web3Error> for ExecutionError {
-    fn from(err: Web3Error) -> ExecutionError {
+    fn from(err: Web3Error) -> Self {
         match err {
             Web3Error::Rpc(ref err) if get_error_param(err, "error") == Some("revert") => {
                 let reason = get_error_param(err, "reason").map(|reason| reason.to_owned());
@@ -105,7 +105,7 @@ impl From<Web3Error> for ExecutionError {
 }
 
 impl From<AbiError> for ExecutionError {
-    fn from(err: AbiError) -> ExecutionError {
+    fn from(err: AbiError) -> Self {
         ExecutionError::AbiDecode(err.into())
     }
 }
@@ -145,12 +145,12 @@ pub struct MethodError {
 impl MethodError {
     /// Create a new `MethodError` from an ABI function specification and an
     /// inner `ExecutionError`.
-    pub fn new<I: Into<ExecutionError>>(function: &Function, inner: I) -> MethodError {
+    pub fn new<I: Into<ExecutionError>>(function: &Function, inner: I) -> Self {
         MethodError::from_parts(function_signature(function), inner.into())
     }
 
     /// Create a `MethodError` from its signature and inner `ExecutionError`.
-    pub fn from_parts(signature: String, inner: ExecutionError) -> MethodError {
+    pub fn from_parts(signature: String, inner: ExecutionError) -> Self {
         MethodError { signature, inner }
     }
 }

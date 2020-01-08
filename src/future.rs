@@ -19,12 +19,12 @@ impl<F: Future + Unpin> MaybeReady<F> {
     }
 
     /// Create a new `MaybeReady` with an immediate value.
-    pub fn ready(value: F::Output) -> MaybeReady<F> {
+    pub fn ready(value: F::Output) -> Self {
         MaybeReady(Either::Left(future::ready(value)))
     }
 
     /// Create a new `MaybeReady` with a deferred value.
-    pub fn future(fut: F) -> MaybeReady<F> {
+    pub fn future(fut: F) -> Self {
         MaybeReady(Either::Right(fut))
     }
 }

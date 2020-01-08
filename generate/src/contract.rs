@@ -27,7 +27,7 @@ struct Context {
 }
 
 impl Context {
-    fn from_args(args: &Args) -> Result<Context> {
+    fn from_args(args: &Args) -> Result<Self> {
         let artifact_path = {
             let full_path = fs::canonicalize(&args.artifact_path)?;
             Literal::string(&full_path.to_string_lossy())

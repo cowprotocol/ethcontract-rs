@@ -32,7 +32,7 @@ pub struct Artifact {
 
 impl Artifact {
     /// Creates an empty artifact instance.
-    pub fn empty() -> Artifact {
+    pub fn empty() -> Self {
         Artifact {
             contract_name: String::new(),
             abi: Abi {
@@ -49,7 +49,7 @@ impl Artifact {
     }
 
     /// Parse a truffle artifact from JSON.
-    pub fn from_json<S>(json: S) -> Result<Artifact, ArtifactError>
+    pub fn from_json<S>(json: S) -> Result<Self, ArtifactError>
     where
         S: AsRef<str>,
     {
@@ -58,7 +58,7 @@ impl Artifact {
     }
 
     /// Loads a truffle artifact from disk.
-    pub fn load<P>(path: P) -> Result<Artifact, ArtifactError>
+    pub fn load<P>(path: P) -> Result<Self, ArtifactError>
     where
         P: AsRef<Path>,
     {

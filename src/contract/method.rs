@@ -45,12 +45,7 @@ pub struct MethodBuilder<T: Transport, R> {
 
 impl<T: Transport, R> MethodBuilder<T, R> {
     /// Creates a new builder for a transaction.
-    pub fn new(
-        web3: Web3<T>,
-        function: Function,
-        address: Address,
-        data: Bytes,
-    ) -> MethodBuilder<T, R> {
+    pub fn new(web3: Web3<T>, function: Function, address: Address, data: Bytes) -> Self {
         MethodBuilder {
             web3: web3.clone(),
             function,
@@ -60,7 +55,7 @@ impl<T: Transport, R> MethodBuilder<T, R> {
     }
 
     /// Apply method defaults to this builder.
-    pub fn with_defaults(mut self, defaults: &MethodDefaults) -> MethodBuilder<T, R> {
+    pub fn with_defaults(mut self, defaults: &MethodDefaults) -> Self {
         self.tx.from = self.tx.from.or_else(|| defaults.from.clone());
         self.tx.gas = self.tx.gas.or(defaults.gas);
         self.tx.gas_price = self.tx.gas_price.or(defaults.gas_price);
@@ -69,35 +64,35 @@ impl<T: Transport, R> MethodBuilder<T, R> {
 
     /// Specify the signing method to use for the transaction, if not specified
     /// the the transaction will be locally signed with the default user.
-    pub fn from(mut self, value: Account) -> MethodBuilder<T, R> {
+    pub fn from(mut self, value: Account) -> Self {
         self.tx = self.tx.from(value);
         self
     }
 
     /// Secify amount of gas to use, if not specified then a gas estimate will
     /// be used.
-    pub fn gas(mut self, value: U256) -> MethodBuilder<T, R> {
+    pub fn gas(mut self, value: U256) -> Self {
         self.tx = self.tx.gas(value);
         self
     }
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: U256) -> MethodBuilder<T, R> {
+    pub fn gas_price(mut self, value: U256) -> Self {
         self.tx = self.tx.gas_price(value);
         self
     }
 
     /// Specify what how much ETH to transfer with the transaction, if not
     /// specified then no ETH will be sent.
-    pub fn value(mut self, value: U256) -> MethodBuilder<T, R> {
+    pub fn value(mut self, value: U256) -> Self {
         self.tx = self.tx.value(value);
         self
     }
 
     /// Specify the nonce for the transation, if not specified will use the
     /// current transaction count for the signing account.
-    pub fn nonce(mut self, value: U256) -> MethodBuilder<T, R> {
+    pub fn nonce(mut self, value: U256) -> Self {
         self.tx = self.tx.nonce(value);
         self
     }
@@ -105,7 +100,7 @@ impl<T: Transport, R> MethodBuilder<T, R> {
     /// Specify the number of confirmations to wait for when confirming the
     /// transaction, if not specified will wait for the transaction to be mined
     /// without any extra confirmations.
-    pub fn confirmations(mut self, value: usize) -> MethodBuilder<T, R> {
+    pub fn confirmations(mut self, value: usize) -> Self {
         self.tx = self.tx.confirmations(value);
         self
     }
@@ -133,7 +128,7 @@ pub struct MethodFuture<F> {
 impl<F> MethodFuture<F> {
     /// Creates a new `MethodFuture` from a function ABI declaration and an
     /// inner future.
-    fn new(function: Function, inner: F) -> MethodFuture<F> {
+    fn new(function: Function, inner: F) -> Self {
         MethodFuture { function, inner }
     }
 }
@@ -184,7 +179,7 @@ pub struct ViewMethodBuilder<T: Transport, R: Detokenize> {
 
 impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
     /// Create a new `ViewMethodBuilder` by demoting a `MethodBuilder`.
-    pub fn from_method(method: MethodBuilder<T, R>) -> ViewMethodBuilder<T, R> {
+    pub fn from_method(method: MethodBuilder<T, R>) -> Self {
         ViewMethodBuilder {
             m: method,
             block: None,
@@ -192,41 +187,41 @@ impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
     }
 
     /// Apply method defaults to this builder.
-    pub fn with_defaults(mut self, defaults: &MethodDefaults) -> ViewMethodBuilder<T, R> {
+    pub fn with_defaults(mut self, defaults: &MethodDefaults) -> Self {
         self.m = self.m.with_defaults(defaults);
         self
     }
 
     /// Specify the account the transaction is being sent from.
-    pub fn from(mut self, value: Address) -> ViewMethodBuilder<T, R> {
+    pub fn from(mut self, value: Address) -> Self {
         self.m = self.m.from(Account::Local(value, None));
         self
     }
 
     /// Secify amount of gas to use, if not specified then a gas estimate will
     /// be used.
-    pub fn gas(mut self, value: U256) -> ViewMethodBuilder<T, R> {
+    pub fn gas(mut self, value: U256) -> Self {
         self.m = self.m.gas(value);
         self
     }
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: U256) -> ViewMethodBuilder<T, R> {
+    pub fn gas_price(mut self, value: U256) -> Self {
         self.m = self.m.gas_price(value);
         self
     }
 
     /// Specify what how much ETH to transfer with the transaction, if not
     /// specified then no ETH will be sent.
-    pub fn value(mut self, value: U256) -> ViewMethodBuilder<T, R> {
+    pub fn value(mut self, value: U256) -> Self {
         self.m = self.m.value(value);
         self
     }
 
     /// Specify the nonce for the transation, if not specified will use the
     /// current transaction count for the signing account.
-    pub fn block(mut self, value: BlockNumber) -> ViewMethodBuilder<T, R> {
+    pub fn block(mut self, value: BlockNumber) -> Self {
         self.block = Some(value);
         self
     }
@@ -249,7 +244,7 @@ pub struct CallFuture<T: Transport, R: Detokenize> {
 
 impl<T: Transport, R: Detokenize> CallFuture<T, R> {
     /// Construct a new `CallFuture` from a `ViewMethodBuilder`.
-    fn from_builder(builder: ViewMethodBuilder<T, R>) -> CallFuture<T, R> {
+    fn from_builder(builder: ViewMethodBuilder<T, R>) -> Self {
         CallFuture {
             function: builder.m.function,
             call: builder

@@ -59,7 +59,7 @@ pub struct DynTransport {
 
 impl DynTransport {
     /// Wrap a `Transport` in a `DynTransport`
-    pub fn new<F, T>(inner: T) -> DynTransport
+    pub fn new<F, T>(inner: T) -> Self
     where
         F: Future<Item = Value, Error = Web3Error> + Send + 'static,
         T: Transport<Out = F> + 'static,
