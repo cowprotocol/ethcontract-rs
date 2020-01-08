@@ -5,7 +5,7 @@
 use crate::errors::{ExecutionError, MethodError};
 use crate::future::CompatCallFuture;
 use crate::hash;
-use crate::transaction::{Account, SendAndConfirmFuture, SendFuture, TransactionBuilder};
+use crate::transaction::{Account, SendFuture, TransactionBuilder};
 use crate::truffle::abi::{self, Function, ParamType};
 use futures::compat::Future01CompatExt;
 use futures::ready;
@@ -14,7 +14,6 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::time::Duration;
 use web3::api::Web3;
 use web3::contract::tokens::Detokenize;
 use web3::types::{Address, BlockNumber, Bytes, CallRequest, U256};
@@ -103,6 +102,14 @@ impl<T: Transport, R> MethodBuilder<T, R> {
         self
     }
 
+    /// Specify the number of confirmations to wait for when confirming the
+    /// transaction, if not specified will wait for the transaction to be mined
+    /// without any extra confirmations.
+    pub fn confirmations(mut self, value: usize) -> MethodBuilder<T, R> {
+        self.tx = self.tx.confirmations(value);
+        self
+    }
+
     /// Extract inner `TransactionBuilder` from this `SendBuilder`. This exposes
     /// `TransactionBuilder` only APIs.
     pub fn into_inner(self) -> TransactionBuilder<T> {
@@ -112,19 +119,6 @@ impl<T: Transport, R> MethodBuilder<T, R> {
     /// Sign (if required) and send the method call transaction.
     pub fn send(self) -> MethodSendFuture<T> {
         MethodFuture::new(self.function, self.tx.send())
-    }
-
-    /// Send a transaction for the method call and wait for confirmation.
-    /// Returns the transaction receipt for inspection.
-    pub fn send_and_confirm(
-        self,
-        poll_interval: Duration,
-        confirmations: usize,
-    ) -> MethodSendAndConfirmFuture<T> {
-        MethodFuture::new(
-            self.function,
-            self.tx.send_and_confirm(poll_interval, confirmations),
-        )
     }
 }
 
@@ -160,9 +154,6 @@ where
 
 /// A type alias for a `MethodFuture` wrapped `SendFuture`.
 pub type MethodSendFuture<T> = MethodFuture<SendFuture<T>>;
-
-/// A type alias for a `MethodFuture` wrapped `SendAndConfirmFuture`.
-pub type MethodSendAndConfirmFuture<T> = MethodFuture<SendAndConfirmFuture<T>>;
 
 impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
     /// Demotes a `MethodBuilder` into a `ViewMethodBuilder` which has a more

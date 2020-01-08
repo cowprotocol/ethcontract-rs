@@ -1,23 +1,25 @@
 //! Implementation for setting up, signing, estimating gas and sending
 //! transactions on the Ethereum network.
 
+pub mod confirm;
+
 use crate::errors::ExecutionError;
-use crate::future::{CompatCallFuture, CompatSendTxWithConfirmation, MaybeReady, Web3Unpin};
+use crate::future::{CompatCallFuture, MaybeReady, Web3Unpin};
 use crate::sign::TransactionData;
+use crate::transaction::confirm::{ConfirmFuture, ConfirmParams};
 use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
-use futures::future::{self, TryFuture, TryJoin4};
+use futures::future::{self, TryJoin4};
 use futures::ready;
 use std::future::Future;
 use std::pin::Pin;
 use std::str;
 use std::task::{Context, Poll};
-use std::time::Duration;
 use web3::api::{Eth, Namespace, Web3};
 use web3::helpers::{self, CallFuture};
 use web3::types::{
     Address, Bytes, CallRequest, RawTransaction, TransactionCondition, TransactionReceipt,
-    TransactionRequest, H256, U256,
+    TransactionRequest, H256, U256, U64,
 };
 use web3::Transport;
 
@@ -40,6 +42,83 @@ impl Account {
             Account::Local(address, _) => *address,
             Account::Locked(address, _, _) => *address,
             Account::Offline(key, _) => key.public().address().into(),
+        }
+    }
+}
+
+/// The condition on which a transaction's `SendFuture` gets resolved.
+#[derive(Clone, Debug)]
+pub enum ResolveCondition {
+    /// The transaction's `SendFuture` gets resolved immediately after it was
+    /// added to the pending transaction pool. This skips confirmation and
+    /// provides no guarantees that the transaction was mined or confirmed.
+    Pending,
+    /// Wait for confirmation with the specified `ConfirmParams`. A confirmed
+    /// transaction is always mined. There is a chance, however, that the block
+    /// in which the transaction was mined becomes an ommer block. Confirming
+    /// with a higher block count significantly decreases this probability.
+    ///
+    /// See `ConfirmParams` documentation for more details on the exact
+    /// semantics confirmation.
+    Confirmed(ConfirmParams),
+}
+
+impl Default for ResolveCondition {
+    fn default() -> Self {
+        ResolveCondition::Confirmed(Default::default())
+    }
+}
+
+/// Represents the result of a sent transaction that can either be a transaction
+/// hash, in the case the transaction was not confirmed, or a full transaction
+/// receipt if the `TransactionBuilder` was configured to wait for confirmation
+/// blocks.
+///
+/// Note that the result will always be a `TransactionResult::Hash` if
+/// `Confirm::Skip` was used and `TransactionResult::Receipt` if
+/// `Confirm::Blocks` was used.
+#[derive(Clone, Debug)]
+#[allow(clippy::large_enum_variant)]
+pub enum TransactionResult {
+    /// A transaction hash, this variant happens if and only if confirmation was
+    /// skipped.
+    Hash(H256),
+    /// A transaction receipt, this variant happens if and only if the
+    /// transaction was configured to wait for confirmations.
+    Receipt(TransactionReceipt),
+}
+
+impl TransactionResult {
+    /// Returns true if the `TransactionResult` is a `Hash` variant, i.e. it is
+    /// only a hash and does not contain the transaction receipt.
+    pub fn is_hash(&self) -> bool {
+        match self {
+            TransactionResult::Hash(_) => true,
+            _ => false,
+        }
+    }
+
+    /// Get the transaction hash.
+    pub fn hash(&self) -> H256 {
+        match self {
+            TransactionResult::Hash(hash) => *hash,
+            TransactionResult::Receipt(tx) => tx.transaction_hash,
+        }
+    }
+
+    /// Returns true if the `TransactionResult` is a `Receipt` variant, i.e. the
+    /// transaction was confirmed and the full transaction receipt is available.
+    pub fn is_receipt(&self) -> bool {
+        self.as_receipt().is_some()
+    }
+
+    /// Extract a `TransactionReceipt` from the result. This will return `None`
+    /// if the result is only a hash and the transaction receipt is not
+    /// available.
+    pub fn as_receipt(&self) -> Option<&TransactionReceipt> {
+        match self {
+            TransactionResult::Receipt(ref tx) => Some(tx),
+            _ => None,
         }
     }
 }
@@ -99,6 +178,9 @@ pub struct TransactionBuilder<T: Transport> {
     /// Optional nonce to use. Defaults to the signing account's current
     /// transaction count.
     pub nonce: Option<U256>,
+    /// Optional resolve conditions. Defaults to waiting the transaction to be
+    /// mined without any extra confirmation blocks.
+    pub resolve: Option<ResolveCondition>,
 }
 
 impl<T: Transport> TransactionBuilder<T> {
@@ -113,6 +195,7 @@ impl<T: Transport> TransactionBuilder<T> {
             value: None,
             data: None,
             nonce: None,
+            resolve: None,
         }
     }
 
@@ -165,6 +248,30 @@ impl<T: Transport> TransactionBuilder<T> {
         self
     }
 
+    /// Specify the resolve condition, if not specified will default to waiting
+    /// for the transaction to be mined (but not confirmed by any extra blocks).
+    pub fn resolve(mut self, value: ResolveCondition) -> TransactionBuilder<T> {
+        self.resolve = Some(value);
+        self
+    }
+
+    /// Specify the number of confirmations to use for the confirmation options.
+    /// This is a utility method for specifying the resolve condition.
+    pub fn confirmations(mut self, value: usize) -> TransactionBuilder<T> {
+        self.resolve = match self.resolve {
+            Some(ResolveCondition::Confirmed(params)) => {
+                Some(ResolveCondition::Confirmed(ConfirmParams {
+                    confirmations: value,
+                    ..params
+                }))
+            }
+            _ => Some(ResolveCondition::Confirmed(
+                ConfirmParams::with_confirmations(value),
+            )),
+        };
+        self
+    }
+
     /// Estimate the gas required for this transaction.
     pub fn estimate_gas(self) -> EstimateGasFuture<T> {
         EstimateGasFuture::from_builder(self)
@@ -179,16 +286,6 @@ impl<T: Transport> TransactionBuilder<T> {
     /// hash that can be used to retrieve transaction information.
     pub fn send(self) -> SendFuture<T> {
         SendFuture::from_builder(self)
-    }
-
-    /// Send a transaction and wait for confirmation. Returns the transaction
-    /// receipt for inspection.
-    pub fn send_and_confirm(
-        self,
-        poll_interval: Duration,
-        confirmations: usize,
-    ) -> SendAndConfirmFuture<T> {
-        SendAndConfirmFuture::from_builder_with_confirm(self, poll_interval, confirmations)
     }
 }
 
@@ -247,27 +344,6 @@ pub struct BuildFuture<T: Transport> {
     state: BuildState<T>,
 }
 
-impl<T: Transport> BuildFuture<T> {
-    /// Create an instance from a `TransactionBuilder`.
-    pub fn from_builder(builder: TransactionBuilder<T>) -> BuildFuture<T> {
-        BuildFuture {
-            state: BuildState::from_builder(builder),
-        }
-    }
-
-    fn state(self: Pin<&mut Self>) -> &mut BuildState<T> {
-        &mut self.get_mut().state
-    }
-}
-
-impl<T: Transport> Future for BuildFuture<T> {
-    type Output = Result<Transaction, ExecutionError>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.state().poll_unpinned(cx)
-    }
-}
-
 /// Type alias for a call future that might already be resolved.
 type MaybeCallFuture<T, R> = MaybeReady<CompatCallFuture<T, R>>;
 
@@ -321,10 +397,10 @@ enum BuildState<T: Transport> {
     },
 }
 
-impl<T: Transport> BuildState<T> {
-    /// Create a `BuildState` from a `TransactionBuilder`
-    fn from_builder(builder: TransactionBuilder<T>) -> BuildState<T> {
-        match builder.from {
+impl<T: Transport> BuildFuture<T> {
+    /// Create an instance from a `TransactionBuilder`.
+    pub fn from_builder(builder: TransactionBuilder<T>) -> Self {
+        let state = match builder.from {
             None => BuildState::DefaultAccount {
                 request: Some(TransactionRequest {
                     from: Address::zero(),
@@ -421,11 +497,17 @@ impl<T: Transport> BuildState<T> {
                     params: future::try_join4(gas, gas_price, nonce, chain_id),
                 }
             }
-        }
-    }
+        };
 
-    fn poll_unpinned(&mut self, cx: &mut Context) -> Poll<Result<Transaction, ExecutionError>> {
-        match self {
+        BuildFuture { state }
+    }
+}
+
+impl<T: Transport> Future for BuildFuture<T> {
+    type Output = Result<Transaction, ExecutionError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        match &mut self.get_mut().state {
             BuildState::DefaultAccount { request, inner } => {
                 Pin::new(inner).poll(cx).map(|accounts| {
                     let accounts = accounts?;
@@ -473,137 +555,90 @@ impl<T: Transport> BuildState<T> {
 /// Future for optionally signing and then sending a transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SendFuture<T: Transport> {
+    web3: Web3Unpin<T>,
+    /// The confirmation options to use for the transaction once it has been
+    /// sent. Stored as an option as we require transfer of ownership.
+    resolve: Option<ResolveCondition>,
     /// Internal execution state.
-    state: ExecutionState<T, Web3Unpin<T>, CompatCallFuture<T, H256>>,
+    state: SendState<T>,
+}
+
+/// The state of the send future.
+enum SendState<T: Transport> {
+    /// The transaction is being built into a request or a signed raw
+    /// transaction.
+    Building(BuildFuture<T>),
+    /// The transaction is being sent to the node.
+    Sending(CompatCallFuture<T, H256>),
+    /// The transaction is being confirmed.
+    Confirming(ConfirmFuture<T>),
 }
 
 impl<T: Transport> SendFuture<T> {
     /// Creates a new future from a `TransactionBuilder`
-    pub fn from_builder(builder: TransactionBuilder<T>) -> SendFuture<T> {
+    pub fn from_builder(mut builder: TransactionBuilder<T>) -> SendFuture<T> {
         let web3 = builder.web3.clone().into();
-        let state = ExecutionState::from_builder_with_data(builder, web3);
+        let resolve = Some(builder.resolve.take().unwrap_or_default());
+        let state = SendState::Building(BuildFuture::from_builder(builder));
 
-        SendFuture { state }
-    }
-
-    fn state(
-        self: Pin<&mut Self>,
-    ) -> &mut ExecutionState<T, Web3Unpin<T>, CompatCallFuture<T, H256>> {
-        &mut self.get_mut().state
+        SendFuture {
+            web3,
+            resolve,
+            state,
+        }
     }
 }
 
 impl<T: Transport> Future for SendFuture<T> {
-    type Output = Result<H256, ExecutionError>;
+    type Output = Result<TransactionResult, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.state().poll_unpinned(cx, |web3, tx| match tx {
-            Transaction::Request(tx) => web3.eth().send_transaction(tx).compat(),
-            Transaction::Raw(tx) => web3.eth().send_raw_transaction(tx).compat(),
-        })
-    }
-}
-
-/// Future for optinally signing and then sending a transaction with
-/// confirmation.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct SendAndConfirmFuture<T: Transport> {
-    /// Internal execution state.
-    state: ExecutionState<T, (Web3Unpin<T>, Duration, usize), CompatSendTxWithConfirmation<T>>,
-}
-
-impl<T: Transport> SendAndConfirmFuture<T> {
-    /// Creates a new future from a `TransactionBuilder`
-    pub fn from_builder_with_confirm(
-        builder: TransactionBuilder<T>,
-        poll_interval: Duration,
-        confirmations: usize,
-    ) -> SendAndConfirmFuture<T> {
-        let web3 = builder.web3.clone().into();
-        let state =
-            ExecutionState::from_builder_with_data(builder, (web3, poll_interval, confirmations));
-
-        SendAndConfirmFuture { state }
-    }
-
-    fn state(
-        self: Pin<&mut Self>,
-    ) -> &mut ExecutionState<T, (Web3Unpin<T>, Duration, usize), CompatSendTxWithConfirmation<T>>
-    {
-        &mut self.get_mut().state
-    }
-}
-
-impl<T: Transport> Future for SendAndConfirmFuture<T> {
-    type Output = Result<TransactionReceipt, ExecutionError>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.as_mut()
-            .state()
-            .poll_unpinned(cx, |(web3, poll_interval, confirmations), tx| match tx {
-                Transaction::Request(tx) => web3
-                    .send_transaction_with_confirmation(tx, poll_interval, confirmations)
-                    .compat(),
-                Transaction::Raw(tx) => web3
-                    .send_raw_transaction_with_confirmation(tx, poll_interval, confirmations)
-                    .compat(),
-            })
-    }
-}
-
-/// Internal execution state for preparing and executing transactions.
-enum ExecutionState<T, D, F>
-where
-    T: Transport,
-    F: TryFuture + Unpin,
-    F::Error: Into<ExecutionError>,
-{
-    /// Waiting for the transaction to be prepared to be sent.
-    Building(BuildFuture<T>, Option<D>),
-    /// Sending the request and waiting for the future to resolve.
-    Sending(F),
-}
-
-impl<T, D, F> ExecutionState<T, D, F>
-where
-    T: Transport,
-    F: TryFuture + Unpin,
-    F::Error: Into<ExecutionError>,
-{
-    /// Create a `ExecutionState` from a `TransactionBuilder`
-    fn from_builder_with_data(builder: TransactionBuilder<T>, data: D) -> ExecutionState<T, D, F> {
-        let build = BuildFuture::from_builder(builder);
-        let data = Some(data);
-
-        ExecutionState::Building(build, data)
-    }
-
-    /// Poll the state to drive the execution of its inner futures.
-    fn poll_unpinned<S>(
-        &mut self,
-        cx: &mut Context,
-        mut send_fn: S,
-    ) -> Poll<Result<F::Ok, ExecutionError>>
-    where
-        S: FnMut(D, Transaction) -> F,
-    {
+        let unpinned = self.get_mut();
         loop {
-            match self {
-                ExecutionState::Building(build, data) => {
-                    let tx = ready!(Pin::new(build).poll(cx).map_err(ExecutionError::from));
-                    let tx = match tx {
+            unpinned.state = match &mut unpinned.state {
+                SendState::Building(ref mut build) => {
+                    let tx = match ready!(Pin::new(build).poll(cx)) {
                         Ok(tx) => tx,
                         Err(err) => return Poll::Ready(Err(err)),
                     };
 
-                    let data = data.take().expect("called once");
-                    let send = send_fn(data, tx);
-                    *self = ExecutionState::Sending(send);
+                    let eth = unpinned.web3.eth();
+                    let send = match tx {
+                        Transaction::Request(tx) => eth.send_transaction(tx).compat(),
+                        Transaction::Raw(tx) => eth.send_raw_transaction(tx).compat(),
+                    };
+
+                    SendState::Sending(send)
                 }
-                ExecutionState::Sending(ref mut send) => {
-                    return Pin::new(send)
-                        .try_poll(cx)
-                        .map_err(Into::<ExecutionError>::into)
+                SendState::Sending(ref mut send) => {
+                    let tx_hash = match ready!(Pin::new(send).poll(cx)) {
+                        Ok(tx_hash) => tx_hash,
+                        Err(err) => return Poll::Ready(Err(err.into())),
+                    };
+
+                    let confirm = match unpinned
+                        .resolve
+                        .take()
+                        .expect("confirmation called more than once")
+                    {
+                        ResolveCondition::Pending => {
+                            return Poll::Ready(Ok(TransactionResult::Hash(tx_hash)))
+                        }
+                        ResolveCondition::Confirmed(params) => {
+                            ConfirmFuture::new(&unpinned.web3, tx_hash, params)
+                        }
+                    };
+
+                    SendState::Confirming(confirm)
+                }
+                SendState::Confirming(ref mut confirm) => {
+                    return Pin::new(confirm).poll(cx).map(|result| {
+                        let tx = result?;
+                        match tx.status {
+                            Some(U64([1])) => Ok(TransactionResult::Receipt(tx)),
+                            _ => Err(ExecutionError::Failure(tx.transaction_hash)),
+                        }
+                    })
                 }
             }
         }
@@ -614,6 +649,7 @@ where
 mod tests {
     use super::*;
     use crate::test::prelude::*;
+    use web3::types::H2048;
 
     #[test]
     fn tx_builder_estimate_gas() {
@@ -642,50 +678,7 @@ mod tests {
     }
 
     #[test]
-    fn tx_send_local() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let from = addr!("0x9876543210987654321098765432109876543210");
-        let to = addr!("0x0123456789012345678901234567890123456789");
-        let hash = hash!("0x4242424242424242424242424242424242424242424242424242424242424242");
-
-        transport.add_response(json!(hash)); // tansaction hash
-        let tx = TransactionBuilder::new(web3)
-            .from(Account::Local(from, Some(TransactionCondition::Block(100))))
-            .to(to)
-            .gas(1.into())
-            .gas_price(2.into())
-            .value(28.into())
-            .data(Bytes(vec![0x13, 0x37]))
-            .nonce(42.into())
-            .send()
-            .wait()
-            .expect("transaction success");
-
-        // assert that all the parameters are being used and that no extra
-        // request was being sent (since no extra data from the node is needed)
-        transport.assert_request(
-            "eth_sendTransaction",
-            &[json!({
-                "from": from,
-                "to": to,
-                "gas": "0x1",
-                "gasPrice": "0x2",
-                "value": "0x1c",
-                "data": "0x1337",
-                "nonce": "0x2a",
-                "condition": { "block": 100 },
-            })],
-        );
-        transport.assert_no_more_requests();
-
-        // assert the tx hash is what we expect it to be
-        assert_eq!(tx, hash);
-    }
-
-    #[test]
-    fn tx_build_default_account() {
+    fn tx_build_local_default_account() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
@@ -814,5 +807,158 @@ mod tests {
 
         // check that if we sign with same values we get same results
         assert_eq!(tx1, tx2);
+    }
+
+    #[test]
+    fn tx_send_local() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0x9876543210987654321098765432109876543210");
+        let to = addr!("0x0123456789012345678901234567890123456789");
+        let hash = hash!("0x4242424242424242424242424242424242424242424242424242424242424242");
+
+        transport.add_response(json!(hash)); // tansaction hash
+        let tx = TransactionBuilder::new(web3)
+            .from(Account::Local(from, Some(TransactionCondition::Block(100))))
+            .to(to)
+            .gas(1.into())
+            .gas_price(2.into())
+            .value(28.into())
+            .data(Bytes(vec![0x13, 0x37]))
+            .nonce(42.into())
+            .resolve(ResolveCondition::Pending)
+            .send()
+            .wait()
+            .expect("transaction success");
+
+        // assert that all the parameters are being used and that no extra
+        // request was being sent (since no extra data from the node is needed)
+        transport.assert_request(
+            "eth_sendTransaction",
+            &[json!({
+                "from": from,
+                "to": to,
+                "gas": "0x1",
+                "gasPrice": "0x2",
+                "value": "0x1c",
+                "data": "0x1337",
+                "nonce": "0x2a",
+                "condition": { "block": 100 },
+            })],
+        );
+        transport.assert_no_more_requests();
+
+        // assert the tx hash is what we expect it to be
+        assert_eq!(tx.hash(), hash);
+    }
+
+    #[test]
+    fn tx_send_with_confirmations() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
+        let chain_id = 77777;
+        let tx_hash = H256::repeat_byte(0xff);
+
+        transport.add_response(json!(tx_hash));
+        transport.add_response(json!("0x1"));
+        transport.add_response(json!(null));
+        transport.add_response(json!("0xf0"));
+        transport.add_response(json!([H256::repeat_byte(2), H256::repeat_byte(3)]));
+        transport.add_response(json!("0x3"));
+        transport.add_response(json!({
+            "transactionHash": tx_hash,
+            "transactionIndex": "0x1",
+            "blockNumber": "0x2",
+            "blockHash": H256::repeat_byte(3),
+            "cumulativeGasUsed": "0x1337",
+            "gasUsed": "0x1337",
+            "logsBloom": H2048::zero(),
+            "logs": [],
+            "status": "0x1",
+        }));
+
+        let builder = TransactionBuilder::new(web3)
+            .from(Account::Offline(key, Some(chain_id)))
+            .to(Address::zero())
+            .gas(0x1337.into())
+            .gas_price(0x00ba_b10c.into())
+            .nonce(0x42.into())
+            .confirmations(1);
+        let tx_raw = builder
+            .clone()
+            .build()
+            .wait()
+            .expect("failed to sign transaction")
+            .raw()
+            .expect("offline transactions always build into raw transactions");
+        let tx_receipt = builder
+            .send()
+            .wait()
+            .expect("send with confirmations failed");
+
+        assert_eq!(tx_receipt.hash(), tx_hash);
+        transport.assert_request("eth_sendRawTransaction", &[json!(tx_raw)]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(tx_hash)]);
+        transport.assert_request("eth_newBlockFilter", &[]);
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(tx_hash)]);
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn tx_failure() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
+        let chain_id = 77777;
+        let tx_hash = H256::repeat_byte(0xff);
+
+        transport.add_response(json!(tx_hash));
+        transport.add_response(json!("0x1"));
+        transport.add_response(json!({
+            "transactionHash": tx_hash,
+            "transactionIndex": "0x1",
+            "blockNumber": "0x1",
+            "blockHash": H256::repeat_byte(1),
+            "cumulativeGasUsed": "0x1337",
+            "gasUsed": "0x1337",
+            "logsBloom": H2048::zero(),
+            "logs": [],
+        }));
+
+        let builder = TransactionBuilder::new(web3)
+            .from(Account::Offline(key, Some(chain_id)))
+            .to(Address::zero())
+            .gas(0x1337.into())
+            .gas_price(0x00ba_b10c.into())
+            .nonce(0x42.into());
+        let tx_raw = builder
+            .clone()
+            .build()
+            .wait()
+            .expect("failed to sign transaction")
+            .raw()
+            .expect("offline transactions always build into raw transactions");
+        let result = builder.send().wait();
+
+        assert!(
+            match &result {
+                Err(ExecutionError::Failure(ref hash)) if *hash == tx_hash => true,
+                _ => false,
+            },
+            "expected transaction failure with hash {} but got {:?}",
+            tx_hash,
+            result
+        );
+        transport.assert_request("eth_sendRawTransaction", &[json!(tx_raw)]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(tx_hash)]);
+        transport.assert_no_more_requests();
     }
 }

@@ -2,7 +2,6 @@ use ethcontract::web3::api::Web3;
 use ethcontract::web3::transports::WebSocket;
 use ethcontract::{Account, SecretKey, H256};
 use std::env;
-use std::time::Duration;
 
 ethcontract::contract!("examples/truffle/build/contracts/DeployedContract.json");
 
@@ -24,7 +23,9 @@ async fn run() {
         format!("wss://rinkeby.infura.io/ws/v3/{}", project_id)
     };
 
-    // use a WebSocket transport to support confirmations
+    // NOTE: Use a WebSocket transport for `eth_newBlockFilter` support on
+    //   Infura, filters are disabled over HTTPS. Filters are needed for
+    //   confirmation support.
     let (eloop, ws) = WebSocket::new(&infura_url).expect("transport failed");
     eloop.into_remote();
     let web3 = Web3::new(ws);
@@ -46,7 +47,8 @@ async fn run() {
     println!("  incrementing (this may take a while)...");
     instance
         .increment()
-        .send_and_confirm(Duration::new(5, 0), 1)
+        .confirmations(1) // wait for 1 block confirmation
+        .send()
         .await
         .expect("increment failed");
     println!(

@@ -40,9 +40,10 @@ pub enum DeployError {
     #[error("error executing contract deployment transaction: {0}")]
     Tx(#[from] ExecutionError),
 
-    /// Transaction failure (e.g. out of gas).
-    #[error("contract deployment transaction failed: {0}")]
-    Failure(H256),
+    /// Transaction was unable to confirm and is still pending. The contract
+    /// address cannot be determined.
+    #[error("contract deployment transaction pending: {0}")]
+    Pending(H256),
 }
 
 impl From<AbiErrorKind> for DeployError {
@@ -78,6 +79,14 @@ pub enum ExecutionError {
     /// A contract call executed an invalid opcode.
     #[error("contract call executed an invalid opcode")]
     InvalidOpcode,
+
+    /// A contract transaction failed to confirm within the block timeout limit.
+    #[error("transaction confirmation timed-out")]
+    ConfirmTimeout,
+
+    /// Transaction failure (e.g. out of gas or revert).
+    #[error("transaction failed: {0}")]
+    Failure(H256),
 }
 
 impl From<Web3Error> for ExecutionError {

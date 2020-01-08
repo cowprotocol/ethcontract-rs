@@ -15,8 +15,7 @@ use web3::Transport;
 
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture};
 pub use self::method::{
-    CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendAndConfirmFuture,
-    MethodSendFuture, ViewMethodBuilder,
+    CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture, ViewMethodBuilder,
 };
 
 /// Represents a contract instance at an address. Provides methods for
