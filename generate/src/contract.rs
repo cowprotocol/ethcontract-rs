@@ -17,9 +17,12 @@ use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 
 /// Internal shared context for generating smart contract bindings.
 pub(crate) struct Context {
+    /// The full path to the artifact JSON file.
+    full_path: PathBuf,
     /// The artifact path as string literal.
     artifact_path: Literal,
     /// The parsed artifact.
@@ -53,6 +56,7 @@ impl Context {
         let contract_name = util::ident(&artifact.contract_name);
 
         Ok(Context {
+            full_path,
             artifact_path,
             artifact,
             runtime_crate,
@@ -63,7 +67,17 @@ impl Context {
 
 pub(crate) fn expand(args: &Args) -> Result<TokenStream> {
     let cx = Context::from_args(args)?;
+    let contract = expand_contract(&cx).with_context(|| {
+        format!(
+            "error expanding contract from JSON {}",
+            cx.full_path.display()
+        )
+    })?;
 
+    Ok(contract)
+}
+
+fn expand_contract(cx: &Context) -> Result<TokenStream> {
     let common = common::expand(&cx);
     let deployment = deployment::expand(&cx)?;
     let methods = methods::expand(&cx)?;
