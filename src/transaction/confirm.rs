@@ -51,7 +51,7 @@ pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(7);
 #[cfg(test)]
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(0);
 
-/// The default poll interval to use for confirming transactions.
+/// The default block timeout to use for confirming transactions.
 pub const DEFAULT_BLOCK_TIMEOUT: usize = 25;
 
 impl ConfirmParams {
