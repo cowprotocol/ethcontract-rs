@@ -81,7 +81,7 @@ pub enum ExecutionError {
     InvalidOpcode,
 
     /// A contract transaction failed to confirm within the block timeout limit.
-    #[error("transaction timed-out")]
+    #[error("transaction confirmation timed-out")]
     ConfirmTimeout,
 
     /// Transaction failure (e.g. out of gas or revert).

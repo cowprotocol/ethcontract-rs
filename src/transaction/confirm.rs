@@ -44,7 +44,8 @@ pub struct ConfirmParams {
 
 /// The default poll interval to use for confirming transactions.
 ///
-/// Note that this is 7
+/// Note that this is currently 7 seconds as this is what was chosen in `web3`
+/// crate.
 #[cfg(not(test))]
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(7);
 #[cfg(test)]
@@ -197,8 +198,9 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         ),
                         Err(_) => {
                             // NOTE: In the case we fail to create a filter
-                            //   (usually because the node doesn't support pub/
-                            //   sub) then fall back to polling.
+                            //   (usually because the node doesn't support
+                            //   filters like Infura over HTTPS) then fall back
+                            //   to polling.
                             ConfirmState::PollDelay(
                                 Delay::new(unpinned.params.poll_interval),
                                 *target_block_num,
