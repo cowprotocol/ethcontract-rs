@@ -14,10 +14,6 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
     let deploy =
         expand_deploy(&cx).context("error generating contract `deploy` associated function")?;
 
-    if deployed.is_empty() && deploy.is_empty() {
-        return Ok(quote! {});
-    }
-
     Ok(quote! {
         impl #contract_name {
             #deployed
