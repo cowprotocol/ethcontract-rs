@@ -71,7 +71,7 @@ impl Default for ResolveCondition {
 
 /// Represents the result of a sent transaction that can either be a transaction
 /// hash, in the case the transaction was not confirmed, or a full transaction
-/// receipt is the `TransactionBuilder` was configured to wait for confirmation
+/// receipt if the `TransactionBuilder` was configured to wait for confirmation
 /// blocks.
 ///
 /// Note that the result will always be a `TransactionResult::Hash` if
