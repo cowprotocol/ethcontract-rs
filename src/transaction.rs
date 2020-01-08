@@ -649,6 +649,7 @@ impl<T: Transport> Future for SendFuture<T> {
 mod tests {
     use super::*;
     use crate::test::prelude::*;
+    use web3::types::H2048;
 
     #[test]
     fn tx_builder_estimate_gas() {
@@ -677,50 +678,7 @@ mod tests {
     }
 
     #[test]
-    fn tx_send_local() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let from = addr!("0x9876543210987654321098765432109876543210");
-        let to = addr!("0x0123456789012345678901234567890123456789");
-        let hash = hash!("0x4242424242424242424242424242424242424242424242424242424242424242");
-
-        transport.add_response(json!(hash)); // tansaction hash
-        let tx = TransactionBuilder::new(web3)
-            .from(Account::Local(from, Some(TransactionCondition::Block(100))))
-            .to(to)
-            .gas(1.into())
-            .gas_price(2.into())
-            .value(28.into())
-            .data(Bytes(vec![0x13, 0x37]))
-            .nonce(42.into())
-            .send()
-            .wait()
-            .expect("transaction success");
-
-        // assert that all the parameters are being used and that no extra
-        // request was being sent (since no extra data from the node is needed)
-        transport.assert_request(
-            "eth_sendTransaction",
-            &[json!({
-                "from": from,
-                "to": to,
-                "gas": "0x1",
-                "gasPrice": "0x2",
-                "value": "0x1c",
-                "data": "0x1337",
-                "nonce": "0x2a",
-                "condition": { "block": 100 },
-            })],
-        );
-        transport.assert_no_more_requests();
-
-        // assert the tx hash is what we expect it to be
-        assert_eq!(tx.hash(), hash);
-    }
-
-    #[test]
-    fn tx_build_default_account() {
+    fn tx_build_local_default_account() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
@@ -849,5 +807,158 @@ mod tests {
 
         // check that if we sign with same values we get same results
         assert_eq!(tx1, tx2);
+    }
+
+    #[test]
+    fn tx_send_local() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0x9876543210987654321098765432109876543210");
+        let to = addr!("0x0123456789012345678901234567890123456789");
+        let hash = hash!("0x4242424242424242424242424242424242424242424242424242424242424242");
+
+        transport.add_response(json!(hash)); // tansaction hash
+        let tx = TransactionBuilder::new(web3)
+            .from(Account::Local(from, Some(TransactionCondition::Block(100))))
+            .to(to)
+            .gas(1.into())
+            .gas_price(2.into())
+            .value(28.into())
+            .data(Bytes(vec![0x13, 0x37]))
+            .nonce(42.into())
+            .resolve(ResolveCondition::Pending)
+            .send()
+            .wait()
+            .expect("transaction success");
+
+        // assert that all the parameters are being used and that no extra
+        // request was being sent (since no extra data from the node is needed)
+        transport.assert_request(
+            "eth_sendTransaction",
+            &[json!({
+                "from": from,
+                "to": to,
+                "gas": "0x1",
+                "gasPrice": "0x2",
+                "value": "0x1c",
+                "data": "0x1337",
+                "nonce": "0x2a",
+                "condition": { "block": 100 },
+            })],
+        );
+        transport.assert_no_more_requests();
+
+        // assert the tx hash is what we expect it to be
+        assert_eq!(tx.hash(), hash);
+    }
+
+    #[test]
+    fn tx_send_with_confirmations() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
+        let chain_id = 77777;
+        let tx_hash = H256::repeat_byte(0xff);
+
+        transport.add_response(json!(tx_hash));
+        transport.add_response(json!("0x1"));
+        transport.add_response(json!(null));
+        transport.add_response(json!("0xf0"));
+        transport.add_response(json!([H256::repeat_byte(2), H256::repeat_byte(3)]));
+        transport.add_response(json!("0x3"));
+        transport.add_response(json!({
+            "transactionHash": tx_hash,
+            "transactionIndex": "0x1",
+            "blockNumber": "0x2",
+            "blockHash": H256::repeat_byte(3),
+            "cumulativeGasUsed": "0x1337",
+            "gasUsed": "0x1337",
+            "logsBloom": H2048::zero(),
+            "logs": [],
+            "status": "0x1",
+        }));
+
+        let builder = TransactionBuilder::new(web3)
+            .from(Account::Offline(key, Some(chain_id)))
+            .to(Address::zero())
+            .gas(0x1337.into())
+            .gas_price(0x00ba_b10c.into())
+            .nonce(0x42.into())
+            .confirmations(1);
+        let tx_raw = builder
+            .clone()
+            .build()
+            .wait()
+            .expect("failed to sign transaction")
+            .raw()
+            .expect("offline transactions always build into raw transactions");
+        let tx_receipt = builder
+            .send()
+            .wait()
+            .expect("send with confirmations failed");
+
+        assert_eq!(tx_receipt.hash(), tx_hash);
+        transport.assert_request("eth_sendRawTransaction", &[json!(tx_raw)]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(tx_hash)]);
+        transport.assert_request("eth_newBlockFilter", &[]);
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(tx_hash)]);
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn tx_failure() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
+        let chain_id = 77777;
+        let tx_hash = H256::repeat_byte(0xff);
+
+        transport.add_response(json!(tx_hash));
+        transport.add_response(json!("0x1"));
+        transport.add_response(json!({
+            "transactionHash": tx_hash,
+            "transactionIndex": "0x1",
+            "blockNumber": "0x1",
+            "blockHash": H256::repeat_byte(1),
+            "cumulativeGasUsed": "0x1337",
+            "gasUsed": "0x1337",
+            "logsBloom": H2048::zero(),
+            "logs": [],
+        }));
+
+        let builder = TransactionBuilder::new(web3)
+            .from(Account::Offline(key, Some(chain_id)))
+            .to(Address::zero())
+            .gas(0x1337.into())
+            .gas_price(0x00ba_b10c.into())
+            .nonce(0x42.into());
+        let tx_raw = builder
+            .clone()
+            .build()
+            .wait()
+            .expect("failed to sign transaction")
+            .raw()
+            .expect("offline transactions always build into raw transactions");
+        let result = builder.send().wait();
+
+        assert!(
+            match &result {
+                Err(ExecutionError::Failure(ref hash)) if *hash == tx_hash => true,
+                _ => false,
+            },
+            "expected transaction failure with hash {} but got {:?}",
+            tx_hash,
+            result
+        );
+        transport.assert_request("eth_sendRawTransaction", &[json!(tx_raw)]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(tx_hash)]);
+        transport.assert_no_more_requests();
     }
 }
