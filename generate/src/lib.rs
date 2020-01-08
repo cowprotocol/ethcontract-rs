@@ -25,7 +25,7 @@ pub(crate) struct Args {
 impl Args {
     /// Creates a new builder given the path to a contract's truffle artifact
     /// JSON file.
-    pub fn new<P>(artifact_path: P) -> Args
+    pub fn new<P>(artifact_path: P) -> Self
     where
         P: AsRef<Path>,
     {
@@ -46,7 +46,7 @@ pub struct Builder {
 impl Builder {
     /// Creates a new builder given the path to a contract's truffle artifact
     /// JSON file.
-    pub fn new<P>(artifact_path: P) -> Builder
+    pub fn new<P>(artifact_path: P) -> Self
     where
         P: AsRef<Path>,
     {
@@ -57,7 +57,7 @@ impl Builder {
 
     /// Sets the crate name for the runtime crate. This setting is usually only
     /// needed if the crate was renamed in the Cargo manifest.
-    pub fn with_runtime_crate_name<S>(mut self, name: S) -> Builder
+    pub fn with_runtime_crate_name<S>(mut self, name: S) -> Self
     where
         S: AsRef<str>,
     {

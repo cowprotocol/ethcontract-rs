@@ -43,7 +43,7 @@ impl Transport for TestTransport {
 
 impl TestTransport {
     /// Create a new test transport instance.
-    pub fn new() -> TestTransport {
+    pub fn new() -> Self {
         Default::default()
     }
 

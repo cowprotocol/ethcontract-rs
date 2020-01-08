@@ -53,7 +53,7 @@ where
 {
     /// Construct a new future that resolves when a deployed contract is located
     /// from a `web3` provider and artifact data.
-    pub fn from_args(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, D> {
+    pub fn from_args(web3: Web3<T>, artifact: Artifact) -> Self {
         let net = web3.net();
         DeployedFuture {
             args: Some((web3.into(), artifact)),
@@ -125,11 +125,7 @@ where
 {
     /// Create a new deploy builder from a `web3` provider, artifact data and
     /// deployment (constructor) parameters.
-    pub fn new<P>(
-        web3: Web3<T>,
-        artifact: Artifact,
-        params: P,
-    ) -> Result<DeployBuilder<T, D>, DeployError>
+    pub fn new<P>(web3: Web3<T>, artifact: Artifact, params: P) -> Result<Self, DeployError>
     where
         P: Tokenize,
     {
@@ -159,35 +155,35 @@ where
 
     /// Specify the signing method to use for the transaction, if not specified
     /// the the transaction will be locally signed with the default user.
-    pub fn from(mut self, value: Account) -> DeployBuilder<T, D> {
+    pub fn from(mut self, value: Account) -> Self {
         self.tx = self.tx.from(value);
         self
     }
 
     /// Secify amount of gas to use, if not specified then a gas estimate will
     /// be used.
-    pub fn gas(mut self, value: U256) -> DeployBuilder<T, D> {
+    pub fn gas(mut self, value: U256) -> Self {
         self.tx = self.tx.gas(value);
         self
     }
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: U256) -> DeployBuilder<T, D> {
+    pub fn gas_price(mut self, value: U256) -> Self {
         self.tx = self.tx.gas_price(value);
         self
     }
 
     /// Specify what how much ETH to transfer with the transaction, if not
     /// specified then no ETH will be sent.
-    pub fn value(mut self, value: U256) -> DeployBuilder<T, D> {
+    pub fn value(mut self, value: U256) -> Self {
         self.tx = self.tx.value(value);
         self
     }
 
     /// Specify the nonce for the transation, if not specified will use the
     /// current transaction count for the signing account.
-    pub fn nonce(mut self, value: U256) -> DeployBuilder<T, D> {
+    pub fn nonce(mut self, value: U256) -> Self {
         self.tx = self.tx.nonce(value);
         self
     }
@@ -195,7 +191,7 @@ where
     /// Specify the number of confirmations to wait for when confirming the
     /// transaction, if not specified will wait for the transaction to be mined
     /// without any extra confirmations.
-    pub fn confirmations(mut self, value: usize) -> DeployBuilder<T, D> {
+    pub fn confirmations(mut self, value: usize) -> Self {
         self.tx = self.tx.confirmations(value);
         self
     }
@@ -233,7 +229,7 @@ where
     D: Deploy<T>,
 {
     /// Create an instance from a `DeployBuilder`.
-    pub fn from_builder(builder: DeployBuilder<T, D>) -> DeployFuture<T, D> {
+    pub fn from_builder(builder: DeployBuilder<T, D>) -> Self {
         DeployFuture {
             args: Some((builder.web3.into(), builder.abi)),
             send: builder.tx.send(),

@@ -16,7 +16,7 @@ pub struct Bytecode(String);
 
 impl Bytecode {
     /// Read hex bytecode representation from a string slice.
-    pub fn from_hex_str<S>(s: S) -> Result<Bytecode, BytecodeError>
+    pub fn from_hex_str<S>(s: S) -> Result<Self, BytecodeError>
     where
         S: AsRef<str>,
     {

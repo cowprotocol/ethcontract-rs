@@ -185,7 +185,7 @@ pub struct TransactionBuilder<T: Transport> {
 
 impl<T: Transport> TransactionBuilder<T> {
     /// Creates a new builder for a transaction.
-    pub fn new(web3: Web3<T>) -> TransactionBuilder<T> {
+    pub fn new(web3: Web3<T>) -> Self {
         TransactionBuilder {
             web3,
             from: None,
@@ -201,63 +201,63 @@ impl<T: Transport> TransactionBuilder<T> {
 
     /// Specify the signing method to use for the transaction, if not specified
     /// the the transaction will be locally signed with the default user.
-    pub fn from(mut self, value: Account) -> TransactionBuilder<T> {
+    pub fn from(mut self, value: Account) -> Self {
         self.from = Some(value);
         self
     }
 
     /// Specify the recepient of the transaction, if not specified the
     /// transaction will be sent to the 0 address (for deploying contracts).
-    pub fn to(mut self, value: Address) -> TransactionBuilder<T> {
+    pub fn to(mut self, value: Address) -> Self {
         self.to = Some(value);
         self
     }
 
     /// Secify amount of gas to use, if not specified then a gas estimate will
     /// be used.
-    pub fn gas(mut self, value: U256) -> TransactionBuilder<T> {
+    pub fn gas(mut self, value: U256) -> Self {
         self.gas = Some(value);
         self
     }
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: U256) -> TransactionBuilder<T> {
+    pub fn gas_price(mut self, value: U256) -> Self {
         self.gas_price = Some(value);
         self
     }
 
     /// Specify what how much ETH to transfer with the transaction, if not
     /// specified then no ETH will be sent.
-    pub fn value(mut self, value: U256) -> TransactionBuilder<T> {
+    pub fn value(mut self, value: U256) -> Self {
         self.value = Some(value);
         self
     }
 
     /// Specify the data to use for the transaction, if not specified, then empty
     /// data will be used.
-    pub fn data(mut self, value: Bytes) -> TransactionBuilder<T> {
+    pub fn data(mut self, value: Bytes) -> Self {
         self.data = Some(value);
         self
     }
 
     /// Specify the nonce for the transation, if not specified will use the
     /// current transaction count for the signing account.
-    pub fn nonce(mut self, value: U256) -> TransactionBuilder<T> {
+    pub fn nonce(mut self, value: U256) -> Self {
         self.nonce = Some(value);
         self
     }
 
     /// Specify the resolve condition, if not specified will default to waiting
     /// for the transaction to be mined (but not confirmed by any extra blocks).
-    pub fn resolve(mut self, value: ResolveCondition) -> TransactionBuilder<T> {
+    pub fn resolve(mut self, value: ResolveCondition) -> Self {
         self.resolve = Some(value);
         self
     }
 
     /// Specify the number of confirmations to use for the confirmation options.
     /// This is a utility method for specifying the resolve condition.
-    pub fn confirmations(mut self, value: usize) -> TransactionBuilder<T> {
+    pub fn confirmations(mut self, value: usize) -> Self {
         self.resolve = match self.resolve {
             Some(ResolveCondition::Confirmed(params)) => {
                 Some(ResolveCondition::Confirmed(ConfirmParams {
@@ -295,7 +295,7 @@ pub struct EstimateGasFuture<T: Transport>(CompatCallFuture<T, U256>);
 
 impl<T: Transport> EstimateGasFuture<T> {
     /// Create a instance from a `TransactionBuilder`.
-    pub fn from_builder(builder: TransactionBuilder<T>) -> EstimateGasFuture<T> {
+    pub fn from_builder(builder: TransactionBuilder<T>) -> Self {
         let eth = builder.web3.eth();
 
         let from = builder.from.map(|account| account.address());
@@ -312,7 +312,7 @@ impl<T: Transport> EstimateGasFuture<T> {
         EstimateGasFuture::from_request(eth, request)
     }
 
-    fn from_request(eth: Eth<T>, request: CallRequest) -> EstimateGasFuture<T> {
+    fn from_request(eth: Eth<T>, request: CallRequest) -> Self {
         // NOTE(nlordell): work around issue tomusdrw/rust-web3#290; while this
         //   bas been fixed in master, it has not been released yet
         EstimateGasFuture(
@@ -576,7 +576,7 @@ enum SendState<T: Transport> {
 
 impl<T: Transport> SendFuture<T> {
     /// Creates a new future from a `TransactionBuilder`
-    pub fn from_builder(mut builder: TransactionBuilder<T>) -> SendFuture<T> {
+    pub fn from_builder(mut builder: TransactionBuilder<T>) -> Self {
         let web3 = builder.web3.clone().into();
         let resolve = Some(builder.resolve.take().unwrap_or_default());
         let state = SendState::Building(BuildFuture::from_builder(builder));
