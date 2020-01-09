@@ -77,7 +77,7 @@ before_script:
   - (cd examples/truffle; yarn --frozen-lockfile && yarn build)
 
 script:
-  - cargo build --all-features --verbose --all
+  - cargo build --all-features --verbose --all --locked
   - cargo test --all-features --verbose --all
   - cargo fmt --all -- --check
   - cargo clippy --all --all-features --all-targets -- -D warnings
