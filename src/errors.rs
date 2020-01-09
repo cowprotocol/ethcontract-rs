@@ -1,6 +1,6 @@
 //! Module with common error types.
 
-use crate::truffle::abi::{Error as AbiError, ErrorKind as AbiErrorKind, Function};
+use ethcontract_common::abi::{Error as AbiError, ErrorKind as AbiErrorKind, Function};
 use ethsign::Error as SignError;
 use jsonrpc_core::Error as JsonrpcError;
 use std::num::ParseIntError;

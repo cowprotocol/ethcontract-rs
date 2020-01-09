@@ -1,7 +1,7 @@
 use crate::contract::{methods, Context};
 use crate::util;
 use anyhow::Result;
-use ethcontract_common::truffle::abi::{Param, ParamType};
+use ethcontract_common::abi::{Param, ParamType};
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
@@ -22,7 +22,7 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
         impl #ethcontract::contract::Deploy<#ethcontract::transport::DynTransport> for #contract_name {
             fn deployed_at(
                 web3: #ethcontract::web3::api::Web3<#ethcontract::transport::DynTransport>,
-                abi: #ethcontract::truffle::Abi,
+                abi: #ethcontract::common::Abi,
                 at: #ethcontract::Address,
             ) -> Self {
                 use #ethcontract::Instance;

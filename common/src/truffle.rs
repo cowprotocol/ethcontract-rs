@@ -1,16 +1,13 @@
 //! Module for reading and examining data produced by truffle.
 
-mod bytecode;
-
+use crate::bytecode::Bytecode;
 use crate::errors::ArtifactError;
+use ethabi::Contract as Abi;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use web3::types::Address;
-
-pub use self::bytecode::Bytecode;
-pub use ethabi::{self as abi, Contract as Abi};
 
 /// Represents a truffle artifact.
 #[derive(Clone, Debug, Deserialize)]

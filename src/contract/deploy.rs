@@ -5,8 +5,8 @@ use crate::contract::Instance;
 use crate::errors::{DeployError, ExecutionError};
 use crate::future::{CompatCallFuture, Web3Unpin};
 use crate::transaction::{Account, SendFuture, TransactionBuilder, TransactionResult};
-use crate::truffle::abi::ErrorKind as AbiErrorKind;
-use crate::truffle::{Abi, Artifact};
+use ethcontract_common::abi::ErrorKind as AbiErrorKind;
+use ethcontract_common::{Abi, Artifact};
 use futures::compat::Future01CompatExt;
 use futures::ready;
 use std::future::Future;
@@ -274,7 +274,8 @@ mod tests {
     use super::*;
     use crate::contract::Instance;
     use crate::test::prelude::*;
-    use crate::truffle::{Artifact, Bytecode, Network};
+    use ethcontract_common::Bytecode;
+    use ethcontract_common::truffle::Network;
 
     #[test]
     fn deployed() {
