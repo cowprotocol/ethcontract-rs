@@ -5,6 +5,7 @@
 //! crate's `contract` procedural macro or directly from a build script.
 
 mod contract;
+mod util;
 
 use anyhow::Result;
 use proc_macro2::TokenStream;
@@ -67,7 +68,7 @@ impl Builder {
 
     /// Generates the contract bindings.
     pub fn generate(self) -> Result<ContractBindings> {
-        let tokens = contract::expand_contract(&self.args)?;
+        let tokens = contract::expand(&self.args)?;
         Ok(ContractBindings { tokens })
     }
 }
