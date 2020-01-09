@@ -7,13 +7,15 @@ mod method;
 
 use crate::errors::{DeployError, LinkError};
 use ethcontract_common::abi::Result as AbiResult;
+use ethcontract_common::truffle::Network;
 use ethcontract_common::{Abi, Artifact, Bytecode};
+use std::collections::HashMap;
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes};
 use web3::Transport;
 
-pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture};
+pub use self::deploy::{DeployBuilder, DeployFuture, DeployedFuture, Deployments, Factory};
 pub use self::method::{
     CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture, ViewMethodBuilder,
 };
@@ -49,8 +51,8 @@ impl<T: Transport> Instance<T> {
     ///
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
-    pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, Self> {
-        DeployedFuture::from_args(web3, artifact)
+    pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, Networks> {
+        DeployedFuture::new(web3, Networks::new(artifact))
     }
 
     /// Creates a contract builder with the specified `web3` provider and the
@@ -60,11 +62,11 @@ impl<T: Transport> Instance<T> {
         web3: Web3<T>,
         artifact: Artifact,
         params: P,
-    ) -> Result<DeployBuilder<T, Self>, DeployError>
+    ) -> Result<DeployBuilder<T, Linker>, DeployError>
     where
         P: Tokenize,
     {
-        DeployBuilder::new(web3, artifact, params)
+        Linker::new(artifact).deploy(web3, params)
     }
 
     /// Deploys a contract with the specified `web3` provider with the given
@@ -74,7 +76,7 @@ impl<T: Transport> Instance<T> {
         artifact: Artifact,
         params: P,
         libraries: I,
-    ) -> Result<DeployBuilder<T, Self>, DeployError>
+    ) -> Result<DeployBuilder<T, Linker>, DeployError>
     where
         P: Tokenize,
         I: Iterator<Item = (&'a str, Address)>,
@@ -138,6 +140,33 @@ impl<T: Transport> Instance<T> {
     }
 }
 
+/// `Deployments` implementation for an `Instance`. This type is not intended to
+/// be used directly but rather through the `Instance::deployed` API.
+#[derive(Debug, Clone)]
+pub struct Networks {
+    abi: Abi,
+    networks: HashMap<String, Network>,
+}
+
+impl Networks {
+    /// Create a new `Networks` instanced for a contract artifact.
+    pub fn new(artifact: Artifact) -> Self {
+        Networks {
+            abi: artifact.abi,
+            networks: artifact.networks,
+        }
+    }
+}
+
+impl<T: Transport> Deployments<T> for Networks {
+    type Instance = Instance<T>;
+
+    fn from_network(self, web3: Web3<T>, network_id: &str) -> Option<Self::Instance> {
+        let address = self.networks.get(network_id)?.address;
+        Some(Instance::at(web3, self.abi, address))
+    }
+}
+
 /// Builder for specifying linking options for a contract.
 #[derive(Debug, Clone)]
 pub struct Linker {
@@ -178,17 +207,28 @@ impl Linker {
         self,
         web3: Web3<T>,
         params: P,
-    ) -> Result<DeployBuilder<T, Instance<T>>, DeployError>
+    ) -> Result<DeployBuilder<T, Linker>, DeployError>
     where
         T: Transport,
         P: Tokenize,
     {
-        let artifact = Artifact {
-            abi: self.abi,
-            bytecode: self.bytecode,
-            ..Artifact::empty()
-        };
-
-        DeployBuilder::new(web3, artifact, params)
+        DeployBuilder::new(web3, self, params)
     }
 }
+
+impl<T: Transport> Factory<T> for Linker {
+    type Instance = Instance<T>;
+
+    fn abi(&self) -> &Abi {
+        &self.abi
+    }
+
+    fn bytecode(&self) -> &Bytecode {
+        &self.bytecode
+    }
+
+    fn at_address(self, web3: Web3<T>, address: Address) -> Self::Instance {
+        Instance::at(web3, self.abi, address)
+    }
+}
+

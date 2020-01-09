@@ -1,16 +1,14 @@
 //! Implementation for creating instances for deployed contracts and deploying
 //! new contracts.
 
-use crate::contract::Instance;
 use crate::errors::{DeployError, ExecutionError};
 use crate::future::{CompatCallFuture, Web3Unpin};
 use crate::transaction::{Account, SendFuture, TransactionBuilder, TransactionResult};
 use ethcontract_common::abi::ErrorKind as AbiErrorKind;
-use ethcontract_common::{Abi, Artifact};
+use ethcontract_common::{Abi, Bytecode};
 use futures::compat::Future01CompatExt;
 use futures::ready;
 use std::future::Future;
-use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use web3::api::Web3;
@@ -18,18 +16,20 @@ use web3::contract::tokens::Tokenize;
 use web3::types::{Address, Bytes, U256};
 use web3::Transport;
 
-/// A trait for deployable contract types. This allows generated types to be
-/// deployable without having to create new future types.
-pub trait Deploy<T: Transport> {
-    /// Construct a contract type deployed at an address.
-    fn deployed_at(web3: Web3<T>, abi: Abi, at: Address) -> Self;
-}
+/// a factory trait for deployable contract instances. this traits provides
+/// functionality for creating instances of a contract type for a given network
+/// ID.
+///
+/// this allows generated contracts to be deployable without having to create
+/// new builder and future types.
+pub trait Deployments<T: Transport>: Unpin {
+    /// The type of the contract instance being created.
+    type Instance;
 
-impl<T: Transport> Deploy<T> for Instance<T> {
-    #[inline(always)]
-    fn deployed_at(web3: Web3<T>, abi: Abi, at: Address) -> Self {
-        Instance::at(web3, abi, at)
-    }
+    /// Create a contract instance for the specified network. This method should
+    /// return `None` when no deployment can be found for the specified network
+    /// ID.
+    fn from_network(self, web3: Web3<T>, network_id: &str) -> Option<Self::Instance>;
 }
 
 /// Future for creating a deployed contract instance.
@@ -37,95 +37,97 @@ impl<T: Transport> Deploy<T> for Instance<T> {
 pub struct DeployedFuture<T, D>
 where
     T: Transport,
-    D: Deploy<T>,
+    D: Deployments<T>,
 {
-    /// Deployed arguments: `web3` provider and artifact.
-    args: Option<(Web3Unpin<T>, Artifact)>,
+    /// The deployment arguments.
+    args: Option<(Web3Unpin<T>, D)>,
+    /// The factory used to locate the contract address from a netowkr ID.
     /// Underlying future for retrieving the network ID.
     network_id: CompatCallFuture<T, String>,
-    _deploy: PhantomData<Box<D>>,
 }
 
 impl<T, D> DeployedFuture<T, D>
 where
     T: Transport,
-    D: Deploy<T>,
+    D: Deployments<T>,
 {
     /// Construct a new future that resolves when a deployed contract is located
     /// from a `web3` provider and artifact data.
-    pub fn from_args(web3: Web3<T>, artifact: Artifact) -> Self {
+    pub fn new(web3: Web3<T>, deployments: D) -> Self {
         let net = web3.net();
         DeployedFuture {
-            args: Some((web3.into(), artifact)),
+            args: Some((web3.into(), deployments)),
             network_id: net.version().compat(),
-            _deploy: Default::default(),
         }
-    }
-
-    /// Take value of our passed in `web3` provider.
-    fn args(self: Pin<&mut Self>) -> (Web3<T>, Artifact) {
-        let (web3, artifact) = self
-            .get_mut()
-            .args
-            .take()
-            .expect("should be called only once");
-        (web3.into(), artifact)
-    }
-
-    /// Get a pinned reference to the inner `CallFuture` for retrieving the
-    /// current network ID.
-    fn network_id(self: Pin<&mut Self>) -> Pin<&mut CompatCallFuture<T, String>> {
-        Pin::new(&mut self.get_mut().network_id)
     }
 }
 
 impl<T, D> Future for DeployedFuture<T, D>
 where
     T: Transport,
-    D: Deploy<T>,
+    D: Deployments<T>,
 {
-    type Output = Result<D, DeployError>;
+    type Output = Result<D::Instance, DeployError>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.as_mut().network_id().poll(cx).map(|network_id| {
-            let network_id = network_id?;
-            let (web3, artifact) = self.args();
-
-            let address = match artifact.networks.get(&network_id) {
-                Some(network) => network.address,
-                None => return Err(DeployError::NotFound(network_id)),
-            };
-
-            Ok(D::deployed_at(web3, artifact.abi, address))
-        })
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let unpinned = self.get_mut();
+        Pin::new(&mut unpinned.network_id)
+            .poll(cx)
+            .map(|network_id| {
+                let network_id = network_id?;
+                let (web3, deployments) = unpinned.args.take().expect("called more than once");
+                deployments
+                    .from_network(web3.into(), &network_id)
+                    .ok_or(DeployError::NotFound(network_id))
+            })
     }
+}
+
+/// a factory trait for deployable contract instances. this traits provides
+/// functionality for building a deployment and creating instances of a
+/// contract type at a given address.
+///
+/// this allows generated contracts to be deployable without having to create
+/// new builder and future types.
+pub trait Factory<T: Transport>: Unpin {
+    /// The type of the contract instance being created.
+    type Instance;
+
+    /// Gets a reference to the contract bytecode.
+    fn bytecode(&self) -> &Bytecode;
+
+    /// Gets a reference the contract ABI.
+    fn abi(&self) -> &Abi;
+
+    /// Create a contract instance from the specified address.
+    fn at_address(self, web3: Web3<T>, address: Address) -> Self::Instance;
 }
 
 /// Builder for specifying options for deploying a linked contract.
 #[derive(Debug, Clone)]
 #[must_use = "deploy builers do nothing unless you `.deploy()` them"]
-pub struct DeployBuilder<T, D>
+pub struct DeployBuilder<T, F>
 where
     T: Transport,
-    D: Deploy<T>,
+    F: Factory<T>,
 {
     /// The underlying `web3` provider.
     web3: Web3<T>,
-    /// The ABI for the contract that is to be deployed.
-    abi: Abi,
+    /// The instance factory to use once the contract is deployed and its
+    /// address is retrieved.
+    factory: F,
     /// The underlying transaction used t
     tx: TransactionBuilder<T>,
-    _deploy: PhantomData<Box<D>>,
 }
 
-impl<T, D> DeployBuilder<T, D>
+impl<T, F> DeployBuilder<T, F>
 where
     T: Transport,
-    D: Deploy<T>,
+    F: Factory<T>,
 {
     /// Create a new deploy builder from a `web3` provider, artifact data and
     /// deployment (constructor) parameters.
-    pub fn new<P>(web3: Web3<T>, artifact: Artifact, params: P) -> Result<Self, DeployError>
+    pub fn new<P>(web3: Web3<T>, factory: F, params: P) -> Result<Self, DeployError>
     where
         P: Tokenize,
     {
@@ -133,13 +135,13 @@ where
         //   `rust-web3` code so that we can add things like signing support;
         //   luckily most of complicated bits can be reused from the tx code
 
-        if artifact.bytecode.is_empty() {
+        if factory.bytecode().is_empty() {
             return Err(DeployError::EmptyBytecode);
         }
 
-        let code = artifact.bytecode.into_bytes()?;
+        let code = factory.bytecode().to_bytes()?;
         let params = params.into_tokens();
-        let data = match (artifact.abi.constructor(), params.is_empty()) {
+        let data = match (factory.abi().constructor(), params.is_empty()) {
             (None, false) => return Err(AbiErrorKind::InvalidData.into()),
             (None, true) => code,
             (Some(ctor), _) => Bytes(ctor.encode_input(code.0, &params)?),
@@ -147,9 +149,8 @@ where
 
         Ok(DeployBuilder {
             web3: web3.clone(),
-            abi: artifact.abi,
+            factory,
             tx: TransactionBuilder::new(web3).data(data).confirmations(0),
-            _deploy: Default::default(),
         })
     }
 
@@ -204,46 +205,45 @@ where
 
     /// Sign (if required) and execute the transaction. Returns the transaction
     /// hash that can be used to retrieve transaction information.
-    pub fn deploy(self) -> DeployFuture<T, D> {
+    pub fn deploy(self) -> DeployFuture<T, F> {
         DeployFuture::from_builder(self)
     }
 }
 
 /// Future for deploying a contract instance.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct DeployFuture<T, D>
+pub struct DeployFuture<T, F>
 where
     T: Transport,
-    D: Deploy<T>,
+    F: Factory<T>,
 {
+    ///
     /// The deployment args
-    args: Option<(Web3Unpin<T>, Abi)>,
+    args: Option<(Web3Unpin<T>, F)>,
     /// The future resolved when the deploy transaction is complete.
     send: SendFuture<T>,
-    _deploy: PhantomData<Box<D>>,
 }
 
-impl<T, D> DeployFuture<T, D>
+impl<T, F> DeployFuture<T, F>
 where
     T: Transport,
-    D: Deploy<T>,
+    F: Factory<T>,
 {
     /// Create an instance from a `DeployBuilder`.
-    pub fn from_builder(builder: DeployBuilder<T, D>) -> Self {
+    pub fn from_builder(builder: DeployBuilder<T, F>) -> Self {
         DeployFuture {
-            args: Some((builder.web3.into(), builder.abi)),
+            args: Some((builder.web3.into(), builder.factory)),
             send: builder.tx.send(),
-            _deploy: Default::default(),
         }
     }
 }
 
-impl<T, D> Future for DeployFuture<T, D>
+impl<T, F> Future for DeployFuture<T, F>
 where
     T: Transport,
-    D: Deploy<T>,
+    F: Factory<T>,
 {
-    type Output = Result<D, DeployError>;
+    type Output = Result<F::Instance, DeployError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let unpinned = self.get_mut();
@@ -263,19 +263,19 @@ where
             }
         };
 
-        let (web3, abi) = unpinned.args.take().expect("called more than once");
+        let (web3, factory) = unpinned.args.take().expect("called more than once");
 
-        Poll::Ready(Ok(D::deployed_at(web3.into(), abi, address)))
+        Poll::Ready(Ok(factory.at_address(web3.into(), address)))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contract::Instance;
+    use crate::contract::{Networks, Linker};
     use crate::test::prelude::*;
-    use ethcontract_common::Bytecode;
     use ethcontract_common::truffle::Network;
+    use ethcontract_common::{Artifact, Bytecode};
 
     #[test]
     fn deployed() {
@@ -293,7 +293,8 @@ mod tests {
         };
 
         transport.add_response(json!(network_id)); // estimate gas response
-        let instance: Instance<_> = DeployedFuture::from_args(web3, artifact)
+        let networks = Networks::new(artifact);
+        let instance = DeployedFuture::new(web3, networks)
             .wait()
             .expect("successful deployment");
 
@@ -314,7 +315,8 @@ mod tests {
             bytecode: bytecode.clone(),
             ..Artifact::empty()
         };
-        let tx = DeployBuilder::<_, Instance<_>>::new(web3, artifact, ())
+        let linker = Linker::new(artifact);
+        let tx = DeployBuilder::new(web3, linker, ())
             .expect("error creating deploy builder")
             .from(Account::Local(from, None))
             .gas(1.into())
@@ -328,7 +330,7 @@ mod tests {
         assert_eq!(tx.gas, Some(1.into()));
         assert_eq!(tx.gas_price, Some(2.into()));
         assert_eq!(tx.value, Some(28.into()));
-        assert_eq!(tx.data, Some(bytecode.into_bytes().unwrap()));
+        assert_eq!(tx.data, Some(bytecode.to_bytes().unwrap()));
         assert_eq!(tx.nonce, Some(42.into()));
         transport.assert_no_more_requests();
     }
@@ -345,7 +347,8 @@ mod tests {
         let web3 = Web3::new(transport.clone());
 
         let artifact = Artifact::empty();
-        let error = DeployBuilder::<_, Instance<_>>::new(web3, artifact, ())
+        let linker = Linker::new(artifact);
+        let error = DeployBuilder::new(web3, linker, ())
             .err()
             .unwrap();
 
