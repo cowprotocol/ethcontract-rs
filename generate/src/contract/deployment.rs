@@ -1,6 +1,6 @@
 use crate::contract::{methods, Context};
 use crate::util;
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use ethcontract_common::truffle::abi::{Param, ParamType};
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
@@ -11,7 +11,8 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
     let contract_name = &cx.contract_name;
 
     let deployed = expand_deployed(&cx);
-    let deploy = expand_deploy(&cx)?;
+    let deploy =
+        expand_deploy(&cx).context("error generating contract `deploy` associated function")?;
 
     Ok(quote! {
         impl #contract_name {
