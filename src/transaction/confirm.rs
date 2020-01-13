@@ -115,7 +115,7 @@ enum ConfirmState<T: Transport> {
     /// The future is waiting for a poll timeout. This state happens when the
     /// node does not support block filters for the given transport (like Infura
     /// over HTTPS) so we need to fallback to polling.
-    PollDelay(Delay, U256),
+    PollDelay(MaybeDelay, U256),
     /// The future is checking that the current block number has reached a
     /// certain target after waiting the poll delay.
     PollCheckingBlockNumber(CompatCallFuture<T, U256>, U256),
@@ -205,7 +205,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                             //   filters like Infura over HTTPS) then fall back
                             //   to polling.
                             ConfirmState::PollDelay(
-                                Delay::new(unpinned.params.poll_interval),
+                                delay(unpinned.params.poll_interval),
                                 *target_block_num,
                             )
                         }
@@ -241,7 +241,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         ))
                     } else {
                         ConfirmState::PollDelay(
-                            Delay::new(unpinned.params.poll_interval),
+                            delay(unpinned.params.poll_interval),
                             *target_block_num,
                         )
                     }
@@ -280,6 +280,20 @@ type CompatCreateFilter<T, R> = Compat01As03<CreateFilter<T, R>>;
 /// A type alias for a future that resolves once the block filter has received
 /// a certain number of blocks.
 type CompatFilterFuture<T, R> = Compat01As03<StreamFuture01<Skip01<FilterStream<T, R>>>>;
+
+/// A type alias for a possible delay, that would resolve immediately if the
+/// polling delay was 0.
+type MaybeDelay = MaybeReady<Delay>;
+
+/// Create a new delay that may resolve immediately when delayed for a zero
+/// duration.
+fn delay(duration: Duration) -> MaybeDelay {
+    if duration == Duration::default() {
+        MaybeReady::ready(())
+    } else {
+        MaybeReady::future(Delay::new(duration))
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -322,7 +336,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 2));
 
         let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::mined())
-            .wait()
+            .immediate()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -348,7 +362,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 1));
 
         let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::mined())
-            .wait()
+            .immediate()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -385,7 +399,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 3));
 
         let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(3))
-            .wait()
+            .immediate()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -429,7 +443,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 2));
 
         let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(1))
-            .wait()
+            .immediate()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -477,7 +491,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 4));
 
         let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(1))
-            .wait()
+            .immediate()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -531,7 +545,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 3));
 
         let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(2))
-            .wait()
+            .immediate()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -582,7 +596,7 @@ mod tests {
         transport.add_response(json!(block_num));
         transport.add_response(json!(null));
 
-        let confirm = ConfirmFuture::new(&web3, hash, params).wait();
+        let confirm = ConfirmFuture::new(&web3, hash, params).immediate();
 
         assert!(
             match &confirm {

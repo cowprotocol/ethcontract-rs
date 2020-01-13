@@ -396,7 +396,7 @@ mod tests {
         transport.add_response(json!(
             "0x000000000000000000000000000000000000000000000000000000000000002a"
         )); // call response
-        let result = tx.call().wait().expect("call error");
+        let result = tx.call().immediate().expect("call error");
 
         assert_eq!(result, 42.into());
         transport.assert_request(
@@ -430,7 +430,7 @@ mod tests {
         transport.add_response(json!(
             "0x0000000000000000000000000000000000000000000000000000000000000000"
         ));
-        tx.call().wait().expect("call error");
+        tx.call().immediate().expect("call error");
 
         transport.assert_request(
             "eth_call",
@@ -482,7 +482,7 @@ mod tests {
         transport.add_response(json!(
             "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000076d65737361676500000000000000000000000000000000000000000000000000"
         )); // call response
-        let result = tx.call().wait();
+        let result = tx.call().immediate();
         assert!(
             match &result {
                 Err(MethodError {
@@ -508,7 +508,7 @@ mod tests {
         ));
 
         transport.add_response(json!("0x"));
-        let result = tx.call().wait();
+        let result = tx.call().immediate();
         assert!(
             match &result {
                 Err(MethodError {

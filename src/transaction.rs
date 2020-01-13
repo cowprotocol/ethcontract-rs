@@ -666,7 +666,7 @@ mod tests {
         );
         transport.assert_no_more_requests();
 
-        let estimate_gas = estimate_gas.wait().expect("success");
+        let estimate_gas = estimate_gas.immediate().expect("success");
         assert_eq!(estimate_gas, 0x42.into());
     }
 
@@ -684,7 +684,7 @@ mod tests {
         transport.add_response(json!(accounts)); // get accounts
         let tx = TransactionBuilder::new(web3)
             .build()
-            .wait()
+            .immediate()
             .expect("get accounts success")
             .request()
             .expect("transaction request");
@@ -722,7 +722,7 @@ mod tests {
             .from(Account::Locked(from, pw.into(), None))
             .to(to)
             .build()
-            .wait()
+            .immediate()
             .expect("sign succeeded")
             .raw()
             .expect("raw transaction");
@@ -765,7 +765,7 @@ mod tests {
             .from(Account::Offline(key.clone(), None))
             .to(to)
             .build()
-            .wait()
+            .immediate()
             .expect("sign succeeded")
             .raw()
             .expect("raw transaction");
@@ -790,7 +790,7 @@ mod tests {
             .gas_price(gas_price)
             .nonce(nonce)
             .build()
-            .wait()
+            .immediate()
             .expect("sign succeeded")
             .raw()
             .expect("raw transaction");
@@ -822,7 +822,7 @@ mod tests {
             .nonce(42.into())
             .resolve(ResolveCondition::Pending)
             .send()
-            .wait()
+            .immediate()
             .expect("transaction success");
 
         // assert that all the parameters are being used and that no extra
@@ -883,13 +883,13 @@ mod tests {
         let tx_raw = builder
             .clone()
             .build()
-            .wait()
+            .immediate()
             .expect("failed to sign transaction")
             .raw()
             .expect("offline transactions always build into raw transactions");
         let tx_receipt = builder
             .send()
-            .wait()
+            .immediate()
             .expect("send with confirmations failed");
 
         assert_eq!(tx_receipt.hash(), tx_hash);
@@ -934,11 +934,11 @@ mod tests {
         let tx_raw = builder
             .clone()
             .build()
-            .wait()
+            .immediate()
             .expect("failed to sign transaction")
             .raw()
             .expect("offline transactions always build into raw transactions");
-        let result = builder.send().wait();
+        let result = builder.send().immediate();
 
         assert!(
             match &result {
