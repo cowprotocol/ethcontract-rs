@@ -51,7 +51,7 @@ impl<T: Transport> Instance<T> {
     ///
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
-    pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, Instance<T>> {
+    pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, Self> {
         DeployedFuture::new(web3, Networks::new(artifact))
     }
 
@@ -62,7 +62,7 @@ impl<T: Transport> Instance<T> {
         web3: Web3<T>,
         artifact: Artifact,
         params: P,
-    ) -> Result<DeployBuilder<T, Instance<T>>, DeployError>
+    ) -> Result<DeployBuilder<T, Self>, DeployError>
     where
         P: Tokenize,
     {
@@ -76,7 +76,7 @@ impl<T: Transport> Instance<T> {
         artifact: Artifact,
         params: P,
         libraries: I,
-    ) -> Result<DeployBuilder<T, Instance<T>>, DeployError>
+    ) -> Result<DeployBuilder<T, Self>, DeployError>
     where
         P: Tokenize,
         I: Iterator<Item = (&'a str, Address)>,
