@@ -277,10 +277,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contract::{Linker, Networks};
+    use crate::contract::{Instance, Linker, Networks};
     use crate::test::prelude::*;
     use ethcontract_common::truffle::Network;
     use ethcontract_common::{Artifact, Bytecode};
+
+    type InstanceDeployedFuture<T> = DeployedFuture<T, Instance<T>>;
+
+    type InstanceDeployBuilder<T> = DeployBuilder<T, Instance<T>>;
 
     #[test]
     fn deployed() {
@@ -299,7 +303,7 @@ mod tests {
 
         transport.add_response(json!(network_id)); // estimate gas response
         let networks = Networks::new(artifact);
-        let instance = DeployedFuture::new(web3, networks)
+        let instance = InstanceDeployedFuture::new(web3, networks)
             .wait()
             .expect("successful deployment");
 
@@ -321,7 +325,7 @@ mod tests {
             ..Artifact::empty()
         };
         let linker = Linker::new(artifact);
-        let tx = DeployBuilder::new(web3, linker, ())
+        let tx = InstanceDeployBuilder::new(web3, linker, ())
             .expect("error creating deploy builder")
             .from(Account::Local(from, None))
             .gas(1.into())
@@ -353,7 +357,7 @@ mod tests {
 
         let artifact = Artifact::empty();
         let linker = Linker::new(artifact);
-        let error = DeployBuilder::new(web3, linker, ()).err().unwrap();
+        let error = InstanceDeployBuilder::new(web3, linker, ()).err().unwrap();
 
         assert_eq!(error.to_string(), DeployError::EmptyBytecode.to_string());
         transport.assert_no_more_requests();
