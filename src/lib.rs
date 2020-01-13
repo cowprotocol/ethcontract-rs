@@ -125,8 +125,8 @@ pub type DynViewMethodBuilder<R> = ViewMethodBuilder<DynTransport, R>;
 #[doc(hidden)]
 pub mod private {
     //! Private definitions that are needed by the generated contract code or
-    //! doc tests but do not appear in public interfaces. No documentation is
-    //! generated for these definitions.
+    //! but do not appear in public interfaces. No documentation is generated
+    //! for these definitions.
 
     pub use lazy_static::lazy_static;
 }
