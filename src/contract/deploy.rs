@@ -2,7 +2,7 @@
 //! new contracts.
 
 use crate::errors::{DeployError, ExecutionError};
-use crate::future::{CompatCallFuture, Web3Unpin};
+use crate::future::CompatCallFuture;
 use crate::transaction::{Account, SendFuture, TransactionBuilder, TransactionResult};
 use ethcontract_common::abi::ErrorKind as AbiErrorKind;
 use ethcontract_common::{Abi, Bytecode};
@@ -25,7 +25,7 @@ use web3::Transport;
 /// new builder and future types.
 pub trait FromNetwork<T: Transport>: Sized {
     /// Context passed to the `Deployments`.
-    type Context: Unpin;
+    type Context;
 
     /// Create a contract instance for the specified network. This method should
     /// return `None` when no deployment can be found for the specified network
@@ -41,7 +41,7 @@ where
     I: FromNetwork<T>,
 {
     /// The deployment arguments.
-    args: Option<(Web3Unpin<T>, I::Context)>,
+    args: Option<(Web3<T>, I::Context)>,
     /// The factory used to locate the contract address from a netowkr ID.
     /// Underlying future for retrieving the network ID.
     network_id: CompatCallFuture<T, String>,
@@ -63,6 +63,14 @@ where
             _instance: PhantomData,
         }
     }
+}
+
+impl<T, I> Unpin for DeployedFuture<T, I>
+where
+    T: Transport,
+    I: FromNetwork<T>,
+    CompatCallFuture<T, String>: Unpin,
+{
 }
 
 impl<T, I> Future for DeployedFuture<T, I>
@@ -222,7 +230,7 @@ where
     I: Deploy<T>,
 {
     /// The deployment args
-    args: Option<(Web3Unpin<T>, I::Context)>,
+    args: Option<(Web3<T>, I::Context)>,
     /// The future resolved when the deploy transaction is complete.
     send: SendFuture<T>,
     _instance: PhantomData<Box<I>>,
@@ -241,6 +249,14 @@ where
             _instance: PhantomData,
         }
     }
+}
+
+impl<T, I> Unpin for DeployFuture<T, I>
+where
+    T: Transport,
+    I: Deploy<T>,
+    SendFuture<T>: Unpin,
+{
 }
 
 impl<T, I> Future for DeployFuture<T, I>

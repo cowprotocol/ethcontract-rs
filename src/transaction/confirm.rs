@@ -7,7 +7,7 @@
 //! some of this can move upstream into the `web3` crate.
 
 use crate::errors::ExecutionError;
-use crate::future::{CompatCallFuture, MaybeReady, Web3Unpin};
+use crate::future::{CompatCallFuture, MaybeReady};
 use futures::compat::{Compat01As03, Future01CompatExt};
 use futures::future::{self, TryJoin};
 use futures::ready;
@@ -81,7 +81,7 @@ impl Default for ConfirmParams {
 /// A future that resolves once a transaction is confirmed.
 #[derive(Debug)]
 pub struct ConfirmFuture<T: Transport> {
-    web3: Web3Unpin<T>,
+    web3: Web3<T>,
     /// The transaction hash that is being confirmed.
     tx: H256,
     /// The confirmation parameters (like number of confirming blocks to wait
@@ -134,6 +134,13 @@ impl<T: Transport> ConfirmFuture<T> {
         }
     }
 }
+
+// NOTE: This is safe since `ConfirmFuture` only requires pinned `ConfirmState`
+//   and `for<T> ConfirmState<T>: Unpin`. We use the `assert_unpin` macro
+//   instead of trait bounds like it is done elsewhere in the project to avoid
+//   leaking the private type `ConfirmState`.
+impl<T: Transport> Unpin for ConfirmFuture<T> {}
+assert_unpin!([T: Transport] ConfirmState<T>);
 
 impl<T: Transport> Future for ConfirmFuture<T> {
     type Output = Result<TransactionReceipt, ExecutionError>;

@@ -83,6 +83,9 @@
 //!     .await?;
 //! ```
 
+#[macro_use]
+mod macros;
+
 pub mod contract;
 pub mod errors;
 mod future;
@@ -121,8 +124,9 @@ pub type DynViewMethodBuilder<R> = ViewMethodBuilder<DynTransport, R>;
 
 #[doc(hidden)]
 pub mod private {
-    //! Private types that we export to be used internally by the procedural
-    //! macro but do not appear on public interfaces.
+    //! Private definitions that are needed by the generated contract code or
+    //! doc tests but do not appear in public interfaces. No documentation is
+    //! generated for these definitions.
 
     pub use lazy_static::lazy_static;
 }
@@ -130,7 +134,6 @@ pub mod private {
 #[cfg(test)]
 #[allow(missing_docs)]
 mod test {
-    pub mod macros;
     pub mod prelude;
     pub mod transport;
 }

@@ -4,7 +4,7 @@
 pub mod confirm;
 
 use crate::errors::ExecutionError;
-use crate::future::{CompatCallFuture, MaybeReady, Web3Unpin};
+use crate::future::{CompatCallFuture, MaybeReady};
 use crate::sign::TransactionData;
 use crate::transaction::confirm::{ConfirmFuture, ConfirmParams};
 use ethsign::{Protected, SecretKey};
@@ -548,7 +548,7 @@ impl<T: Transport> Future for BuildFuture<T> {
 /// Future for optionally signing and then sending a transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SendFuture<T: Transport> {
-    web3: Web3Unpin<T>,
+    web3: Web3<T>,
     /// The confirmation options to use for the transaction once it has been
     /// sent. Stored as an option as we require transfer of ownership.
     resolve: Option<ResolveCondition>,
@@ -581,6 +581,13 @@ impl<T: Transport> SendFuture<T> {
         }
     }
 }
+
+// NOTE: This is safe since `SendFuture` only requires pinned `SendState` and
+//   `for<T> SendState<T>: Unpin`. We use the `assert_unpin` macro instead of
+//   trait bounds like it is done elsewhere in the project to avoid leaking the
+//   private type `SendState`.
+impl<T: Transport> Unpin for SendFuture<T> {}
+assert_unpin!([T: Transport] SendState<T>);
 
 impl<T: Transport> Future for SendFuture<T> {
     type Output = Result<TransactionResult, ExecutionError>;
