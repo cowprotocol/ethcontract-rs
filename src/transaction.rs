@@ -759,7 +759,7 @@ mod tests {
         transport.add_response(json!(gas));
         transport.add_response(json!(gas_price));
         transport.add_response(json!(nonce));
-        transport.add_response(json!(format!("0x{:x}", chain_id)));
+        transport.add_response(json!(format!("{:#x}", chain_id)));
 
         let tx1 = TransactionBuilder::new(web3.clone())
             .from(Account::Offline(key.clone(), None))
