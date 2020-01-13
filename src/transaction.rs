@@ -353,7 +353,7 @@ type ParamsFuture<T> = TryJoin4<
     MaybeCallFuture<T, U256>,
     MaybeCallFuture<T, U256>,
     MaybeCallFuture<T, U256>,
-    MaybeCallFuture<T, String>,
+    MaybeCallFuture<T, U64>,
 >;
 
 /// Internal build state for preparing transactions.
@@ -451,7 +451,7 @@ impl<T: Transport> BuildFuture<T> {
                     ($o:expr, $c:expr) => {
                         match $o {
                             Some(v) => MaybeReady::ready(Ok(v)),
-                            None => MaybeReady::future($c.compat()),
+                            None => MaybeReady::future($c),
                         }
                     };
                 }
@@ -459,7 +459,7 @@ impl<T: Transport> BuildFuture<T> {
                 let from = key.public().address().into();
                 let to = builder.to.unwrap_or_else(Address::zero);
                 let eth = builder.web3.eth();
-                let net = builder.web3.net();
+                let transport = builder.web3.transport();
 
                 let gas = maybe!(
                     builder.gas,
@@ -475,19 +475,14 @@ impl<T: Transport> BuildFuture<T> {
                         }
                     )
                     .0
-                    .into_inner()
                 );
 
-                let gas_price = maybe!(builder.gas_price, eth.gas_price());
-                let nonce = maybe!(builder.nonce, eth.transaction_count(from, None));
-
-                // it looks like web3 defaults chain ID to network ID, although
-                // this is not 'correct' in all cases it does work for most cases
-                // like mainnet and various testnets and provides better safety
-                // against replay attacks then just using no chain ID; so lets
-                // reproduce that behaviour here
-                // TODO(nlordell): don't convert to and from string here
-                let chain_id = maybe!(chain_id.map(|id| id.to_string()), net.version());
+                let gas_price = maybe!(builder.gas_price, eth.gas_price().compat());
+                let nonce = maybe!(builder.nonce, eth.transaction_count(from, None).compat());
+                let chain_id = maybe!(
+                    chain_id.map(U64::from),
+                    CallFuture::new(transport.execute("eth_chainId", vec![])).compat()
+                );
 
                 BuildState::Offline {
                     key,
@@ -534,8 +529,6 @@ impl<T: Transport> Future for BuildFuture<T> {
                 params,
             } => Pin::new(params).poll(cx).map(|params| {
                 let (gas, gas_price, nonce, chain_id) = params?;
-                let chain_id = chain_id.parse()?;
-
                 let tx = TransactionData {
                     nonce,
                     gas_price,
@@ -544,7 +537,7 @@ impl<T: Transport> Future for BuildFuture<T> {
                     value: *value,
                     data,
                 };
-                let raw = tx.sign(key, Some(chain_id))?;
+                let raw = tx.sign(key, Some(chain_id.as_u64()))?;
 
                 Ok(Transaction::Raw(raw))
             }),
@@ -766,7 +759,7 @@ mod tests {
         transport.add_response(json!(gas));
         transport.add_response(json!(gas_price));
         transport.add_response(json!(nonce));
-        transport.add_response(json!(format!("{}", chain_id))); // chain id
+        transport.add_response(json!(format!("0x{:x}", chain_id)));
 
         let tx1 = TransactionBuilder::new(web3.clone())
             .from(Account::Offline(key.clone(), None))
@@ -787,7 +780,7 @@ mod tests {
         );
         transport.assert_request("eth_gasPrice", &[]);
         transport.assert_request("eth_getTransactionCount", &[json!(from), json!("latest")]);
-        transport.assert_request("net_version", &[]);
+        transport.assert_request("eth_chainId", &[]);
         transport.assert_no_more_requests();
 
         let tx2 = TransactionBuilder::new(web3)
