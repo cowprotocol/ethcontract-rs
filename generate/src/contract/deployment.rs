@@ -7,17 +7,15 @@ use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 
 pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
-    let ethcontract = &cx.runtime_crate;
-    let contract_name = &cx.contract_name;
-
     let deployed = expand_deployed(&cx);
     let deploy = expand_deploy(&cx)?;
 
     Ok(quote! {
-        impl #contract_name {
-            #deployed
-            #deploy
-        }
+        #deployed
+    })
+
+    /*
+        #deploy
 
         impl #ethcontract::contract::Deploy<#ethcontract::transport::DynTransport> for #contract_name {
             fn deployed_at(
@@ -36,7 +34,7 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
                 }
             }
         }
-    })
+    */
 }
 
 fn expand_deployed(cx: &Context) -> TokenStream {
@@ -45,37 +43,52 @@ fn expand_deployed(cx: &Context) -> TokenStream {
     }
 
     let ethcontract = &cx.runtime_crate;
+    let contract_name = &cx.contract_name;
 
     quote! {
-        /// Locates a deployed contract based on the current network ID
-        /// reported by the `web3` provider.
-        ///
-        /// Note that this does not verify that a contract with a maching
-        /// `Abi` is actually deployed at the given address.
-        pub fn deployed<F, T>(
-            web3: &#ethcontract::web3::api::Web3<T>,
-        ) -> #ethcontract::contract::DeployedFuture<#ethcontract::transport::DynTransport, Self>
-        where
-            F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
-            T: #ethcontract::web3::Transport<Out = F> + 'static,
-        {
-            use #ethcontract::Artifact;
-            use #ethcontract::contract::DeployedFuture;
-            use #ethcontract::transport::DynTransport;
-            use #ethcontract::web3::api::Web3;
+        impl #contract_name {
+            /// Locates a deployed contract based on the current network ID
+            /// reported by the `web3` provider.
+            ///
+            /// Note that this does not verify that a contract with a maching
+            /// `Abi` is actually deployed at the given address.
+            pub fn deployed<F, T>(
+                web3: &#ethcontract::web3::api::Web3<T>,
+            ) -> #ethcontract::contract::DeployedFuture<
+                #ethcontract::transport::DynTransport,
+                #ethcontract::internal::Contract<Self>,
+            >
+            where
+                F: #ethcontract::web3::futures::Future<
+                    Item = #ethcontract::json::Value,
+                    Error = #ethcontract::web3::Error
+                > + Send + 'static,
+                T: #ethcontract::web3::Transport<Out = F> + 'static,
+            {
+                use #ethcontract::Artifact;
+                use #ethcontract::contract::DeployedFuture;
+                use #ethcontract::transport::DynTransport;
+                use #ethcontract::web3::api::Web3;
 
-            let transport = DynTransport::new(web3.transport().clone());
-            let web3 = Web3::new(transport);
-            let artifact = { // only clone the pieces we need
+                let transport = DynTransport::new(web3.transport().clone());
+                let web3 = Web3::new(transport);
+
+                DeployedFuture::new(web3, Default::default())
+            }
+        }
+
+        impl #ethcontract::internal::ContractDeployments for #contract_name {
+            fn from_network(web3: #ethcontract::DynWeb3, network_id: &str) -> Option<Self> {
+                use #ethcontract::Instance;
+
                 let artifact = Self::artifact();
-                Artifact {
-                    abi: artifact.abi.clone(),
-                    networks: artifact.networks.clone(),
-                    ..Artifact::empty()
-                }
-            };
-
-            DeployedFuture::from_args(web3, artifact)
+                artifact
+                    .networks
+                    .get(network_id)
+                    .map(move |network| #contract_name {
+                        instance: Instance::at(web3, artifact.abi.clone(), network.address),
+                    })
+            }
         }
     }
 }

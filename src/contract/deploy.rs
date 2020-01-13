@@ -272,7 +272,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contract::{Networks, Linker};
+    use crate::contract::{Linker, Networks};
     use crate::test::prelude::*;
     use ethcontract_common::truffle::Network;
     use ethcontract_common::{Artifact, Bytecode};
@@ -348,9 +348,7 @@ mod tests {
 
         let artifact = Artifact::empty();
         let linker = Linker::new(artifact);
-        let error = DeployBuilder::new(web3, linker, ())
-            .err()
-            .unwrap();
+        let error = DeployBuilder::new(web3, linker, ()).err().unwrap();
 
         assert_eq!(error.to_string(), DeployError::EmptyBytecode.to_string());
         transport.assert_no_more_requests();

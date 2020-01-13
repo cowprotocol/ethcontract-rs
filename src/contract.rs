@@ -231,4 +231,3 @@ impl<T: Transport> Factory<T> for Linker {
         Instance::at(web3, self.abi, address)
     }
 }
-

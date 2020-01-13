@@ -87,6 +87,7 @@ pub mod contract;
 pub mod errors;
 mod future;
 mod hash;
+pub mod internal;
 pub mod sign;
 pub mod transaction;
 pub mod transport;
@@ -101,7 +102,11 @@ pub use ethcontract_derive::contract;
 pub use ethsign::{self, Protected, SecretKey};
 pub use serde_json as json;
 pub use web3;
+use web3::api::Web3;
 pub use web3::types::{Address, BlockNumber, TransactionCondition, H256, U256};
+
+/// Type alias for a `Web3` provider with an underlying `DynTransport`.
+pub type DynWeb3 = Web3<DynTransport>;
 
 /// Type alias for a contract `Instance` with an underyling `DynTransport`.
 pub type DynInstance = Instance<DynTransport>;
