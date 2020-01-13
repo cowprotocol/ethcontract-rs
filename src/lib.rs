@@ -87,7 +87,6 @@ pub mod contract;
 pub mod errors;
 mod future;
 mod hash;
-pub mod internal;
 pub mod sign;
 pub mod transaction;
 pub mod transport;

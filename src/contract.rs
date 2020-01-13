@@ -15,7 +15,7 @@ use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes};
 use web3::Transport;
 
-pub use self::deploy::{DeployBuilder, DeployFuture, DeployedFuture, Deployments, Factory};
+pub use self::deploy::{DeployBuilder, DeployFuture, DeployedFuture, FromNetwork, Deploy};
 pub use self::method::{
     CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture, ViewMethodBuilder,
 };
@@ -51,7 +51,7 @@ impl<T: Transport> Instance<T> {
     ///
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
-    pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, Networks> {
+    pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, Instance<T>> {
         DeployedFuture::new(web3, Networks::new(artifact))
     }
 
@@ -62,7 +62,7 @@ impl<T: Transport> Instance<T> {
         web3: Web3<T>,
         artifact: Artifact,
         params: P,
-    ) -> Result<DeployBuilder<T, Linker>, DeployError>
+    ) -> Result<DeployBuilder<T, Instance<T>>, DeployError>
     where
         P: Tokenize,
     {
@@ -76,7 +76,7 @@ impl<T: Transport> Instance<T> {
         artifact: Artifact,
         params: P,
         libraries: I,
-    ) -> Result<DeployBuilder<T, Linker>, DeployError>
+    ) -> Result<DeployBuilder<T, Instance<T>>, DeployError>
     where
         P: Tokenize,
         I: Iterator<Item = (&'a str, Address)>,
@@ -158,12 +158,12 @@ impl Networks {
     }
 }
 
-impl<T: Transport> Deployments<T> for Networks {
-    type Instance = Instance<T>;
+impl<T: Transport> FromNetwork<T> for Instance<T> {
+    type Context = Networks;
 
-    fn from_network(self, web3: Web3<T>, network_id: &str) -> Option<Self::Instance> {
-        let address = self.networks.get(network_id)?.address;
-        Some(Instance::at(web3, self.abi, address))
+    fn from_network(web3: Web3<T>, network_id: &str, cx: Self::Context) -> Option<Self> {
+        let address = cx.networks.get(network_id)?.address;
+        Some(Instance::at(web3, cx.abi, address))
     }
 }
 
@@ -207,7 +207,7 @@ impl Linker {
         self,
         web3: Web3<T>,
         params: P,
-    ) -> Result<DeployBuilder<T, Linker>, DeployError>
+    ) -> Result<DeployBuilder<T, Instance<T>>, DeployError>
     where
         T: Transport,
         P: Tokenize,
@@ -216,18 +216,18 @@ impl Linker {
     }
 }
 
-impl<T: Transport> Factory<T> for Linker {
-    type Instance = Instance<T>;
+impl<T: Transport> Deploy<T> for Instance<T> {
+    type Context = Linker;
 
-    fn abi(&self) -> &Abi {
-        &self.abi
+    fn abi(cx: &Self::Context) -> &Abi {
+        &cx.abi
     }
 
-    fn bytecode(&self) -> &Bytecode {
-        &self.bytecode
+    fn bytecode(cx: &Self::Context) -> &Bytecode {
+        &cx.bytecode
     }
 
-    fn at_address(self, web3: Web3<T>, address: Address) -> Self::Instance {
-        Instance::at(web3, self.abi, address)
+    fn at_address(web3: Web3<T>, address: Address, cx: Self::Context) -> Self {
+        Instance::at(web3, cx.abi, address)
     }
 }

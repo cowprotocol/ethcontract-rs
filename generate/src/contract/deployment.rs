@@ -54,10 +54,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
             /// `Abi` is actually deployed at the given address.
             pub fn deployed<F, T>(
                 web3: &#ethcontract::web3::api::Web3<T>,
-            ) -> #ethcontract::contract::DeployedFuture<
-                #ethcontract::transport::DynTransport,
-                #ethcontract::internal::Contract<Self>,
-            >
+            ) -> #ethcontract::contract::DeployedFuture<#ethcontract::transport::DynTransport, Self>
             where
                 F: #ethcontract::web3::futures::Future<
                     Item = #ethcontract::json::Value,
@@ -77,8 +74,10 @@ fn expand_deployed(cx: &Context) -> TokenStream {
             }
         }
 
-        impl #ethcontract::internal::ContractDeployments for #contract_name {
-            fn from_network(web3: #ethcontract::DynWeb3, network_id: &str) -> Option<Self> {
+        impl #ethcontract::contract::FromNetwork<#ethcontract::DynTransport> for #contract_name {
+            type Context = ();
+
+            fn from_network(web3: #ethcontract::DynWeb3, network_id: &str, _: Self::Context) -> Option<Self> {
                 use #ethcontract::Instance;
 
                 let artifact = Self::artifact();
@@ -173,7 +172,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             };
             #link
 
-            DeployBuilder::new(web3, artifact, #arg).expect("valid deployment args")
+            DeployBuilder::new(web3, Default::default(), #arg).expect("valid deployment args")
         }
     })
 }

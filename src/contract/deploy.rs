@@ -9,6 +9,7 @@ use ethcontract_common::{Abi, Bytecode};
 use futures::compat::Future01CompatExt;
 use futures::ready;
 use std::future::Future;
+use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use web3::api::Web3;
@@ -22,52 +23,54 @@ use web3::Transport;
 ///
 /// this allows generated contracts to be deployable without having to create
 /// new builder and future types.
-pub trait Deployments<T: Transport>: Unpin {
-    /// The type of the contract instance being created.
-    type Instance;
+pub trait FromNetwork<T: Transport>: Sized {
+    /// Context passed to the `Deployments`.
+    type Context: Unpin;
 
     /// Create a contract instance for the specified network. This method should
     /// return `None` when no deployment can be found for the specified network
     /// ID.
-    fn from_network(self, web3: Web3<T>, network_id: &str) -> Option<Self::Instance>;
+    fn from_network(web3: Web3<T>, network_id: &str, cx: Self::Context) -> Option<Self>;
 }
 
 /// Future for creating a deployed contract instance.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct DeployedFuture<T, D>
+pub struct DeployedFuture<T, I>
 where
     T: Transport,
-    D: Deployments<T>,
+    I: FromNetwork<T>,
 {
     /// The deployment arguments.
-    args: Option<(Web3Unpin<T>, D)>,
+    args: Option<(Web3Unpin<T>, I::Context)>,
     /// The factory used to locate the contract address from a netowkr ID.
     /// Underlying future for retrieving the network ID.
     network_id: CompatCallFuture<T, String>,
+    _instance: PhantomData<Box<I>>,
 }
 
-impl<T, D> DeployedFuture<T, D>
+impl<T, I> DeployedFuture<T, I>
 where
     T: Transport,
-    D: Deployments<T>,
+    I: FromNetwork<T>,
 {
     /// Construct a new future that resolves when a deployed contract is located
     /// from a `web3` provider and artifact data.
-    pub fn new(web3: Web3<T>, deployments: D) -> Self {
+    pub fn new(web3: Web3<T>, context: I::Context) -> Self {
         let net = web3.net();
         DeployedFuture {
-            args: Some((web3.into(), deployments)),
+            args: Some((web3.into(), context)),
             network_id: net.version().compat(),
+            _instance: PhantomData,
         }
     }
 }
 
-impl<T, D> Future for DeployedFuture<T, D>
+impl<T, I> Future for DeployedFuture<T, I>
 where
     T: Transport,
-    D: Deployments<T>,
+    I: FromNetwork<T>,
 {
-    type Output = Result<D::Instance, DeployError>;
+    type Output = Result<I, DeployError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let unpinned = self.get_mut();
@@ -75,9 +78,8 @@ where
             .poll(cx)
             .map(|network_id| {
                 let network_id = network_id?;
-                let (web3, deployments) = unpinned.args.take().expect("called more than once");
-                deployments
-                    .from_network(web3.into(), &network_id)
+                let (web3, context) = unpinned.args.take().expect("called more than once");
+                I::from_network(web3.into(), &network_id, context)
                     .ok_or(DeployError::NotFound(network_id))
             })
     }
@@ -89,45 +91,45 @@ where
 ///
 /// this allows generated contracts to be deployable without having to create
 /// new builder and future types.
-pub trait Factory<T: Transport>: Unpin {
+pub trait Deploy<T: Transport>: Sized {
     /// The type of the contract instance being created.
-    type Instance;
+    type Context: Unpin;
 
     /// Gets a reference to the contract bytecode.
-    fn bytecode(&self) -> &Bytecode;
+    fn bytecode(cx: &Self::Context) -> &Bytecode;
 
     /// Gets a reference the contract ABI.
-    fn abi(&self) -> &Abi;
+    fn abi(cx: &Self::Context) -> &Abi;
 
     /// Create a contract instance from the specified address.
-    fn at_address(self, web3: Web3<T>, address: Address) -> Self::Instance;
+    fn at_address(web3: Web3<T>, address: Address, cx: Self::Context) -> Self;
 }
 
 /// Builder for specifying options for deploying a linked contract.
 #[derive(Debug, Clone)]
 #[must_use = "deploy builers do nothing unless you `.deploy()` them"]
-pub struct DeployBuilder<T, F>
+pub struct DeployBuilder<T, I>
 where
     T: Transport,
-    F: Factory<T>,
+    I: Deploy<T>,
 {
     /// The underlying `web3` provider.
     web3: Web3<T>,
-    /// The instance factory to use once the contract is deployed and its
-    /// address is retrieved.
-    factory: F,
+    /// The factory context.
+    context: I::Context,
     /// The underlying transaction used t
     tx: TransactionBuilder<T>,
+    _instance: PhantomData<I>,
 }
 
-impl<T, F> DeployBuilder<T, F>
+impl<T, I> DeployBuilder<T, I>
 where
     T: Transport,
-    F: Factory<T>,
+    I: Deploy<T>,
 {
     /// Create a new deploy builder from a `web3` provider, artifact data and
     /// deployment (constructor) parameters.
-    pub fn new<P>(web3: Web3<T>, factory: F, params: P) -> Result<Self, DeployError>
+    pub fn new<P>(web3: Web3<T>, context: I::Context, params: P) -> Result<Self, DeployError>
     where
         P: Tokenize,
     {
@@ -135,13 +137,14 @@ where
         //   `rust-web3` code so that we can add things like signing support;
         //   luckily most of complicated bits can be reused from the tx code
 
-        if factory.bytecode().is_empty() {
+        let bytecode = I::bytecode(&context);
+        if bytecode.is_empty() {
             return Err(DeployError::EmptyBytecode);
         }
 
-        let code = factory.bytecode().to_bytes()?;
+        let code = bytecode.to_bytes()?;
         let params = params.into_tokens();
-        let data = match (factory.abi().constructor(), params.is_empty()) {
+        let data = match (I::abi(&context).constructor(), params.is_empty()) {
             (None, false) => return Err(AbiErrorKind::InvalidData.into()),
             (None, true) => code,
             (Some(ctor), _) => Bytes(ctor.encode_input(code.0, &params)?),
@@ -149,8 +152,9 @@ where
 
         Ok(DeployBuilder {
             web3: web3.clone(),
-            factory,
+            context,
             tx: TransactionBuilder::new(web3).data(data).confirmations(0),
+            _instance: PhantomData,
         })
     }
 
@@ -205,45 +209,46 @@ where
 
     /// Sign (if required) and execute the transaction. Returns the transaction
     /// hash that can be used to retrieve transaction information.
-    pub fn deploy(self) -> DeployFuture<T, F> {
+    pub fn deploy(self) -> DeployFuture<T, I> {
         DeployFuture::from_builder(self)
     }
 }
 
 /// Future for deploying a contract instance.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct DeployFuture<T, F>
+pub struct DeployFuture<T, I>
 where
     T: Transport,
-    F: Factory<T>,
+    I: Deploy<T>,
 {
-    ///
     /// The deployment args
-    args: Option<(Web3Unpin<T>, F)>,
+    args: Option<(Web3Unpin<T>, I::Context)>,
     /// The future resolved when the deploy transaction is complete.
     send: SendFuture<T>,
+    _instance: PhantomData<Box<I>>,
 }
 
-impl<T, F> DeployFuture<T, F>
+impl<T, I> DeployFuture<T, I>
 where
     T: Transport,
-    F: Factory<T>,
+    I: Deploy<T>,
 {
     /// Create an instance from a `DeployBuilder`.
-    pub fn from_builder(builder: DeployBuilder<T, F>) -> Self {
+    pub fn from_builder(builder: DeployBuilder<T, I>) -> Self {
         DeployFuture {
-            args: Some((builder.web3.into(), builder.factory)),
+            args: Some((builder.web3.into(), builder.context)),
             send: builder.tx.send(),
+            _instance: PhantomData,
         }
     }
 }
 
-impl<T, F> Future for DeployFuture<T, F>
+impl<T, I> Future for DeployFuture<T, I>
 where
     T: Transport,
-    F: Factory<T>,
+    I: Deploy<T>,
 {
-    type Output = Result<F::Instance, DeployError>;
+    type Output = Result<I, DeployError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let unpinned = self.get_mut();
@@ -263,9 +268,9 @@ where
             }
         };
 
-        let (web3, factory) = unpinned.args.take().expect("called more than once");
+        let (web3, context) = unpinned.args.take().expect("called more than once");
 
-        Poll::Ready(Ok(factory.at_address(web3.into(), address)))
+        Poll::Ready(Ok(I::at_address(web3.into(), address, context)))
     }
 }
 
