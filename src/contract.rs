@@ -15,7 +15,7 @@ use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes};
 use web3::Transport;
 
-pub use self::deploy::{DeployBuilder, DeployFuture, DeployedFuture, FromNetwork, Deploy};
+pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture, FromNetwork};
 pub use self::method::{
     CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture, ViewMethodBuilder,
 };

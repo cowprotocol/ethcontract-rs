@@ -41,7 +41,6 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                 > + Send + 'static,
                 T: #ethcontract::web3::Transport<Out = F> + 'static,
             {
-                use #ethcontract::Artifact;
                 use #ethcontract::contract::DeployedFuture;
                 use #ethcontract::transport::DynTransport;
                 use #ethcontract::web3::api::Web3;
@@ -49,7 +48,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                 let transport = DynTransport::new(web3.transport().clone());
                 let web3 = Web3::new(transport);
 
-                DeployedFuture::new(web3, Default::default())
+                DeployedFuture::new(web3, ())
             }
         }
 
@@ -136,7 +135,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
                 F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
                 T: #ethcontract::web3::Transport<Out = F> + 'static,
             {
-                use #ethcontract::{Artifact, DynTransport};
+                use #ethcontract::DynTransport;
                 use #ethcontract::contract::DeployBuilder;
                 use #ethcontract::web3::api::Web3;
 
