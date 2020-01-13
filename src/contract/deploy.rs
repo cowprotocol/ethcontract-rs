@@ -58,7 +58,7 @@ where
     pub fn new(web3: Web3<T>, context: I::Context) -> Self {
         let net = web3.net();
         DeployedFuture {
-            args: Some((web3.into(), context)),
+            args: Some((web3, context)),
             network_id: net.version().compat(),
             _instance: PhantomData,
         }
@@ -87,8 +87,7 @@ where
             .map(|network_id| {
                 let network_id = network_id?;
                 let (web3, context) = unpinned.args.take().expect("called more than once");
-                I::from_network(web3.into(), &network_id, context)
-                    .ok_or(DeployError::NotFound(network_id))
+                I::from_network(web3, &network_id, context).ok_or(DeployError::NotFound(network_id))
             })
     }
 }
@@ -244,7 +243,7 @@ where
     /// Create an instance from a `DeployBuilder`.
     pub fn from_builder(builder: DeployBuilder<T, I>) -> Self {
         DeployFuture {
-            args: Some((builder.web3.into(), builder.context)),
+            args: Some((builder.web3, builder.context)),
             send: builder.tx.send(),
             _instance: PhantomData,
         }
@@ -286,7 +285,7 @@ where
 
         let (web3, context) = unpinned.args.take().expect("called more than once");
 
-        Poll::Ready(Ok(I::at_address(web3.into(), address, context)))
+        Poll::Ready(Ok(I::at_address(web3, address, context)))
     }
 }
 

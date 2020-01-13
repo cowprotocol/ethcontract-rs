@@ -570,7 +570,7 @@ enum SendState<T: Transport> {
 impl<T: Transport> SendFuture<T> {
     /// Creates a new future from a `TransactionBuilder`
     pub fn from_builder(mut builder: TransactionBuilder<T>) -> Self {
-        let web3 = builder.web3.clone().into();
+        let web3 = builder.web3.clone();
         let resolve = Some(builder.resolve.take().unwrap_or_default());
         let state = SendState::Building(BuildFuture::from_builder(builder));
 

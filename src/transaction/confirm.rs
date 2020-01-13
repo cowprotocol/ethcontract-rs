@@ -126,7 +126,7 @@ impl<T: Transport> ConfirmFuture<T> {
     /// transaction hash and with the specified parameters.
     pub fn new(web3: &Web3<T>, tx: H256, params: ConfirmParams) -> Self {
         ConfirmFuture {
-            web3: web3.clone().into(),
+            web3: web3.clone(),
             tx,
             params,
             starting_block_num: None,
