@@ -304,7 +304,7 @@ mod tests {
         transport.add_response(json!(network_id)); // estimate gas response
         let networks = Deployments::new(artifact);
         let instance = InstanceDeployedFuture::new(web3, networks)
-            .wait()
+            .immediate()
             .expect("successful deployment");
 
         transport.assert_request("net_version", &[]);

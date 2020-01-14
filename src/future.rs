@@ -10,6 +10,7 @@ use web3::Transport;
 
 /// Utility type for a future that might be ready. Similar to `MaybeDone` but
 /// not fused.
+#[derive(Debug)]
 pub struct MaybeReady<F: Future>(Either<Ready<F::Output>, F>);
 
 impl<F: Future + Unpin> MaybeReady<F> {
