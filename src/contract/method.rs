@@ -8,7 +8,6 @@ use crate::hash;
 use crate::transaction::{Account, SendFuture, TransactionBuilder};
 use ethcontract_common::abi::{self, Function, ParamType};
 use futures::compat::Future01CompatExt;
-use futures::ready;
 use lazy_static::lazy_static;
 use std::future::Future;
 use std::marker::PhantomData;
@@ -131,22 +130,18 @@ impl<F> MethodFuture<F> {
     fn new(function: Function, inner: F) -> Self {
         MethodFuture { function, inner }
     }
-
-    /// Get a pinned projection to the inner future.
-    fn inner(self: Pin<&mut Self>) -> Pin<&mut F> {
-        unsafe { self.map_unchecked_mut(|f| &mut f.inner) }
-    }
 }
 
 impl<T, F> Future for MethodFuture<F>
 where
-    F: Future<Output = Result<T, ExecutionError>>,
+    F: Future<Output = Result<T, ExecutionError>> + Unpin,
 {
     type Output = Result<T, MethodError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let result = ready!(self.as_mut().inner().poll(cx));
-        Poll::Ready(result.map_err(|err| MethodError::new(&self.as_ref().function, err)))
+        Pin::new(&mut self.inner)
+            .poll(cx)
+            .map(|result| result.map_err(|err| MethodError::new(&self.as_ref().function, err)))
     }
 }
 

@@ -21,18 +21,13 @@ impl<F: Future> MaybeReady<F> {
     pub fn future(fut: F) -> Self {
         MaybeReady(Either::Right(fut))
     }
-
-    /// A pin projection for MaybeReady inner future.
-    fn inner(self: Pin<&mut Self>) -> Pin<&mut Either<Ready<F::Output>, F>> {
-        unsafe { self.map_unchecked_mut(|f| &mut f.0) }
-    }
 }
 
-impl<F: Future> Future for MaybeReady<F> {
+impl<F: Future + Unpin> Future for MaybeReady<F> {
     type Output = F::Output;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.inner().poll(cx)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        Pin::new(&mut self.0).poll(cx)
     }
 }
 
