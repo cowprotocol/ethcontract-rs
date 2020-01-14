@@ -80,15 +80,12 @@ where
 {
     type Output = Result<I, DeployError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = self.get_mut();
-        Pin::new(&mut unpinned.network_id)
-            .poll(cx)
-            .map(|network_id| {
-                let network_id = network_id?;
-                let (web3, context) = unpinned.args.take().expect("called more than once");
-                I::from_network(web3, &network_id, context).ok_or(DeployError::NotFound(network_id))
-            })
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        Pin::new(&mut self.network_id).poll(cx).map(|network_id| {
+            let network_id = network_id?;
+            let (web3, context) = self.args.take().expect("called more than once");
+            I::from_network(web3, &network_id, context).ok_or(DeployError::NotFound(network_id))
+        })
     }
 }
 
@@ -265,10 +262,8 @@ where
 {
     type Output = Result<I, DeployError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = self.get_mut();
-
-        let tx = match ready!(Pin::new(&mut unpinned.send).poll(cx)) {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let tx = match ready!(Pin::new(&mut self.send).poll(cx)) {
             Ok(TransactionResult::Receipt(tx)) => tx,
             Ok(TransactionResult::Hash(tx)) => return Poll::Ready(Err(DeployError::Pending(tx))),
             Err(err) => return Poll::Ready(Err(err.into())),
@@ -283,7 +278,7 @@ where
             }
         };
 
-        let (web3, context) = unpinned.args.take().expect("called more than once");
+        let (web3, context) = self.args.take().expect("called more than once");
 
         Poll::Ready(Ok(I::at_address(web3, address, context)))
     }

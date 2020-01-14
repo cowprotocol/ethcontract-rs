@@ -146,15 +146,15 @@ impl<T: Transport> Future for ConfirmFuture<T> {
     type Output = Result<TransactionReceipt, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = self.get_mut();
+        let self_mut = self.get_mut();
         loop {
-            unpinned.state = match &mut unpinned.state {
+            self_mut.state = match &mut self_mut.state {
                 ConfirmState::Check => ConfirmState::Checking(future::try_join(
-                    MaybeReady::future(unpinned.web3.eth().block_number().compat()),
-                    unpinned
+                    MaybeReady::future(self_mut.web3.eth().block_number().compat()),
+                    self_mut
                         .web3
                         .eth()
-                        .transaction_receipt(unpinned.tx)
+                        .transaction_receipt(self_mut.tx)
                         .compat(),
                 )),
                 ConfirmState::Checking(ref mut check) => {
@@ -170,7 +170,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         .and_then(|tx| tx.block_number)
                         .unwrap_or(block_num + 1);
 
-                    let target_block_num = tx_block_num + unpinned.params.confirmations;
+                    let target_block_num = tx_block_num + self_mut.params.confirmations;
                     let remaining_confirmations = target_block_num.saturating_sub(block_num);
 
                     if remaining_confirmations.is_zero() {
@@ -181,9 +181,9 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         return Poll::Ready(Ok(tx.unwrap()));
                     }
 
-                    if let Some(block_timeout) = unpinned.params.block_timeout {
+                    if let Some(block_timeout) = self_mut.params.block_timeout {
                         let starting_block_num =
-                            *unpinned.starting_block_num.get_or_insert(block_num);
+                            *self_mut.starting_block_num.get_or_insert(block_num);
                         let elapsed_blocks = block_num.saturating_sub(starting_block_num);
 
                         if elapsed_blocks > U256::from(block_timeout) {
@@ -192,7 +192,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                     }
 
                     ConfirmState::CreatingFilter(
-                        unpinned.web3.eth_filter().create_blocks_filter().compat(),
+                        self_mut.web3.eth_filter().create_blocks_filter().compat(),
                         target_block_num,
                         remaining_confirmations.as_u64(),
                     )
@@ -201,7 +201,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                     match ready!(Pin::new(create_filter).poll(cx)) {
                         Ok(filter) => ConfirmState::WaitingForBlocks(
                             filter
-                                .stream(unpinned.params.poll_interval)
+                                .stream(self_mut.params.poll_interval)
                                 .skip(*count - 1)
                                 .into_future()
                                 .compat(),
@@ -212,7 +212,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                             //   filters like Infura over HTTPS) then fall back
                             //   to polling.
                             ConfirmState::PollDelay(
-                                delay(unpinned.params.poll_interval),
+                                delay(self_mut.params.poll_interval),
                                 *target_block_num,
                             )
                         }
@@ -227,7 +227,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                 ConfirmState::PollDelay(ref mut delay, target_block_num) => {
                     ready!(Pin::new(delay).poll(cx));
                     ConfirmState::PollCheckingBlockNumber(
-                        unpinned.web3.eth().block_number().compat(),
+                        self_mut.web3.eth().block_number().compat(),
                         *target_block_num,
                     )
                 }
@@ -240,15 +240,15 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                     if block_num == *target_block_num {
                         ConfirmState::Checking(future::try_join(
                             MaybeReady::ready(Ok(block_num)),
-                            unpinned
+                            self_mut
                                 .web3
                                 .eth()
-                                .transaction_receipt(unpinned.tx)
+                                .transaction_receipt(self_mut.tx)
                                 .compat(),
                         ))
                     } else {
                         ConfirmState::PollDelay(
-                            delay(unpinned.params.poll_interval),
+                            delay(self_mut.params.poll_interval),
                             *target_block_num,
                         )
                     }

@@ -592,17 +592,16 @@ assert_unpin!([T: Transport] SendState<T>);
 impl<T: Transport> Future for SendFuture<T> {
     type Output = Result<TransactionResult, ExecutionError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = self.get_mut();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         loop {
-            unpinned.state = match &mut unpinned.state {
+            self.state = match &mut self.state {
                 SendState::Building(ref mut build) => {
                     let tx = match ready!(Pin::new(build).poll(cx)) {
                         Ok(tx) => tx,
                         Err(err) => return Poll::Ready(Err(err)),
                     };
 
-                    let eth = unpinned.web3.eth();
+                    let eth = self.web3.eth();
                     let send = match tx {
                         Transaction::Request(tx) => eth.send_transaction(tx).compat(),
                         Transaction::Raw(tx) => eth.send_raw_transaction(tx).compat(),
@@ -616,7 +615,7 @@ impl<T: Transport> Future for SendFuture<T> {
                         Err(err) => return Poll::Ready(Err(err.into())),
                     };
 
-                    let confirm = match unpinned
+                    let confirm = match self
                         .resolve
                         .take()
                         .expect("confirmation called more than once")
@@ -625,7 +624,7 @@ impl<T: Transport> Future for SendFuture<T> {
                             return Poll::Ready(Ok(TransactionResult::Hash(tx_hash)))
                         }
                         ResolveCondition::Confirmed(params) => {
-                            ConfirmFuture::new(&unpinned.web3, tx_hash, params)
+                            ConfirmFuture::new(&self.web3, tx_hash, params)
                         }
                     };
 

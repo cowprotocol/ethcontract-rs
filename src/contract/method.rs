@@ -314,16 +314,13 @@ fn decode_geth_call_result<R: Detokenize>(
 impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
     type Output = Result<R, MethodError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = self.get_mut();
-        let result = ready!(Pin::new(&mut unpinned.call).poll(cx));
-
-        Poll::Ready(
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        Pin::new(&mut self.call).poll(cx).map(|result| {
             result
                 .map_err(ExecutionError::from)
-                .and_then(|bytes| decode_geth_call_result(&unpinned.function, bytes.0))
-                .map_err(|err| MethodError::new(&unpinned.function, err)),
-        )
+                .and_then(|bytes| decode_geth_call_result(&self.function, bytes.0))
+                .map_err(|err| MethodError::new(&self.function, err))
+        })
     }
 }
 
