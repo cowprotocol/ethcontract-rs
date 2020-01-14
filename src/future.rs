@@ -11,12 +11,7 @@ use web3::Transport;
 #[derive(Debug)]
 pub struct MaybeReady<F: Future>(Either<Ready<F::Output>, F>);
 
-impl<F: Future + Unpin> MaybeReady<F> {
-    /// Get a pinned reference to the fused inner `MaybeDone` value.
-    fn inner(self: Pin<&mut Self>) -> Pin<&mut Either<Ready<F::Output>, F>> {
-        Pin::new(&mut self.get_mut().0)
-    }
-
+impl<F: Future> MaybeReady<F> {
     /// Create a new `MaybeReady` with an immediate value.
     pub fn ready(value: F::Output) -> Self {
         MaybeReady(Either::Left(future::ready(value)))
@@ -26,9 +21,14 @@ impl<F: Future + Unpin> MaybeReady<F> {
     pub fn future(fut: F) -> Self {
         MaybeReady(Either::Right(fut))
     }
+
+    /// A pin projection for MaybeReady inner future.
+    fn inner(self: Pin<&mut Self>) -> Pin<&mut Either<Ready<F::Output>, F>> {
+        unsafe { self.map_unchecked_mut(|f| &mut f.0) }
+    }
 }
 
-impl<F: Future + Unpin> Future for MaybeReady<F> {
+impl<F: Future> Future for MaybeReady<F> {
     type Output = F::Output;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {

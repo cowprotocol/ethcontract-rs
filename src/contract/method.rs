@@ -131,19 +131,22 @@ impl<F> MethodFuture<F> {
     fn new(function: Function, inner: F) -> Self {
         MethodFuture { function, inner }
     }
+
+    /// Get a pinned projection to the inner future.
+    fn inner(self: Pin<&mut Self>) -> Pin<&mut F> {
+        unsafe { self.map_unchecked_mut(|f| &mut f.inner) }
+    }
 }
 
 impl<T, F> Future for MethodFuture<F>
 where
-    F: Future<Output = Result<T, ExecutionError>> + Unpin,
+    F: Future<Output = Result<T, ExecutionError>>,
 {
     type Output = Result<T, MethodError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = self.get_mut();
-        let result = ready!(Pin::new(&mut unpinned.inner).poll(cx));
-
-        Poll::Ready(result.map_err(|err| MethodError::new(&unpinned.function, err)))
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let result = ready!(self.as_mut().inner().poll(cx));
+        Poll::Ready(result.map_err(|err| MethodError::new(&self.as_ref().function, err)))
     }
 }
 

@@ -100,7 +100,7 @@ where
 /// new builder and future types.
 pub trait Deploy<T: Transport>: Sized {
     /// The type of the contract instance being created.
-    type Context: Unpin;
+    type Context;
 
     /// Gets a reference to the contract bytecode.
     fn bytecode(cx: &Self::Context) -> &Bytecode;
