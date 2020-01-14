@@ -134,6 +134,7 @@ pub mod private {
 #[cfg(test)]
 #[allow(missing_docs)]
 mod test {
+    pub mod macros;
     pub mod prelude;
     pub mod transport;
 }

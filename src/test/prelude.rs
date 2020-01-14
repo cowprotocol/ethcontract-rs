@@ -1,5 +1,6 @@
 //! Prelude module with common types used for unit tests.
 
+pub use crate::test::macros::*;
 pub use crate::test::transport::TestTransport;
 use futures::future::FutureExt;
 pub use serde_json::json;
