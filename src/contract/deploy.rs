@@ -277,7 +277,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contract::{Instance, Linker, Networks};
+    use crate::contract::{Deployments, Instance, Linker};
     use crate::test::prelude::*;
     use ethcontract_common::truffle::Network;
     use ethcontract_common::{Artifact, Bytecode};
@@ -302,7 +302,7 @@ mod tests {
         };
 
         transport.add_response(json!(network_id)); // estimate gas response
-        let networks = Networks::new(artifact);
+        let networks = Deployments::new(artifact);
         let instance = InstanceDeployedFuture::new(web3, networks)
             .wait()
             .expect("successful deployment");
