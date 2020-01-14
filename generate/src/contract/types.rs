@@ -1,6 +1,6 @@
 use crate::contract::Context;
 use anyhow::{anyhow, Result};
-use ethcontract_common::truffle::abi::ParamType;
+use ethcontract_common::abi::ParamType;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 

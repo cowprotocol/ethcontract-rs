@@ -95,17 +95,22 @@ pub use crate::contract::Instance;
 use crate::contract::{DeployBuilder, MethodBuilder, ViewMethodBuilder};
 pub use crate::transaction::Account;
 pub use crate::transport::DynTransport;
-pub use ethcontract_common::truffle::{self, Artifact};
+pub use ethcontract_common as common;
+pub use ethcontract_common::truffle::Artifact;
 pub use ethcontract_derive::contract;
 pub use ethsign::{self, Protected, SecretKey};
 pub use serde_json as json;
 pub use web3;
+use web3::api::Web3;
 pub use web3::types::{Address, BlockNumber, TransactionCondition, H256, U256};
+
+/// Type alias for a `Web3` provider with an underlying `DynTransport`.
+pub type DynWeb3 = Web3<DynTransport>;
 
 /// Type alias for a contract `Instance` with an underyling `DynTransport`.
 pub type DynInstance = Instance<DynTransport>;
 
-/// Type alias for a `MethodBuilder` with an underlying `DynTransport`.
+/// Type alias for a `DeployBuilder` with an underlying `DynTransport`.
 pub type DynDeployBuilder<D> = DeployBuilder<DynTransport, D>;
 
 /// Type alias for a `MethodBuilder` with an underlying `DynTransport`.
@@ -115,8 +120,8 @@ pub type DynMethodBuilder<R> = MethodBuilder<DynTransport, R>;
 pub type DynViewMethodBuilder<R> = ViewMethodBuilder<DynTransport, R>;
 
 #[doc(hidden)]
-pub mod foreign {
-    //! Foreign types that we re-export to be used internally by the procedural
+pub mod private {
+    //! Private types that we export to be used internally by the procedural
     //! macro but do not appear on public interfaces.
 
     pub use lazy_static::lazy_static;

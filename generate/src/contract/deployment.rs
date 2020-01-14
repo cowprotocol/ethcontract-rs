@@ -1,42 +1,19 @@
 use crate::contract::{methods, Context};
 use crate::util;
 use anyhow::{Context as _, Result};
-use ethcontract_common::truffle::abi::{Param, ParamType};
+use ethcontract_common::abi::{Param, ParamType};
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 
 pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
-    let ethcontract = &cx.runtime_crate;
-    let contract_name = &cx.contract_name;
-
     let deployed = expand_deployed(&cx);
     let deploy =
         expand_deploy(&cx).context("error generating contract `deploy` associated function")?;
 
     Ok(quote! {
-        impl #contract_name {
-            #deployed
-            #deploy
-        }
-
-        impl #ethcontract::contract::Deploy<#ethcontract::transport::DynTransport> for #contract_name {
-            fn deployed_at(
-                web3: #ethcontract::web3::api::Web3<#ethcontract::transport::DynTransport>,
-                abi: #ethcontract::truffle::Abi,
-                at: #ethcontract::Address,
-            ) -> Self {
-                use #ethcontract::Instance;
-
-                // NOTE: we need to make sure that we were deployed with the
-                //   correct ABI; luckily Abi implementes PartialEq
-                debug_assert_eq!(abi, Self::artifact().abi);
-
-                Self {
-                    instance: Instance::at(web3, abi, at),
-                }
-            }
-        }
+        #deployed
+        #deploy
     })
 }
 
@@ -46,37 +23,50 @@ fn expand_deployed(cx: &Context) -> TokenStream {
     }
 
     let ethcontract = &cx.runtime_crate;
+    let contract_name = &cx.contract_name;
 
     quote! {
-        /// Locates a deployed contract based on the current network ID
-        /// reported by the `web3` provider.
-        ///
-        /// Note that this does not verify that a contract with a maching
-        /// `Abi` is actually deployed at the given address.
-        pub fn deployed<F, T>(
-            web3: &#ethcontract::web3::api::Web3<T>,
-        ) -> #ethcontract::contract::DeployedFuture<#ethcontract::transport::DynTransport, Self>
-        where
-            F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
-            T: #ethcontract::web3::Transport<Out = F> + 'static,
-        {
-            use #ethcontract::Artifact;
-            use #ethcontract::contract::DeployedFuture;
-            use #ethcontract::transport::DynTransport;
-            use #ethcontract::web3::api::Web3;
+        impl #contract_name {
+            /// Locates a deployed contract based on the current network ID
+            /// reported by the `web3` provider.
+            ///
+            /// Note that this does not verify that a contract with a maching
+            /// `Abi` is actually deployed at the given address.
+            pub fn deployed<F, T>(
+                web3: &#ethcontract::web3::api::Web3<T>,
+            ) -> #ethcontract::contract::DeployedFuture<#ethcontract::transport::DynTransport, Self>
+            where
+                F: #ethcontract::web3::futures::Future<
+                    Item = #ethcontract::json::Value,
+                    Error = #ethcontract::web3::Error
+                > + Send + 'static,
+                T: #ethcontract::web3::Transport<Out = F> + 'static,
+            {
+                use #ethcontract::contract::DeployedFuture;
+                use #ethcontract::transport::DynTransport;
+                use #ethcontract::web3::api::Web3;
 
-            let transport = DynTransport::new(web3.transport().clone());
-            let web3 = Web3::new(transport);
-            let artifact = { // only clone the pieces we need
+                let transport = DynTransport::new(web3.transport().clone());
+                let web3 = Web3::new(transport);
+
+                DeployedFuture::new(web3, ())
+            }
+        }
+
+        impl #ethcontract::contract::FromNetwork<#ethcontract::DynTransport> for #contract_name {
+            type Context = ();
+
+            fn from_network(web3: #ethcontract::DynWeb3, network_id: &str, _: Self::Context) -> Option<Self> {
+                use #ethcontract::Instance;
+
                 let artifact = Self::artifact();
-                Artifact {
-                    abi: artifact.abi.clone(),
-                    networks: artifact.networks.clone(),
-                    ..Artifact::empty()
-                }
-            };
-
-            DeployedFuture::from_args(web3, artifact)
+                artifact
+                    .networks
+                    .get(network_id)
+                    .map(move |network| Self {
+                        instance: Instance::at(web3, artifact.abi.clone(), network.address),
+                    })
+            }
         }
     }
 }
@@ -88,6 +78,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
     }
 
     let ethcontract = &cx.runtime_crate;
+    let contract_name = &cx.contract_name;
 
     // TODO(nlordell): not sure how contructor documentation get generated as I
     //   can't seem to get truffle to output it
@@ -123,12 +114,12 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
                 let address = util::ident(&lib_param.name);
 
                 quote! {
-                    artifact.bytecode.link(#name, #address).expect("valid library");
+                    bytecode.link(#name, #address).expect("valid library");
                 }
             });
 
         quote! {
-            let mut artifact = artifact;
+            let mut bytecode = bytecode;
             #( #link_libraries )*
         }
     } else {
@@ -136,32 +127,48 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
     };
 
     Ok(quote! {
-        #doc
-        pub fn builder<F, T>(
-            web3: &#ethcontract::web3::api::Web3<T> #lib_input #input ,
-        ) -> #ethcontract::DynDeployBuilder<Self>
-        where
-            F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
-            T: #ethcontract::web3::Transport<Out = F> + 'static,
-        {
-            use #ethcontract::{Artifact, DynTransport};
-            use #ethcontract::contract::DeployBuilder;
-            use #ethcontract::web3::api::Web3;
+        impl #contract_name {
+            #doc
+            pub fn builder<F, T>(
+                web3: &#ethcontract::web3::api::Web3<T> #lib_input #input ,
+            ) -> #ethcontract::DynDeployBuilder<Self>
+            where
+                F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
+                T: #ethcontract::web3::Transport<Out = F> + 'static,
+            {
+                use #ethcontract::DynTransport;
+                use #ethcontract::contract::DeployBuilder;
+                use #ethcontract::web3::api::Web3;
 
-            let transport = DynTransport::new(web3.transport().clone());
-            let web3 = Web3::new(transport);
+                let transport = DynTransport::new(web3.transport().clone());
+                let web3 = Web3::new(transport);
 
-            let artifact = { // only clone the pieces we need
-                let artifact = Self::artifact();
-                Artifact {
-                    abi: artifact.abi.clone(),
-                    bytecode: artifact.bytecode.clone(),
-                    ..Artifact::empty()
+                let bytecode = Self::artifact().bytecode.clone();
+                #link
+
+                DeployBuilder::new(web3, bytecode, #arg).expect("valid deployment args")
+            }
+        }
+
+        impl #ethcontract::contract::Deploy<#ethcontract::DynTransport> for #contract_name {
+            type Context = #ethcontract::common::Bytecode;
+
+            fn bytecode(cx: &Self::Context) -> &#ethcontract::common::Bytecode {
+                cx
+            }
+
+            fn abi(_: &Self::Context) -> &#ethcontract::common::Abi {
+                &Self::artifact().abi
+            }
+
+            fn at_address(web3: #ethcontract::DynWeb3, address: #ethcontract::Address, _: Self::Context) -> Self {
+                use #ethcontract::Instance;
+
+                let abi = Self::artifact().abi.clone();
+                Self {
+                    instance: Instance::at(web3, abi, address),
                 }
-            };
-            #link
-
-            DeployBuilder::new(web3, artifact, #arg).expect("valid deployment args")
+            }
         }
     })
 }

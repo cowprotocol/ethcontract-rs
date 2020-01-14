@@ -6,14 +6,16 @@ mod deploy;
 mod method;
 
 use crate::errors::{DeployError, LinkError};
-use crate::truffle::abi::Result as AbiResult;
-use crate::truffle::{Abi, Artifact, Bytecode};
+use ethcontract_common::abi::Result as AbiResult;
+use ethcontract_common::truffle::Network;
+use ethcontract_common::{Abi, Artifact, Bytecode};
+use std::collections::HashMap;
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes};
 use web3::Transport;
 
-pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture};
+pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture, FromNetwork};
 pub use self::method::{
     CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture, ViewMethodBuilder,
 };
@@ -50,7 +52,7 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
     pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, Self> {
-        DeployedFuture::from_args(web3, artifact)
+        DeployedFuture::new(web3, Deployments::new(artifact))
     }
 
     /// Creates a contract builder with the specified `web3` provider and the
@@ -64,7 +66,7 @@ impl<T: Transport> Instance<T> {
     where
         P: Tokenize,
     {
-        DeployBuilder::new(web3, artifact, params)
+        Linker::new(artifact).deploy(web3, params)
     }
 
     /// Deploys a contract with the specified `web3` provider with the given
@@ -138,6 +140,34 @@ impl<T: Transport> Instance<T> {
     }
 }
 
+/// Deployment information for for an `Instance`. This includes the contract ABI
+/// and the known addresses of contracts for network IDs.
+/// be used directly but rather through the `Instance::deployed` API.
+#[derive(Debug, Clone)]
+pub struct Deployments {
+    abi: Abi,
+    networks: HashMap<String, Network>,
+}
+
+impl Deployments {
+    /// Create a new `Deployments` instanced for a contract artifact.
+    pub fn new(artifact: Artifact) -> Self {
+        Deployments {
+            abi: artifact.abi,
+            networks: artifact.networks,
+        }
+    }
+}
+
+impl<T: Transport> FromNetwork<T> for Instance<T> {
+    type Context = Deployments;
+
+    fn from_network(web3: Web3<T>, network_id: &str, cx: Self::Context) -> Option<Self> {
+        let address = cx.networks.get(network_id)?.address;
+        Some(Instance::at(web3, cx.abi, address))
+    }
+}
+
 /// Builder for specifying linking options for a contract.
 #[derive(Debug, Clone)]
 pub struct Linker {
@@ -183,12 +213,22 @@ impl Linker {
         T: Transport,
         P: Tokenize,
     {
-        let artifact = Artifact {
-            abi: self.abi,
-            bytecode: self.bytecode,
-            ..Artifact::empty()
-        };
+        DeployBuilder::new(web3, self, params)
+    }
+}
 
-        DeployBuilder::new(web3, artifact, params)
+impl<T: Transport> Deploy<T> for Instance<T> {
+    type Context = Linker;
+
+    fn abi(cx: &Self::Context) -> &Abi {
+        &cx.abi
+    }
+
+    fn bytecode(cx: &Self::Context) -> &Bytecode {
+        &cx.bytecode
+    }
+
+    fn at_address(web3: Web3<T>, address: Address, cx: Self::Context) -> Self {
+        Instance::at(web3, cx.abi, address)
     }
 }

@@ -30,7 +30,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             /// Retrieves the truffle artifact used to generate the type safe API
             /// for this contract.
             pub fn artifact() -> &'static #ethcontract::Artifact {
-                use #ethcontract::foreign::lazy_static;
+                use #ethcontract::private::lazy_static;
                 use #ethcontract::Artifact;
 
                 lazy_static! {

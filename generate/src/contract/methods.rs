@@ -1,7 +1,7 @@
 use crate::contract::{types, Context};
 use crate::util;
 use anyhow::{Context as _, Result};
-use ethcontract_common::truffle::abi::{Function, Param};
+use ethcontract_common::abi::{Function, Param};
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;

@@ -6,7 +6,7 @@ use crate::errors::{ExecutionError, MethodError};
 use crate::future::CompatCallFuture;
 use crate::hash;
 use crate::transaction::{Account, SendFuture, TransactionBuilder};
-use crate::truffle::abi::{self, Function, ParamType};
+use ethcontract_common::abi::{self, Function, ParamType};
 use futures::compat::Future01CompatExt;
 use futures::ready;
 use lazy_static::lazy_static;
@@ -328,7 +328,7 @@ impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
 mod tests {
     use super::*;
     use crate::test::prelude::*;
-    use crate::truffle::abi::{Param, ParamType};
+    use ethcontract_common::abi::Param;
 
     fn test_abi_function() -> (Function, Bytes) {
         let function = Function {
