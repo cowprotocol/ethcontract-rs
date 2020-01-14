@@ -1,5 +1,6 @@
 # `ethcontract-rs`
 
+
 Crate used for generating code for Ethereum smart contracts. It provides a
 function procedural macro that generates safe bindings for contract interaction
 based on the contract ABI.
