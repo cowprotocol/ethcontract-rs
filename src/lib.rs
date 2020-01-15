@@ -83,9 +83,6 @@
 //!     .await?;
 //! ```
 
-#[macro_use]
-mod macros;
-
 pub mod contract;
 pub mod errors;
 mod future;
