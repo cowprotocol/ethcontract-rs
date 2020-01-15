@@ -1,5 +1,6 @@
 use futures::compat::Compat01As03;
 use futures::future::{self, Either, Ready};
+use pin_project::pin_project;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -8,8 +9,9 @@ use web3::Transport;
 
 /// Utility type for a future that might be ready. Similar to `MaybeDone` but
 /// not fused.
+#[pin_project]
 #[derive(Debug)]
-pub struct MaybeReady<F: Future>(Either<Ready<F::Output>, F>);
+pub struct MaybeReady<F: Future>(#[pin] Either<Ready<F::Output>, F>);
 
 impl<F: Future> MaybeReady<F> {
     /// Create a new `MaybeReady` with an immediate value.
@@ -23,11 +25,11 @@ impl<F: Future> MaybeReady<F> {
     }
 }
 
-impl<F: Future + Unpin> Future for MaybeReady<F> {
+impl<F: Future> Future for MaybeReady<F> {
     type Output = F::Output;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        Pin::new(&mut self.0).poll(cx)
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        self.project().0.poll(cx)
     }
 }
 

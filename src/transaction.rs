@@ -11,6 +11,7 @@ use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
 use futures::future::{self, TryJoin4};
 use futures::ready;
+use pin_project::{pin_project, project};
 use std::future::Future;
 use std::pin::Pin;
 use std::str;
@@ -291,7 +292,8 @@ impl<T: Transport> TransactionBuilder<T> {
 
 /// Future for estimating gas for a transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct EstimateGasFuture<T: Transport>(CompatCallFuture<T, U256>);
+#[pin_project]
+pub struct EstimateGasFuture<T: Transport>(#[pin] CompatCallFuture<T, U256>);
 
 impl<T: Transport> EstimateGasFuture<T> {
     /// Create a instance from a `TransactionBuilder`.
@@ -323,24 +325,22 @@ impl<T: Transport> EstimateGasFuture<T> {
             .compat(),
         )
     }
-
-    fn inner(self: Pin<&mut Self>) -> Pin<&mut CompatCallFuture<T, U256>> {
-        Pin::new(&mut self.get_mut().0)
-    }
 }
 
 impl<T: Transport> Future for EstimateGasFuture<T> {
     type Output = Result<U256, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.inner().poll(cx).map_err(ExecutionError::from)
+        self.project().0.poll(cx).map_err(ExecutionError::from)
     }
 }
 
 /// Future for preparing a transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
+#[pin_project]
 pub struct BuildFuture<T: Transport> {
     /// The internal build state for preparing the transaction.
+    #[pin]
     state: BuildState<T>,
 }
 
@@ -358,6 +358,7 @@ type ParamsFuture<T> = TryJoin4<
 
 /// Internal build state for preparing transactions.
 #[allow(clippy::large_enum_variant)]
+#[pin_project]
 enum BuildState<T: Transport> {
     /// Waiting for list of accounts in order to determine from address so that
     /// we can return a `Request::Tx`.
@@ -365,6 +366,7 @@ enum BuildState<T: Transport> {
         /// The transaction request being built.
         request: Option<TransactionRequest>,
         /// The inner future for retrieving the list of accounts on the node.
+        #[pin]
         inner: CompatCallFuture<T, Vec<Address>>,
     },
 
@@ -377,6 +379,7 @@ enum BuildState<T: Transport> {
     /// Waiting for the node to sign with a locked account.
     Locked {
         /// Future waiting for the node to sign the request with a locked account.
+        #[pin]
         sign: CompatCallFuture<T, RawTransaction>,
     },
 
@@ -393,6 +396,7 @@ enum BuildState<T: Transport> {
         data: Bytes,
         /// Future for retrieving gas, gas price, nonce and chain ID when they
         /// where not specified.
+        #[pin]
         params: ParamsFuture<T>,
     },
 }
@@ -501,33 +505,31 @@ impl<T: Transport> BuildFuture<T> {
 impl<T: Transport> Future for BuildFuture<T> {
     type Output = Result<Transaction, ExecutionError>;
 
+    #[project]
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        match &mut self.get_mut().state {
-            BuildState::DefaultAccount { request, inner } => {
-                Pin::new(inner).poll(cx).map(|accounts| {
-                    let accounts = accounts?;
+        #[project]
+        match self.project().state.project() {
+            BuildState::DefaultAccount { request, inner } => inner.poll(cx).map(|accounts| {
+                let accounts = accounts?;
 
-                    let mut request = request.take().expect("called once");
-                    if let Some(from) = accounts.get(0) {
-                        request.from = *from;
-                    }
+                let mut request = request.take().expect("future polled more than once");
+                if let Some(from) = accounts.get(0) {
+                    request.from = *from;
+                }
 
-                    Ok(Transaction::Request(request))
-                })
-            }
+                Ok(Transaction::Request(request))
+            }),
             BuildState::Local { request } => Poll::Ready(Ok(Transaction::Request(
-                request.take().expect("called once"),
+                request.take().expect("future polled more than once"),
             ))),
-            BuildState::Locked { sign } => Pin::new(sign)
-                .poll(cx)
-                .map(|raw| Ok(Transaction::Raw(raw?.raw))),
+            BuildState::Locked { sign } => sign.poll(cx).map(|raw| Ok(Transaction::Raw(raw?.raw))),
             BuildState::Offline {
                 key,
                 to,
                 value,
                 data,
                 params,
-            } => Pin::new(params).poll(cx).map(|params| {
+            } => params.poll(cx).map(|params| {
                 let (gas, gas_price, nonce, chain_id) = params?;
                 let tx = TransactionData {
                     nonce,
@@ -547,24 +549,29 @@ impl<T: Transport> Future for BuildFuture<T> {
 
 /// Future for optionally signing and then sending a transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
+#[pin_project]
 pub struct SendFuture<T: Transport> {
     web3: Web3<T>,
     /// The confirmation options to use for the transaction once it has been
     /// sent. Stored as an option as we require transfer of ownership.
     resolve: Option<ResolveCondition>,
     /// Internal execution state.
+    #[pin]
     state: SendState<T>,
 }
 
-/// The state of the send future.
-enum SendState<T: Transport> {
+/// The state of the send future. This is used internally by `SendFuture` and is
+/// not intended to be used outside of the crate. This type is public as it is
+/// part of the trait bounds for `SendFuture`'s `Unpin` implementation.
+#[pin_project]
+pub enum SendState<T: Transport> {
     /// The transaction is being built into a request or a signed raw
     /// transaction.
-    Building(BuildFuture<T>),
+    Building(#[pin] BuildFuture<T>),
     /// The transaction is being sent to the node.
-    Sending(CompatCallFuture<T, H256>),
+    Sending(#[pin] CompatCallFuture<T, H256>),
     /// The transaction is being confirmed.
-    Confirming(ConfirmFuture<T>),
+    Confirming(#[pin] ConfirmFuture<T>),
 }
 
 impl<T: Transport> SendFuture<T> {
@@ -582,26 +589,28 @@ impl<T: Transport> SendFuture<T> {
     }
 }
 
-// NOTE: This is safe since `SendFuture` only requires pinned `SendState` and
-//   `for<T> SendState<T>: Unpin`. We use the `assert_unpin` macro instead of
-//   trait bounds like it is done elsewhere in the project to avoid leaking the
-//   private type `SendState`.
-impl<T: Transport> Unpin for SendFuture<T> {}
-assert_unpin!([T: Transport] SendState<T>);
-
 impl<T: Transport> Future for SendFuture<T> {
     type Output = Result<TransactionResult, ExecutionError>;
 
+    #[project]
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         loop {
-            self.state = match &mut self.state {
-                SendState::Building(ref mut build) => {
-                    let tx = match ready!(Pin::new(build).poll(cx)) {
+            #[project]
+            let SendFuture {
+                web3,
+                resolve,
+                state,
+            } = self.as_mut().project();
+
+            #[project]
+            let next_state = match state.project() {
+                SendState::Building(build) => {
+                    let tx = match ready!(build.poll(cx)) {
                         Ok(tx) => tx,
                         Err(err) => return Poll::Ready(Err(err)),
                     };
 
-                    let eth = self.web3.eth();
+                    let eth = web3.eth();
                     let send = match tx {
                         Transaction::Request(tx) => eth.send_transaction(tx).compat(),
                         Transaction::Raw(tx) => eth.send_raw_transaction(tx).compat(),
@@ -609,29 +618,26 @@ impl<T: Transport> Future for SendFuture<T> {
 
                     SendState::Sending(send)
                 }
-                SendState::Sending(ref mut send) => {
-                    let tx_hash = match ready!(Pin::new(send).poll(cx)) {
+                SendState::Sending(send) => {
+                    let tx_hash = match ready!(send.poll(cx)) {
                         Ok(tx_hash) => tx_hash,
                         Err(err) => return Poll::Ready(Err(err.into())),
                     };
 
-                    let confirm = match self
-                        .resolve
-                        .take()
-                        .expect("confirmation called more than once")
+                    let confirm = match resolve.take().expect("confirmation called more than once")
                     {
                         ResolveCondition::Pending => {
                             return Poll::Ready(Ok(TransactionResult::Hash(tx_hash)))
                         }
                         ResolveCondition::Confirmed(params) => {
-                            ConfirmFuture::new(&self.web3, tx_hash, params)
+                            ConfirmFuture::new(&web3, tx_hash, params)
                         }
                     };
 
                     SendState::Confirming(confirm)
                 }
-                SendState::Confirming(ref mut confirm) => {
-                    return Pin::new(confirm).poll(cx).map(|result| {
+                SendState::Confirming(confirm) => {
+                    return confirm.poll(cx).map(|result| {
                         let tx = result?;
                         match tx.status {
                             Some(U64([1])) => Ok(TransactionResult::Receipt(tx)),
@@ -639,7 +645,9 @@ impl<T: Transport> Future for SendFuture<T> {
                         }
                     })
                 }
-            }
+            };
+
+            self.state = next_state;
         }
     }
 }
