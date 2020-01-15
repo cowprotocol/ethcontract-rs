@@ -30,7 +30,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::prelude::*;
 
     #[test]
     fn simple_keccak_hash() {
