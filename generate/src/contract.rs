@@ -33,11 +33,13 @@ pub(crate) struct Context {
     runtime_crate: Ident,
     /// The contract name as an identifier.
     contract_name: Ident,
+    /// The original args used for creating the context.
+    args: Args,
 }
 
 impl Context {
     /// Create a context from the code generation arguments.
-    fn from_args(args: &Args) -> Result<Self> {
+    fn from_args(args: Args) -> Result<Self> {
         let full_path = fs::canonicalize(&args.artifact_path).with_context(|| {
             format!(
                 "unable to open file from working dir {} with path {}",
@@ -61,11 +63,24 @@ impl Context {
             artifact,
             runtime_crate,
             contract_name,
+            args,
         })
+    }
+
+    #[cfg(test)]
+    fn empty() -> Self {
+        Context {
+            full_path: PathBuf::new(),
+            artifact_path: Literal::string(""),
+            artifact: Artifact::empty(),
+            runtime_crate: util::ident("ethcontract"),
+            contract_name: util::ident("Contract"),
+            args: Args::new(""),
+        }
     }
 }
 
-pub(crate) fn expand(args: &Args) -> Result<TokenStream> {
+pub(crate) fn expand(args: Args) -> Result<TokenStream> {
     let cx = Context::from_args(args)?;
     let contract = expand_contract(&cx).with_context(|| {
         format!(

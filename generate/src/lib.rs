@@ -8,7 +8,9 @@ mod contract;
 mod util;
 
 use anyhow::Result;
+use ethcontract_common::Address;
 use proc_macro2::TokenStream;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -21,6 +23,8 @@ pub(crate) struct Args {
     artifact_path: PathBuf,
     /// The runtime crate name to use.
     runtime_crate_name: String,
+    /// Manually specified deployed contract addresses.
+    deployments: HashMap<String, Address>,
 }
 
 impl Args {
@@ -33,6 +37,7 @@ impl Args {
         Args {
             artifact_path: artifact_path.as_ref().to_owned(),
             runtime_crate_name: "ethcontract".to_owned(),
+            deployments: HashMap::new(),
         }
     }
 }
@@ -60,15 +65,54 @@ impl Builder {
     /// needed if the crate was renamed in the Cargo manifest.
     pub fn with_runtime_crate_name<S>(mut self, name: S) -> Self
     where
-        S: AsRef<str>,
+        S: Into<String>,
     {
-        self.args.runtime_crate_name = name.as_ref().to_owned();
+        self.args.runtime_crate_name = name.into();
+        self
+    }
+
+    /// Manually adds specifies the deployed address of a contract for a given
+    /// network. Note that manually specified deployments take precedence over
+    /// deployments in the Truffle artifact (in the `networks` property of the
+    /// artifact).
+    ///
+    /// This is useful for integration test scenarios where the address of a
+    /// contract on the test node is deterministic (for example using
+    /// `ganache-cli -d`) but the contract address is not part of the Truffle
+    /// artifact; or to override a deployment included in a Truffle artifact.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if `address` is not a valid 20-byte string
+    /// representation of an `Address` in the form of `"0x123...def"`.
+    pub fn add_deployment<S, A>(mut self, network: S, address: A) -> Self
+    where
+        S: Into<String>,
+        A: AsRef<str>,
+    {
+        let address = address.as_ref();
+        if !address.starts_with("0x") {
+            panic!("invalid address format, expected to start with '0x'");
+        }
+        self.args.deployments.insert(
+            network.into(),
+            address[2..].parse().expect("failed to parse address"),
+        );
+        self
+    }
+
+    /// Specify the mapping between network ID and manually specified addresses
+    /// of deployed contracts.
+    ///
+    /// See `Builder::add_deployment` for more details.
+    pub fn with_deployments(mut self, deployments: HashMap<String, Address>) -> Self {
+        self.args.deployments = deployments;
         self
     }
 
     /// Generates the contract bindings.
     pub fn generate(self) -> Result<ContractBindings> {
-        let tokens = contract::expand(&self.args)?;
+        let tokens = contract::expand(self.args)?;
         Ok(ContractBindings { tokens })
     }
 }

@@ -9,3 +9,4 @@ pub mod truffle;
 pub use crate::bytecode::Bytecode;
 pub use crate::truffle::Artifact;
 pub use ethabi::{self as abi, Contract as Abi};
+pub use web3::types::Address;
