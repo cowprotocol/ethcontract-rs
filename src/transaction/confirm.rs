@@ -97,12 +97,9 @@ pub struct ConfirmFuture<T: Transport> {
     state: ConfirmState<T>,
 }
 
-/// The state of the confirmation future. This is used internally by
-/// `ConfirmFuture` and is not intended to be used outside of the crate. This
-/// type is public as it is part of the trait bounds for `ConfirmFuture`'s
-/// `Unpin` implementation.
+/// The state of the confirmation future.
 #[pin_project]
-pub enum ConfirmState<T: Transport> {
+enum ConfirmState<T: Transport> {
     /// The future is in the state where it needs to setup the checking future
     /// to see if the confirmation is complete. This is used as a intermediate
     /// state that doesn't actually wait for anything and immediately proceeds

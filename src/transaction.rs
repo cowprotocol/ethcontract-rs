@@ -560,11 +560,9 @@ pub struct SendFuture<T: Transport> {
     state: SendState<T>,
 }
 
-/// The state of the send future. This is used internally by `SendFuture` and is
-/// not intended to be used outside of the crate. This type is public as it is
-/// part of the trait bounds for `SendFuture`'s `Unpin` implementation.
+/// The state of the send future.
 #[pin_project]
-pub enum SendState<T: Transport> {
+enum SendState<T: Transport> {
     /// The transaction is being built into a request or a signed raw
     /// transaction.
     Building(#[pin] BuildFuture<T>),
