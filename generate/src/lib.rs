@@ -7,7 +7,7 @@
 mod contract;
 mod util;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ethcontract_common::Address;
 use proc_macro2::TokenStream;
 use std::collections::HashMap;
@@ -80,34 +80,32 @@ impl Builder {
     /// contract on the test node is deterministic (for example using
     /// `ganache-cli -d`) but the contract address is not part of the Truffle
     /// artifact; or to override a deployment included in a Truffle artifact.
-    ///
-    /// # Panics
-    ///
-    /// This method will panic if `address` is not a valid 20-byte string
-    /// representation of an `Address` in the form of `"0x123...def"`.
-    pub fn add_deployment<S, A>(mut self, network: S, address: A) -> Self
+    pub fn try_add_deployment<S, A>(mut self, network: S, address: A) -> Result<Self>
     where
         S: Into<String>,
         A: AsRef<str>,
     {
         let address = address.as_ref();
         if !address.starts_with("0x") {
-            panic!("invalid address format, expected to start with '0x'");
+            return Err(anyhow!("address must start with '0x'"));
         }
-        self.args.deployments.insert(
-            network.into(),
-            address[2..].parse().expect("failed to parse address"),
-        );
-        self
+        self.args
+            .deployments
+            .insert(network.into(), address[2..].parse()?);
+        Ok(self)
     }
 
-    /// Specify the mapping between network ID and manually specified addresses
-    /// of deployed contracts.
+    /// # Panics
     ///
-    /// See `Builder::add_deployment` for more details.
-    pub fn with_deployments(mut self, deployments: HashMap<String, Address>) -> Self {
-        self.args.deployments = deployments;
-        self
+    /// This method will panic if `address` is not a valid 20-byte string
+    /// representation of an `Address` in the form of `"0x123...def"`.
+    pub fn add_deployment<S, A>(self, network: S, address: A) -> Self
+    where
+        S: Into<String>,
+        A: AsRef<str>,
+    {
+        self.try_add_deployment(network, address)
+            .expect("failed to parse address")
     }
 
     /// Generates the contract bindings.
