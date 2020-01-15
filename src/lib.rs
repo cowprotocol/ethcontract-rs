@@ -83,6 +83,12 @@
 //!     .await?;
 //! ```
 
+#[cfg(test)]
+#[allow(missing_docs)]
+#[macro_use]
+#[path = "test/macros.rs"]
+mod test_macros;
+
 pub mod contract;
 pub mod errors;
 mod future;
@@ -131,7 +137,6 @@ pub mod private {
 #[cfg(test)]
 #[allow(missing_docs)]
 mod test {
-    pub mod macros;
     pub mod prelude;
     pub mod transport;
 }
