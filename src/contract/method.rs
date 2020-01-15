@@ -8,8 +8,8 @@ use crate::hash;
 use crate::transaction::{Account, SendFuture, TransactionBuilder};
 use ethcontract_common::abi::{self, Function, ParamType};
 use futures::compat::Future01CompatExt;
-use futures::ready;
 use lazy_static::lazy_static;
+use pin_project::pin_project;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -119,9 +119,11 @@ impl<T: Transport, R> MethodBuilder<T, R> {
 
 /// Future that wraps an inner transaction execution future to add method
 /// information to the error.
+#[pin_project]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct MethodFuture<F> {
     function: Function,
+    #[pin]
     inner: F,
 }
 
@@ -135,15 +137,16 @@ impl<F> MethodFuture<F> {
 
 impl<T, F> Future for MethodFuture<F>
 where
-    F: Future<Output = Result<T, ExecutionError>> + Unpin,
+    F: Future<Output = Result<T, ExecutionError>>,
 {
     type Output = Result<T, MethodError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = self.get_mut();
-        let result = ready!(Pin::new(&mut unpinned.inner).poll(cx));
-
-        Poll::Ready(result.map_err(|err| MethodError::new(&unpinned.function, err)))
+        let mut this = self.project();
+        this.inner
+            .as_mut()
+            .poll(cx)
+            .map(|result| result.map_err(|err| MethodError::new(&this.function, err)))
     }
 }
 
@@ -236,8 +239,10 @@ impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
 /// Future representing a pending contract call (i.e. query) to be resolved when
 /// the call completes.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
+#[pin_project]
 pub struct CallFuture<T: Transport, R: Detokenize> {
     function: Function,
+    #[pin]
     call: CompatCallFuture<T, Bytes>,
     _result: PhantomData<Box<R>>,
 }
@@ -312,15 +317,13 @@ impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
     type Output = Result<R, MethodError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = self.get_mut();
-        let result = ready!(Pin::new(&mut unpinned.call).poll(cx));
-
-        Poll::Ready(
+        let mut this = self.project();
+        this.call.as_mut().poll(cx).map(|result| {
             result
                 .map_err(ExecutionError::from)
-                .and_then(|bytes| decode_geth_call_result(&unpinned.function, bytes.0))
-                .map_err(|err| MethodError::new(&unpinned.function, err)),
-        )
+                .and_then(|bytes| decode_geth_call_result(&this.function, bytes.0))
+                .map_err(|err| MethodError::new(&this.function, err))
+        })
     }
 }
 

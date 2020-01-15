@@ -7,11 +7,12 @@
 //! some of this can move upstream into the `web3` crate.
 
 use crate::errors::ExecutionError;
-use crate::future::{CompatCallFuture, MaybeReady, Web3Unpin};
+use crate::future::{CompatCallFuture, MaybeReady};
 use futures::compat::{Compat01As03, Future01CompatExt};
 use futures::future::{self, TryJoin};
 use futures::ready;
 use futures_timer::Delay;
+use pin_project::{pin_project, project};
 use std::fmt::{self, Debug, Formatter};
 use std::future::Future;
 use std::pin::Pin;
@@ -79,9 +80,10 @@ impl Default for ConfirmParams {
 }
 
 /// A future that resolves once a transaction is confirmed.
+#[pin_project]
 #[derive(Debug)]
 pub struct ConfirmFuture<T: Transport> {
-    web3: Web3Unpin<T>,
+    web3: Web3<T>,
     /// The transaction hash that is being confirmed.
     tx: H256,
     /// The confirmation parameters (like number of confirming blocks to wait
@@ -91,10 +93,12 @@ pub struct ConfirmFuture<T: Transport> {
     /// timeouts.
     starting_block_num: Option<U256>,
     /// The current state of the confirmation.
+    #[pin]
     state: ConfirmState<T>,
 }
 
 /// The state of the confirmation future.
+#[pin_project]
 enum ConfirmState<T: Transport> {
     /// The future is in the state where it needs to setup the checking future
     /// to see if the confirmation is complete. This is used as a intermediate
@@ -105,20 +109,20 @@ enum ConfirmState<T: Transport> {
     /// make sure that enough blocks have passed since the transaction was
     /// mined. Note that the transaction receipt is retrieved everytime in case
     /// of ommered blocks.
-    Checking(CheckFuture<T>),
+    Checking(#[pin] CheckFuture<T>),
     /// The future is waiting for the block filter to be created so that it can
     /// wait for blocks to go by.
-    CreatingFilter(CompatCreateFilter<T, H256>, U256, u64),
+    CreatingFilter(#[pin] CompatCreateFilter<T, H256>, U256, u64),
     /// The future is waiting for new blocks to be mined and added to the chain
     /// so that the transaction can be confirmed the desired number of blocks.
-    WaitingForBlocks(CompatFilterFuture<T, H256>),
+    WaitingForBlocks(#[pin] CompatFilterFuture<T, H256>),
     /// The future is waiting for a poll timeout. This state happens when the
     /// node does not support block filters for the given transport (like Infura
     /// over HTTPS) so we need to fallback to polling.
-    PollDelay(MaybeDelay, U256),
+    PollDelay(#[pin] MaybeDelay, U256),
     /// The future is checking that the current block number has reached a
     /// certain target after waiting the poll delay.
-    PollCheckingBlockNumber(CompatCallFuture<T, U256>, U256),
+    PollCheckingBlockNumber(#[pin] CompatCallFuture<T, U256>, U256),
 }
 
 impl<T: Transport> ConfirmFuture<T> {
@@ -126,7 +130,7 @@ impl<T: Transport> ConfirmFuture<T> {
     /// transaction hash and with the specified parameters.
     pub fn new(web3: &Web3<T>, tx: H256, params: ConfirmParams) -> Self {
         ConfirmFuture {
-            web3: web3.clone().into(),
+            web3: web3.clone(),
             tx,
             params,
             starting_block_num: None,
@@ -138,20 +142,26 @@ impl<T: Transport> ConfirmFuture<T> {
 impl<T: Transport> Future for ConfirmFuture<T> {
     type Output = Result<TransactionReceipt, ExecutionError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = self.get_mut();
+    #[project]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         loop {
-            unpinned.state = match &mut unpinned.state {
+            #[project]
+            let ConfirmFuture {
+                web3,
+                tx,
+                params,
+                starting_block_num,
+                state,
+            } = self.as_mut().project();
+
+            #[project]
+            let next_state = match state.project() {
                 ConfirmState::Check => ConfirmState::Checking(future::try_join(
-                    MaybeReady::future(unpinned.web3.eth().block_number().compat()),
-                    unpinned
-                        .web3
-                        .eth()
-                        .transaction_receipt(unpinned.tx)
-                        .compat(),
+                    MaybeReady::future(web3.eth().block_number().compat()),
+                    web3.eth().transaction_receipt(*tx).compat(),
                 )),
-                ConfirmState::Checking(ref mut check) => {
-                    let (block_num, tx) = match ready!(Pin::new(check).poll(cx)) {
+                ConfirmState::Checking(check) => {
+                    let (block_num, tx) = match ready!(check.poll(cx)) {
                         Ok(result) => result,
                         Err(err) => return Poll::Ready(Err(err.into())),
                     };
@@ -163,7 +173,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         .and_then(|tx| tx.block_number)
                         .unwrap_or(block_num + 1);
 
-                    let target_block_num = tx_block_num + unpinned.params.confirmations;
+                    let target_block_num = tx_block_num + params.confirmations;
                     let remaining_confirmations = target_block_num.saturating_sub(block_num);
 
                     if remaining_confirmations.is_zero() {
@@ -174,9 +184,8 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         return Poll::Ready(Ok(tx.unwrap()));
                     }
 
-                    if let Some(block_timeout) = unpinned.params.block_timeout {
-                        let starting_block_num =
-                            *unpinned.starting_block_num.get_or_insert(block_num);
+                    if let Some(block_timeout) = params.block_timeout {
+                        let starting_block_num = *starting_block_num.get_or_insert(block_num);
                         let elapsed_blocks = block_num.saturating_sub(starting_block_num);
 
                         if elapsed_blocks > U256::from(block_timeout) {
@@ -185,16 +194,16 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                     }
 
                     ConfirmState::CreatingFilter(
-                        unpinned.web3.eth_filter().create_blocks_filter().compat(),
+                        web3.eth_filter().create_blocks_filter().compat(),
                         target_block_num,
                         remaining_confirmations.as_u64(),
                     )
                 }
-                ConfirmState::CreatingFilter(ref mut create_filter, target_block_num, count) => {
-                    match ready!(Pin::new(create_filter).poll(cx)) {
+                ConfirmState::CreatingFilter(create_filter, target_block_num, count) => {
+                    match ready!(create_filter.poll(cx)) {
                         Ok(filter) => ConfirmState::WaitingForBlocks(
                             filter
-                                .stream(unpinned.params.poll_interval)
+                                .stream(params.poll_interval)
                                 .skip(*count - 1)
                                 .into_future()
                                 .compat(),
@@ -204,28 +213,23 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                             //   (usually because the node doesn't support
                             //   filters like Infura over HTTPS) then fall back
                             //   to polling.
-                            ConfirmState::PollDelay(
-                                delay(unpinned.params.poll_interval),
-                                *target_block_num,
-                            )
+                            ConfirmState::PollDelay(delay(params.poll_interval), *target_block_num)
                         }
                     }
                 }
-                ConfirmState::WaitingForBlocks(ref mut wait) => {
-                    match ready!(Pin::new(wait).poll(cx)) {
-                        Ok(_) => ConfirmState::Check,
-                        Err((err, _)) => return Poll::Ready(Err(err.into())),
-                    }
-                }
-                ConfirmState::PollDelay(ref mut delay, target_block_num) => {
-                    ready!(Pin::new(delay).poll(cx));
+                ConfirmState::WaitingForBlocks(wait) => match ready!(wait.poll(cx)) {
+                    Ok(_) => ConfirmState::Check,
+                    Err((err, _)) => return Poll::Ready(Err(err.into())),
+                },
+                ConfirmState::PollDelay(delay, target_block_num) => {
+                    ready!(delay.poll(cx));
                     ConfirmState::PollCheckingBlockNumber(
-                        unpinned.web3.eth().block_number().compat(),
+                        web3.eth().block_number().compat(),
                         *target_block_num,
                     )
                 }
-                ConfirmState::PollCheckingBlockNumber(ref mut block_num, target_block_num) => {
-                    let block_num = match ready!(Pin::new(block_num).poll(cx)) {
+                ConfirmState::PollCheckingBlockNumber(block_num, target_block_num) => {
+                    let block_num = match ready!(block_num.poll(cx)) {
                         Ok(block_num) => block_num,
                         Err(err) => return Poll::Ready(Err(err.into())),
                     };
@@ -233,20 +237,15 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                     if block_num == *target_block_num {
                         ConfirmState::Checking(future::try_join(
                             MaybeReady::ready(Ok(block_num)),
-                            unpinned
-                                .web3
-                                .eth()
-                                .transaction_receipt(unpinned.tx)
-                                .compat(),
+                            web3.eth().transaction_receipt(*tx).compat(),
                         ))
                     } else {
-                        ConfirmState::PollDelay(
-                            delay(unpinned.params.poll_interval),
-                            *target_block_num,
-                        )
+                        ConfirmState::PollDelay(delay(params.poll_interval), *target_block_num)
                     }
                 }
-            }
+            };
+
+            self.state = next_state;
         }
     }
 }

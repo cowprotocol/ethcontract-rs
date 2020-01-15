@@ -2,12 +2,13 @@
 //! new contracts.
 
 use crate::errors::{DeployError, ExecutionError};
-use crate::future::{CompatCallFuture, Web3Unpin};
+use crate::future::CompatCallFuture;
 use crate::transaction::{Account, SendFuture, TransactionBuilder, TransactionResult};
 use ethcontract_common::abi::ErrorKind as AbiErrorKind;
 use ethcontract_common::{Abi, Bytecode};
 use futures::compat::Future01CompatExt;
 use futures::ready;
+use pin_project::pin_project;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -25,7 +26,7 @@ use web3::Transport;
 /// new builder and future types.
 pub trait FromNetwork<T: Transport>: Sized {
     /// Context passed to the `Deployments`.
-    type Context: Unpin;
+    type Context;
 
     /// Create a contract instance for the specified network. This method should
     /// return `None` when no deployment can be found for the specified network
@@ -35,15 +36,17 @@ pub trait FromNetwork<T: Transport>: Sized {
 
 /// Future for creating a deployed contract instance.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
+#[pin_project]
 pub struct DeployedFuture<T, I>
 where
     T: Transport,
     I: FromNetwork<T>,
 {
     /// The deployment arguments.
-    args: Option<(Web3Unpin<T>, I::Context)>,
+    args: Option<(Web3<T>, I::Context)>,
     /// The factory used to locate the contract address from a netowkr ID.
     /// Underlying future for retrieving the network ID.
+    #[pin]
     network_id: CompatCallFuture<T, String>,
     _instance: PhantomData<Box<I>>,
 }
@@ -58,7 +61,7 @@ where
     pub fn new(web3: Web3<T>, context: I::Context) -> Self {
         let net = web3.net();
         DeployedFuture {
-            args: Some((web3.into(), context)),
+            args: Some((web3, context)),
             network_id: net.version().compat(),
             _instance: PhantomData,
         }
@@ -72,15 +75,15 @@ where
 {
     type Output = Result<I, DeployError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = self.get_mut();
-        Pin::new(&mut unpinned.network_id)
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        self.as_mut()
+            .project()
+            .network_id
             .poll(cx)
             .map(|network_id| {
                 let network_id = network_id?;
-                let (web3, context) = unpinned.args.take().expect("called more than once");
-                I::from_network(web3.into(), &network_id, context)
-                    .ok_or(DeployError::NotFound(network_id))
+                let (web3, context) = self.args.take().expect("called more than once");
+                I::from_network(web3, &network_id, context).ok_or(DeployError::NotFound(network_id))
             })
     }
 }
@@ -93,7 +96,7 @@ where
 /// new builder and future types.
 pub trait Deploy<T: Transport>: Sized {
     /// The type of the contract instance being created.
-    type Context: Unpin;
+    type Context;
 
     /// Gets a reference to the contract bytecode.
     fn bytecode(cx: &Self::Context) -> &Bytecode;
@@ -216,14 +219,16 @@ where
 
 /// Future for deploying a contract instance.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
+#[pin_project]
 pub struct DeployFuture<T, I>
 where
     T: Transport,
     I: Deploy<T>,
 {
     /// The deployment args
-    args: Option<(Web3Unpin<T>, I::Context)>,
+    args: Option<(Web3<T>, I::Context)>,
     /// The future resolved when the deploy transaction is complete.
+    #[pin]
     send: SendFuture<T>,
     _instance: PhantomData<Box<I>>,
 }
@@ -236,7 +241,7 @@ where
     /// Create an instance from a `DeployBuilder`.
     pub fn from_builder(builder: DeployBuilder<T, I>) -> Self {
         DeployFuture {
-            args: Some((builder.web3.into(), builder.context)),
+            args: Some((builder.web3, builder.context)),
             send: builder.tx.send(),
             _instance: PhantomData,
         }
@@ -250,10 +255,8 @@ where
 {
     type Output = Result<I, DeployError>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let unpinned = self.get_mut();
-
-        let tx = match ready!(Pin::new(&mut unpinned.send).poll(cx)) {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let tx = match ready!(self.as_mut().project().send.poll(cx)) {
             Ok(TransactionResult::Receipt(tx)) => tx,
             Ok(TransactionResult::Hash(tx)) => return Poll::Ready(Err(DeployError::Pending(tx))),
             Err(err) => return Poll::Ready(Err(err.into())),
@@ -268,9 +271,9 @@ where
             }
         };
 
-        let (web3, context) = unpinned.args.take().expect("called more than once");
+        let (web3, context) = self.args.take().expect("called more than once");
 
-        Poll::Ready(Ok(I::at_address(web3.into(), address, context)))
+        Poll::Ready(Ok(I::at_address(web3, address, context)))
     }
 }
 
