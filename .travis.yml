@@ -30,8 +30,9 @@ jobs:
         #   `truffle develop` exits as soon as it gets an EOF from STDIN.
         - tail -f /dev/null | yarn --cwd examples/truffle start > /dev/null &
         - cargo run --example async
-        - cargo run --example linked
+        - cargo run --example deployments
         - cargo run --package examples-generate
+        - cargo run --example linked
         - cargo run --example rinkeby
         - kill %1
 
