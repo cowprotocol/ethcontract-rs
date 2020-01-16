@@ -7,8 +7,10 @@
 mod contract;
 mod util;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+pub use ethcontract_common::Address;
 use proc_macro2::TokenStream;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -21,6 +23,8 @@ pub(crate) struct Args {
     artifact_path: PathBuf,
     /// The runtime crate name to use.
     runtime_crate_name: String,
+    /// Manually specified deployed contract addresses.
+    deployments: HashMap<u32, Address>,
 }
 
 impl Args {
@@ -33,6 +37,7 @@ impl Args {
         Args {
             artifact_path: artifact_path.as_ref().to_owned(),
             runtime_crate_name: "ethcontract".to_owned(),
+            deployments: HashMap::new(),
         }
     }
 }
@@ -60,15 +65,46 @@ impl Builder {
     /// needed if the crate was renamed in the Cargo manifest.
     pub fn with_runtime_crate_name<S>(mut self, name: S) -> Self
     where
+        S: Into<String>,
+    {
+        self.args.runtime_crate_name = name.into();
+        self
+    }
+
+    /// Manually adds specifies the deployed address of a contract for a given
+    /// network. Note that manually specified deployments take precedence over
+    /// deployments in the Truffle artifact (in the `networks` property of the
+    /// artifact).
+    ///
+    /// This is useful for integration test scenarios where the address of a
+    /// contract on the test node is deterministic (for example using
+    /// `ganache-cli -d`) but the contract address is not part of the Truffle
+    /// artifact; or to override a deployment included in a Truffle artifact.
+    pub fn add_deployment(mut self, network_id: u32, address: Address) -> Self {
+        self.args.deployments.insert(network_id, address);
+        self
+    }
+
+    /// Manually adds specifies the deployed address as a string of a contract
+    /// for a given network. See `Builder::add_deployment` for more information.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the specified address string is invalid. See
+    /// `parse_address` for more information on the address string format.
+    pub fn add_deployment_str<S>(self, network_id: u32, address: S) -> Self
+    where
         S: AsRef<str>,
     {
-        self.args.runtime_crate_name = name.as_ref().to_owned();
-        self
+        self.add_deployment(
+            network_id,
+            parse_address(address).expect("failed to parse address"),
+        )
     }
 
     /// Generates the contract bindings.
     pub fn generate(self) -> Result<ContractBindings> {
-        let tokens = contract::expand(&self.args)?;
+        let tokens = contract::expand(self.args)?;
         Ok(ContractBindings { tokens })
     }
 }
@@ -104,4 +140,16 @@ impl ContractBindings {
     pub fn into_tokens(self) -> TokenStream {
         self.tokens
     }
+}
+
+/// Parses the given address string
+pub fn parse_address<S>(address_str: S) -> Result<Address>
+where
+    S: AsRef<str>,
+{
+    let address_str = address_str.as_ref();
+    if !address_str.starts_with("0x") {
+        return Err(anyhow!("address must start with '0x'"));
+    }
+    Ok(address_str[2..].parse()?)
 }

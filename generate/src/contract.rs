@@ -12,9 +12,10 @@ mod types;
 use crate::util;
 use crate::Args;
 use anyhow::{Context as _, Result};
-use ethcontract_common::truffle::Artifact;
+use ethcontract_common::{Address, Artifact};
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -33,11 +34,13 @@ pub(crate) struct Context {
     runtime_crate: Ident,
     /// The contract name as an identifier.
     contract_name: Ident,
+    /// Additional contract deployments.
+    deployments: HashMap<u32, Address>,
 }
 
 impl Context {
     /// Create a context from the code generation arguments.
-    fn from_args(args: &Args) -> Result<Self> {
+    fn from_args(args: Args) -> Result<Self> {
         let full_path = fs::canonicalize(&args.artifact_path).with_context(|| {
             format!(
                 "unable to open file from working dir {} with path {}",
@@ -61,11 +64,24 @@ impl Context {
             artifact,
             runtime_crate,
             contract_name,
+            deployments: args.deployments,
         })
+    }
+
+    #[cfg(test)]
+    fn empty() -> Self {
+        Context {
+            full_path: "/Contract.json".into(),
+            artifact_path: Literal::string("Contract.json"),
+            artifact: Artifact::empty(),
+            runtime_crate: util::ident("ethcontract"),
+            contract_name: util::ident("Contract"),
+            deployments: HashMap::new(),
+        }
     }
 }
 
-pub(crate) fn expand(args: &Args) -> Result<TokenStream> {
+pub(crate) fn expand(args: Args) -> Result<TokenStream> {
     let cx = Context::from_args(args)?;
     let contract = expand_contract(&cx).with_context(|| {
         format!(
@@ -78,9 +94,9 @@ pub(crate) fn expand(args: &Args) -> Result<TokenStream> {
 }
 
 fn expand_contract(cx: &Context) -> Result<TokenStream> {
-    let common = common::expand(&cx);
-    let deployment = deployment::expand(&cx)?;
-    let methods = methods::expand(&cx)?;
+    let common = common::expand(cx);
+    let deployment = deployment::expand(cx)?;
+    let methods = methods::expand(cx)?;
 
     Ok(quote! {
         #common

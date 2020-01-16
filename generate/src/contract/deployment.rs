@@ -2,6 +2,7 @@ use crate::contract::{methods, Context};
 use crate::util;
 use anyhow::{Context as _, Result};
 use ethcontract_common::abi::{Param, ParamType};
+use ethcontract_common::Address;
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
@@ -18,12 +19,21 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
 }
 
 fn expand_deployed(cx: &Context) -> TokenStream {
-    if cx.artifact.networks.is_empty() {
+    if cx.artifact.networks.is_empty() && cx.deployments.is_empty() {
         return quote! {};
     }
 
     let ethcontract = &cx.runtime_crate;
     let contract_name = &cx.contract_name;
+
+    let deployments = cx.deployments.iter().map(|(network_id, address)| {
+        let network_id = Literal::string(&network_id.to_string());
+        let address = expand_address(cx, *address);
+
+        quote! {
+            #network_id => #address,
+        }
+    });
 
     quote! {
         impl #contract_name {
@@ -60,12 +70,13 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                 use #ethcontract::Instance;
 
                 let artifact = Self::artifact();
-                artifact
-                    .networks
-                    .get(network_id)
-                    .map(move |network| Self {
-                        instance: Instance::at(web3, artifact.abi.clone(), network.address),
-                    })
+                let address = match network_id {
+                    #( #deployments )*
+                    _ => artifact.networks.get(network_id)?.address,
+                };
+                let instance = Instance::at(web3, artifact.abi.clone(), address);
+
+                Some(Self { instance })
             }
         }
     }
@@ -171,4 +182,45 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             }
         }
     })
+}
+
+/// Expands an `Address` into a literal representation that can be used with
+/// quasi-quoting for code generation.
+fn expand_address(cx: &Context, address: Address) -> TokenStream {
+    let ethcontract = &cx.runtime_crate;
+    let bytes = address
+        .as_bytes()
+        .iter()
+        .copied()
+        .map(Literal::u8_unsuffixed);
+
+    quote! {
+        #ethcontract::Address::from([#( #bytes ),*])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expand_address_value() {
+        let cx = Context::empty();
+
+        assert_eq!(
+            expand_address(&cx, Address::zero()).to_string(),
+            quote! {
+                ethcontract::Address::from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+            }
+            .to_string(),
+        );
+
+        assert_eq!(
+            expand_address(&cx, "000102030405060708090a0b0c0d0e0f10111213".parse().unwrap()).to_string(),
+            quote! {
+                ethcontract::Address::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
+            }
+            .to_string(),
+        );
+    }
 }

@@ -82,6 +82,9 @@
 //!     .execute_confirm()
 //!     .await?;
 //! ```
+//!
+//! See [`contract!`](ethcontract::contract) proc macro documentation for more
+//! information on usage and parameters.
 
 #[cfg(test)]
 #[allow(missing_docs)]
