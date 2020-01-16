@@ -26,13 +26,15 @@ jobs:
       rust: stable
       script:
         - |
-          yarn --cwd examples/truffle start <(sleep infinity) >/dev/null &
-          TRUFFLE_PID=$!
+          mkfifo in
+          tail -f in | yarn --cwd examples/truffle start &
         - cargo run --example async
         - cargo run --example linked
         - cargo run --package examples-generate
         - cargo run --example rinkeby
-        - kill -9 $TRUFFLE_PID
+        - |
+          kill %1
+          rm in
 
     - stage: "Deploy"
       name: "crates.io"
