@@ -71,8 +71,8 @@ impl Context {
     #[cfg(test)]
     fn empty() -> Self {
         Context {
-            full_path: PathBuf::new(),
-            artifact_path: Literal::string(""),
+            full_path: "/Contract.json".into(),
+            artifact_path: Literal::string("Contract.json"),
             artifact: Artifact::empty(),
             runtime_crate: util::ident("ethcontract"),
             contract_name: util::ident("Contract"),
