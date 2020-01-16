@@ -65,6 +65,16 @@ yarn start
   cargo run --example async
   ```
 
+- The `deployments` example illustrates how the `deployments` parameter can be
+  specified when generating a contract with the `ethcontract::contract!` macro.
+  This can be useful for specifying addresses in testing environments that are
+  deterministic but either not included, or inacurate in the artifact's
+  `networks` property (when for example the contract is developed upstream, but
+  a separte testnet deployment wants to be used).
+  ```sh
+  cargo run --example deployments
+  ```
+
 - The `generator` example (actually a separate crate to be able to have a build
   script) demonstrates how the generator API can be used for creating type-safe
   bindings to a smart contract with a `build.rs` build script.
