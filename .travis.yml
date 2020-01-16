@@ -79,7 +79,7 @@ before_script:
 script:
   - cargo build --workspace --all-features --verbose
   - cargo test --workspace --all-features --verbose
-  - cargo fmt --all -- --check
+  - cargo fmt -- --check
   - cargo clippy --workspace --all-features --all-targets -- -D warnings
 
 before_cache:
