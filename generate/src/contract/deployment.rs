@@ -71,7 +71,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
 
                 let artifact = Self::artifact();
                 let address = match network_id {
-                    #( #deployments ,)*
+                    #( #deployments ),*
                     _ => artifact.networks.get(network_id)?.address,
                 };
                 let instance = Instance::at(web3, artifact.abi.clone(), address);
@@ -195,7 +195,7 @@ fn expand_address(cx: &Context, address: Address) -> TokenStream {
         .map(Literal::u8_unsuffixed);
 
     quote! {
-        #ethcontract::Address([#( #bytes ),*])
+        #ethcontract::Address::from([#( #bytes ),*])
     }
 }
 
@@ -210,7 +210,7 @@ mod tests {
         assert_eq!(
             expand_address(&cx, Address::zero()).to_string(),
             quote! {
-                ethcontract::Address([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+                ethcontract::Address::from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
             }
             .to_string(),
         );
@@ -218,7 +218,7 @@ mod tests {
         assert_eq!(
             expand_address(&cx, "000102030405060708090a0b0c0d0e0f10111213".parse().unwrap()).to_string(),
             quote! {
-                ethcontract::Address([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
+                ethcontract::Address::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
             }
             .to_string(),
         );

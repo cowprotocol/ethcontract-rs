@@ -9,8 +9,6 @@ use ethcontract_generate::{parse_address, Address, Builder};
 use proc_macro::TokenStream;
 use syn::ext::IdentExt;
 use syn::parse::{Error as ParseError, Parse, ParseStream, Result as ParseResult};
-use syn::punctuated::Punctuated;
-use syn::token::{Brace, FatArrow};
 use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, Token};
 
 /// Proc macro to generate type-safe bindings to a contract. See
@@ -222,12 +220,15 @@ mod tests {
                 4 => "0x0123456789012345678901234567890123456789",
             },
         );
-        assert_eq!(args.parameters, &[
-            Parameter::Crate("foobar".into()),
-            Parameter::Deployments(vec![
-                deployment(1, "0x000102030405060708090a0b0c0d0e0f10111213"),
-                deployment(4, "0x0123456789012345678901234567890123456789"),
-            ]),
-        ]);
+        assert_eq!(
+            args.parameters,
+            &[
+                Parameter::Crate("foobar".into()),
+                Parameter::Deployments(vec![
+                    deployment(1, "0x000102030405060708090a0b0c0d0e0f10111213"),
+                    deployment(4, "0x0123456789012345678901234567890123456789"),
+                ]),
+            ]
+        );
     }
 }
