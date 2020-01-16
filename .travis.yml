@@ -77,10 +77,10 @@ before_script:
   - (cd examples/truffle; yarn --frozen-lockfile && yarn build)
 
 script:
-  - cargo build --all-features --verbose --all
-  - cargo test --all-features --verbose --all
-  - cargo fmt --all -- --check
-  - cargo clippy --all --all-features --all-targets -- -D warnings
+  - cargo build --workspace --all-features --verbose
+  - cargo test --workspace --all-features --verbose
+  - cargo fmt -- --check
+  - cargo clippy --workspace --all-features --all-targets -- -D warnings
 
 before_cache:
   - rm -rf "$TRAVIS_HOME/.cargo/registry"
