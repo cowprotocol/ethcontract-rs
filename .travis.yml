@@ -26,7 +26,7 @@ jobs:
       rust: stable
       script:
         - |
-          yarn --cwd examples/truffle start > /dev/null &
+          yarn --cwd examples/truffle start <(sleep infinity) >/dev/null &
           TRUFFLE_PID=$!
         - cargo run --example async
         - cargo run --example linked
