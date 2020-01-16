@@ -12,7 +12,7 @@ mod types;
 use crate::util;
 use crate::Args;
 use anyhow::{Context as _, Result};
-use ethcontract_common::{Artifact, Address};
+use ethcontract_common::{Address, Artifact};
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
