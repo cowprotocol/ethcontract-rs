@@ -24,16 +24,16 @@ jobs:
   include:
     - name: "Rust: stable - Examples"
       rust: stable
-      services:
-        - docker
-      install:
-        - docker pull trufflesuite/ganache-cli:v6.7.0
       script:
-        - docker run -d -p 9545:8545 trufflesuite/ganache-cli:v6.7.0
+        # NOTE: We pipe `tail -f /dev/null` into `yarn start`, which internally
+        #   calls `truffle develop`, so that the process' STDIN stays open, as
+        #   `truffle develop` exits as soon as it gets an EOF from STDIN.
+        - tail -f /dev/null | yarn --cwd examples/truffle start > /dev/null &
         - cargo run --example async
         - cargo run --example linked
         - cargo run --package examples-generate
         - cargo run --example rinkeby
+        - kill %1
 
     - stage: "Deploy"
       name: "crates.io"
