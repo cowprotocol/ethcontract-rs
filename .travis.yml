@@ -26,10 +26,8 @@ jobs:
       rust: stable
       script:
         - |
-          cd examples/truffle
-          yarn start &
+          yarn --cwd examples/truffle start &
           TRUFFLE_PID=$!
-          cd -
         - cargo run --example async
         - cargo run --example linked
         - cargo run --package examples-generate
