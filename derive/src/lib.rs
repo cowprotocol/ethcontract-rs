@@ -5,35 +5,74 @@
 
 extern crate proc_macro;
 
+mod spanned;
+
+use crate::spanned::{ParseInner, Spanned};
 use ethcontract_generate::{parse_address, Address, Builder};
 use proc_macro::TokenStream;
+use proc_macro2::Span;
+use std::collections::HashSet;
 use syn::ext::IdentExt;
 use syn::parse::{Error as ParseError, Parse, ParseStream, Result as ParseResult};
 use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, Token};
 
-/// Proc macro to generate type-safe bindings to a contract. See
-/// [`ethcontract`](ethcontract) module level documentation for more information.
+/// Proc macro to generate type-safe bindings to a contract. This macro accepts
+/// a path to a Truffle artifact JSON file. Note that this path is rooted in
+/// the crate's root `CARGO_MANIFEST_DIR`.
+///
+/// ```ignore
+/// ethcontract::contract!("build/contracts/MyContract.json");
+/// ```
+///
+/// Currently the proc macro accepts additional parameters to configure some
+/// aspects of the code generation. Specifically it accepts:
+/// - `crate`: The name of the `ethcontract` crate. This is useful if the crate
+///   was renamed in the `Cargo.toml` for whatever reason.
+/// - `deployments`: A list of additional addresses of deployed contract for
+///   specified network IDs. This mapping allows `MyContract::deployed` to work
+///   for networks that are not included in the Truffle artifact's `networks`
+///   property. Note that deployments defined this way **take precedence** over
+///   the ones defined in the Truffle artifact. This parameter is intended to be
+///   used to manually specify contract addresses for test environments, be it
+///   testnet addresses that may defer from the originally published artifact or
+///   deterministic contract addresses on local development nodes.
+///
+/// ```ignore
+/// ethcontract::contract!(
+///     "build/contracts/MyContract.json",
+///     crate = ethcontract_rename,
+///     deployments {
+///         4 => "0x000102030405060708090a0b0c0d0e0f10111213"
+///         5777 => "0x0123456789012345678901234567890123456789"
+///     },
+/// );
+/// ```
+///
+/// See [`ethcontract`](ethcontract) module level documentation for additional
+/// information.
 #[proc_macro]
 pub fn contract(input: TokenStream) -> TokenStream {
-    let args = parse_macro_input!(input as ContractArgs);
+    let args = parse_macro_input!(input as Spanned<ContractArgs>);
 
-    let artifact_span = args.artifact_path.span();
-    args.into_builder()
+    let span = args.span();
+    args.into_inner()
+        .into_builder()
         .generate()
         .map(|bindings| bindings.into_tokens())
-        .unwrap_or_else(|e| SynError::new(artifact_span, e.to_string()).to_compile_error())
+        .unwrap_or_else(|e| SynError::new(span, e.to_string()).to_compile_error())
         .into()
 }
 
 /// Contract procedural macro arguments.
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 struct ContractArgs {
-    artifact_path: LitStr,
+    artifact_path: String,
     parameters: Vec<Parameter>,
 }
 
 impl ContractArgs {
     fn into_builder(self) -> Builder {
-        let mut builder = Builder::new(&self.artifact_path.value());
+        let mut builder = Builder::new(&self.artifact_path);
         for parameter in self.parameters.into_iter() {
             builder = match parameter {
                 Parameter::Crate(name) => builder.with_runtime_crate_name(name),
@@ -48,14 +87,17 @@ impl ContractArgs {
     }
 }
 
-impl Parse for ContractArgs {
-    fn parse(input: ParseStream) -> ParseResult<Self> {
+impl ParseInner for ContractArgs {
+    fn spanned_parse(input: ParseStream) -> ParseResult<(Span, Self)> {
         // TODO(nlordell): Due to limitation with the proc-macro Span API, we
         //   can't currently get a path the the file where we were called from;
         //   therefore, the path will always be rooted on the cargo manifest
         //   directory. Eventually we can use the `Span::source_file` API to
         //   have a better experience.
-        let artifact_path = input.parse()?;
+        let (span, artifact_path) = {
+            let literal = input.parse::<LitStr>()?;
+            (literal.span(), literal.value())
+        };
 
         if !input.is_empty() {
             input.parse::<Token![,]>()?;
@@ -65,13 +107,17 @@ impl Parse for ContractArgs {
             .into_iter()
             .collect();
 
-        Ok(ContractArgs {
-            artifact_path,
-            parameters,
-        })
+        Ok((
+            span,
+            ContractArgs {
+                artifact_path,
+                parameters,
+            },
+        ))
     }
 }
 
+/// A single procedural macro parameter.
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 enum Parameter {
     Crate(String),
@@ -91,10 +137,24 @@ impl Parse for Parameter {
             "deployments" => {
                 let content;
                 braced!(content in input);
-                let deployments = content
-                    .parse_terminated::<_, Token![,]>(Deployment::parse)?
-                    .into_iter()
-                    .collect();
+                let deployments = {
+                    let parsed =
+                        content.parse_terminated::<_, Token![,]>(Spanned::<Deployment>::parse)?;
+
+                    let mut deployments = Vec::with_capacity(parsed.len());
+                    let mut networks = HashSet::new();
+                    for deployment in parsed {
+                        if !networks.insert(deployment.network_id) {
+                            return Err(ParseError::new(
+                                deployment.span(),
+                                "duplicate network ID in `ethcontract::contract!` macro invocation",
+                            ));
+                        }
+                        deployments.push(deployment.into_inner())
+                    }
+
+                    deployments
+                };
 
                 Parameter::Deployments(deployments)
             }
@@ -110,6 +170,7 @@ impl Parse for Parameter {
     }
 }
 
+/// A manually specified dependency.
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 struct Deployment {
     network_id: u32,
@@ -136,13 +197,25 @@ impl Parse for Deployment {
 mod tests {
     use super::*;
 
-    macro_rules! contract_args {
+    macro_rules! contract_args_result {
         ($($arg:tt)*) => {{
             use syn::parse::Parser;
-            <ContractArgs as Parse>::parse
+            <Spanned<ContractArgs> as Parse>::parse
                 .parse2(quote::quote! { $($arg)* })
-                .expect("failed to parse contract args")
         }};
+    }
+    macro_rules! contract_args {
+        ($($arg:tt)*) => {
+            contract_args_result!($($arg)*)
+                .expect("failed to parse contract args")
+                .into_inner()
+        };
+    }
+    macro_rules! contract_args_err {
+        ($($arg:tt)*) => {
+            contract_args_result!($($arg)*)
+                .expect_err("expected parse contract args to error")
+        };
     }
 
     fn deployment(network_id: u32, address: &str) -> Deployment {
@@ -155,13 +228,7 @@ mod tests {
     #[test]
     fn parse_contract_args() {
         let args = contract_args!("path/to/artifact.json");
-        assert_eq!(args.artifact_path.value(), "path/to/artifact.json");
-    }
-
-    #[test]
-    fn parse_contract_args_with_parameter() {
-        let args = contract_args!("artifact.json", crate = foobar);
-        assert_eq!(args.parameters, &[Parameter::Crate("foobar".into())]);
+        assert_eq!(args.artifact_path, "path/to/artifact.json");
     }
 
     #[test]
@@ -181,14 +248,28 @@ mod tests {
             },
         );
         assert_eq!(
-            args.parameters,
-            &[
-                Parameter::Crate("foobar".into()),
-                Parameter::Deployments(vec![
-                    deployment(1, "0x000102030405060708090a0b0c0d0e0f10111213"),
-                    deployment(4, "0x0123456789012345678901234567890123456789"),
-                ]),
-            ]
+            args,
+            ContractArgs {
+                artifact_path: "artifact.json".into(),
+                parameters: vec![
+                    Parameter::Crate("foobar".into()),
+                    Parameter::Deployments(vec![
+                        deployment(1, "0x000102030405060708090a0b0c0d0e0f10111213"),
+                        deployment(4, "0x0123456789012345678901234567890123456789"),
+                    ]),
+                ],
+            },
+        );
+    }
+
+    #[test]
+    fn duplicate_network_id_error() {
+        contract_args_err!(
+            "artifact.json",
+            deployments {
+                1 => "0x000102030405060708090a0b0c0d0e0f10111213",
+                1 => "0x0123456789012345678901234567890123456789",
+            }
         );
     }
 }
