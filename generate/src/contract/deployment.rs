@@ -71,7 +71,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
 
                 let artifact = Self::artifact();
                 let address = match network_id {
-                    #( #deployments ),*
+                    #( #deployments )*
                     _ => artifact.networks.get(network_id)?.address,
                 };
                 let instance = Instance::at(web3, artifact.abi.clone(), address);
