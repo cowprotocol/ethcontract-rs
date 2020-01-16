@@ -12,9 +12,10 @@ mod types;
 use crate::util;
 use crate::Args;
 use anyhow::{Context as _, Result};
-use ethcontract_common::truffle::Artifact;
+use ethcontract_common::{Artifact, Address};
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -33,8 +34,8 @@ pub(crate) struct Context {
     runtime_crate: Ident,
     /// The contract name as an identifier.
     contract_name: Ident,
-    /// The original args used for creating the context.
-    args: Args,
+    /// Additional contract deployments.
+    deployments: HashMap<u32, Address>,
 }
 
 impl Context {
@@ -63,7 +64,7 @@ impl Context {
             artifact,
             runtime_crate,
             contract_name,
-            args,
+            deployments: args.deployments,
         })
     }
 
@@ -75,7 +76,7 @@ impl Context {
             artifact: Artifact::empty(),
             runtime_crate: util::ident("ethcontract"),
             contract_name: util::ident("Contract"),
-            args: Args::new(""),
+            deployments: HashMap::new(),
         }
     }
 }
@@ -93,9 +94,9 @@ pub(crate) fn expand(args: Args) -> Result<TokenStream> {
 }
 
 fn expand_contract(cx: &Context) -> Result<TokenStream> {
-    let common = common::expand(&cx);
-    let deployment = deployment::expand(&cx)?;
-    let methods = methods::expand(&cx)?;
+    let common = common::expand(cx);
+    let deployment = deployment::expand(cx)?;
+    let methods = methods::expand(cx)?;
 
     Ok(quote! {
         #common

@@ -19,14 +19,14 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
 }
 
 fn expand_deployed(cx: &Context) -> TokenStream {
-    if cx.artifact.networks.is_empty() && cx.args.deployments.is_empty() {
+    if cx.artifact.networks.is_empty() && cx.deployments.is_empty() {
         return quote! {};
     }
 
     let ethcontract = &cx.runtime_crate;
     let contract_name = &cx.contract_name;
 
-    let deployments = cx.args.deployments.iter().map(|(network_id, address)| {
+    let deployments = cx.deployments.iter().map(|(network_id, address)| {
         let network_id = Literal::string(&network_id.to_string());
         let address = expand_address(cx, *address);
 
