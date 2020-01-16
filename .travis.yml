@@ -25,16 +25,12 @@ jobs:
     - name: "Rust: stable - Examples"
       rust: stable
       script:
-        - |
-          mkfifo /tmp/truffle-in
-          tail -f /tmp/truffle-in | yarn --cwd examples/truffle start > /dev/null &
+        - tail -f /dev/null | yarn --cwd examples/truffle start > /dev/null &
         - cargo run --example async
         - cargo run --example linked
         - cargo run --package examples-generate
         - cargo run --example rinkeby
-        - |
-          kill %1
-          rm /tmp/truffle-in
+        - kill %1
 
     - stage: "Deploy"
       name: "crates.io"
