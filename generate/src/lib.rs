@@ -8,7 +8,7 @@ mod contract;
 mod util;
 
 use anyhow::{anyhow, Result};
-use ethcontract_common::Address;
+pub use ethcontract_common::Address;
 use proc_macro2::TokenStream;
 use std::collections::HashMap;
 use std::fs::File;
@@ -24,7 +24,7 @@ pub(crate) struct Args {
     /// The runtime crate name to use.
     runtime_crate_name: String,
     /// Manually specified deployed contract addresses.
-    deployments: HashMap<String, Address>,
+    deployments: HashMap<u32, Address>,
 }
 
 impl Args {
@@ -80,32 +80,26 @@ impl Builder {
     /// contract on the test node is deterministic (for example using
     /// `ganache-cli -d`) but the contract address is not part of the Truffle
     /// artifact; or to override a deployment included in a Truffle artifact.
-    pub fn try_add_deployment<S, A>(mut self, network: S, address: A) -> Result<Self>
-    where
-        S: Into<String>,
-        A: AsRef<str>,
-    {
-        let address = address.as_ref();
-        if !address.starts_with("0x") {
-            return Err(anyhow!("address must start with '0x'"));
-        }
-        self.args
-            .deployments
-            .insert(network.into(), address[2..].parse()?);
-        Ok(self)
+    pub fn add_deployment(mut self, network_id: u32, address: Address) -> Self {
+        self.args.deployments.insert(network_id, address);
+        self
     }
 
+    /// Manually adds specifies the deployed address as a string of a contract
+    /// for a given network. See `Builder::add_deployment` for more information.
+    ///
     /// # Panics
     ///
-    /// This method will panic if `address` is not a valid 20-byte string
-    /// representation of an `Address` in the form of `"0x123...def"`.
-    pub fn add_deployment<S, A>(self, network: S, address: A) -> Self
+    /// This method panics if the specified address string is invalid. See
+    /// `parse_address` for more information on the address string format.
+    pub fn add_deployment_str<S>(self, network_id: u32, address: S) -> Self
     where
-        S: Into<String>,
-        A: AsRef<str>,
+        S: AsRef<str>,
     {
-        self.try_add_deployment(network, address)
-            .expect("failed to parse address")
+        self.add_deployment(
+            network_id,
+            parse_address(address).expect("failed to parse address"),
+        )
     }
 
     /// Generates the contract bindings.
@@ -146,4 +140,16 @@ impl ContractBindings {
     pub fn into_tokens(self) -> TokenStream {
         self.tokens
     }
+}
+
+/// Parses the given address string
+pub fn parse_address<S>(address_str: S) -> Result<Address>
+where
+    S: AsRef<str>,
+{
+    let address_str = address_str.as_ref();
+    if !address_str.starts_with("0x") {
+        return Err(anyhow!("address must start with '0x'"));
+    }
+    Ok(address_str[2..].parse()?)
 }

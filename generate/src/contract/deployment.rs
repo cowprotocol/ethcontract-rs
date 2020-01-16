@@ -27,7 +27,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
     let contract_name = &cx.contract_name;
 
     let deployments = cx.args.deployments.iter().map(|(network_id, address)| {
-        let network_id = Literal::string(network_id);
+        let network_id = Literal::string(&network_id.to_string());
         let address = expand_address(cx, *address);
 
         quote! {
