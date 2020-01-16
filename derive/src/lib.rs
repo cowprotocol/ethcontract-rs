@@ -69,46 +69,6 @@ impl Parse for ContractArgs {
             artifact_path,
             parameters,
         })
-
-        /*
-        while !input.is_empty() {
-            if input.is_empty() {
-                // allow trailing commas
-                break;
-            }
-
-            let param = input.call(Ident::parse_any)?;
-            match param.to_string().as_str() {
-                "crate" => {
-                    input.parse::<Token![=]>()?;
-                    let ident = input.call(Ident::parse_any)?;
-                    let name = format!("{}", ident.unraw());
-                    builder = builder.with_runtime_crate_name(&name);
-                }
-                "deployments" => {
-                    braced!(content in input);
-                    let deployments =
-                        content.parse_terminated::<_, Token![,]>(Deployment::parse)?;
-                    for deployment in deployments {}
-                    let network_id: u32 = content.parse::<LitInt>()?.base10_parse()?;
-                    content.parse::<Token![=>]>()?;
-                    let address: LitStr = content.parse()?;
-                    content.parse_ter
-                }
-                _ => {
-                    return Err(ParseError::new(
-                        param.span(),
-                        format!("unexpected named parameter `{}`", param),
-                    ))
-                }
-            }
-        }
-
-        Ok(ContractArgs {
-            artifact_path,
-            builder,
-        })
-        */
     }
 }
 
