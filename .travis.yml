@@ -25,9 +25,9 @@ jobs:
     - name: "Rust: stable - Examples"
       rust: stable
       script:
-        # NOTE: We pipe `tail -f /dev/null` so that the `truffle develop` so
-        #   that the process' STDIN stays open, as `truffle develop` exits as
-        #   soon as it gets an EOF from STDIN.
+        # NOTE: We pipe `tail -f /dev/null` into `yarn start`, which internally
+        #   calls `truffle develop`, so that the process' STDIN stays open, as
+        #   `truffle develop` exits as soon as it gets an EOF from STDIN.
         - tail -f /dev/null | yarn --cwd examples/truffle start > /dev/null &
         - cargo run --example async
         - cargo run --example linked
