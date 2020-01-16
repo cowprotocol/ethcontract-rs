@@ -24,16 +24,17 @@ jobs:
   include:
     - name: "Rust: stable - Examples"
       rust: stable
-      services:
-        - docker
-      install:
-        - docker pull trufflesuite/ganache-cli:v6.7.0
       script:
-        - docker run -d -p 9545:8545 trufflesuite/ganache-cli:v6.7.0
+        - |
+          cd examples/truffle
+          yarn start &
+          TRUFFLE_PID=$!
+          cd -
         - cargo run --example async
         - cargo run --example linked
         - cargo run --package examples-generate
         - cargo run --example rinkeby
+        - kill -9 $TRUFFLE_PID
 
     - stage: "Deploy"
       name: "crates.io"
