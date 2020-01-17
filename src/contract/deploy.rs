@@ -89,7 +89,7 @@ where
     }
 }
 
-/// a factory trait for deployable contract instances. this traits provides
+/// A factory trait for deployable contract instances. this traits provides
 /// functionality for building a deployment and creating instances of a
 /// contract type at a given address.
 ///
@@ -150,8 +150,8 @@ where
         let params = params.into_tokens();
         let data = match (I::abi(&context).constructor(), params.is_empty()) {
             (None, false) => return Err(AbiErrorKind::InvalidData.into()),
-            (None, true) => code,
-            (Some(ctor), _) => Bytes(ctor.encode_input(code.0, &params)?),
+            (None, true) => Bytes(code),
+            (Some(ctor), _) => Bytes(ctor.encode_input(code, &params)?),
         };
 
         Ok(DeployBuilder {

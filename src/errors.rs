@@ -13,6 +13,45 @@ pub use ethcontract_common::errors::*;
 
 /// Error that can occur while locating a deployed contract.
 #[derive(Debug, Error)]
+pub enum LinkerError {
+    /// Attempted to link a contract when empty bytecode. This can happen when
+    /// attempting to link a contract that is actually an interface.
+    #[error("can not link or deploy contract with empty bytecode")]
+    EmptyBytecode,
+
+    /// An error occured encoding contructor parameters for the contract ABI.
+    #[error("error ABI ecoding constructor parameters: {0}")]
+    Abi(#[from] AbiError),
+
+    /// An error indicating that an attempt was made to link a library that has
+    /// already been linked.
+    #[error("multiple definitions of library '{0}'")]
+    MultipleDefinitions(String),
+
+    /// And error indicating that there were missing dependencies while linking
+    /// the contract and library bytecode.
+    #[error("missing dependency '{0}'")]
+    MissingDependency(String),
+
+    /// And error indicating that there were unused dependencies while linking
+    /// the contract and library bytecode.
+    #[error("unused dependency '{0}'")]
+    UnusedDependency(String),
+
+    /// An error indicating that circular dependencies were found while linking
+    /// the contract and library bytecode.
+    #[error("circular dependencies '{0:?}'")]
+    CircularDependencies(Vec<String>),
+}
+
+impl From<AbiErrorKind> for LinkerError {
+    fn from(err: AbiErrorKind) -> Self {
+        LinkerError::Abi(err.into())
+    }
+}
+
+/// Error that can occur while locating a deployed contract.
+#[derive(Debug, Error)]
 pub enum DeployError {
     /// An error occured while performing a web3 call.
     #[error("web3 error: {0}")]

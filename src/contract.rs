@@ -3,6 +3,7 @@
 //! state.
 
 mod deploy;
+mod link;
 mod method;
 
 use crate::errors::{DeployError, LinkError};
