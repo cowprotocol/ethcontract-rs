@@ -4,9 +4,9 @@
 pub mod build;
 pub mod confirm;
 
+use crate::conv;
 use crate::errors::ExecutionError;
 use crate::future::CompatCallFuture;
-use crate::math;
 use crate::transaction::build::BuildFuture;
 use crate::transaction::confirm::{ConfirmFuture, ConfirmParams};
 use ethsign::{Protected, SecretKey};
@@ -117,8 +117,8 @@ impl GasPrice {
                 //   convert everything to floats to multiply the factor and
                 //   then convert back. We are OK with the loss of precision
                 //   here.
-                let estimate_f = math::u256_to_f64(estimate);
-                math::f64_to_u256(estimate_f * factor)
+                let estimate_f = conv::u256_to_f64(estimate);
+                conv::f64_to_u256(estimate_f * factor)
             }
             GasPrice::Value(value) => *value,
         }

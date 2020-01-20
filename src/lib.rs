@@ -93,10 +93,10 @@
 mod test_macros;
 
 pub mod contract;
+mod conv;
 pub mod errors;
 mod future;
 mod hash;
-mod math;
 pub mod sign;
 pub mod transaction;
 pub mod transport;
