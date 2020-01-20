@@ -5,6 +5,7 @@ pub mod confirm;
 
 use crate::errors::ExecutionError;
 use crate::future::{CompatCallFuture, MaybeReady};
+use crate::math;
 use crate::sign::TransactionData;
 use crate::transaction::confirm::{ConfirmFuture, ConfirmParams};
 use ethsign::{Protected, SecretKey};
@@ -67,6 +68,58 @@ pub enum ResolveCondition {
 impl Default for ResolveCondition {
     fn default() -> Self {
         ResolveCondition::Confirmed(Default::default())
+    }
+}
+
+/// The gas price setting to use.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum GasPrice {
+    /// The standard estimated gas price from the node, this is usually the
+    /// median gas price from the last few blocks. This is the default gas price
+    /// used by transactions.
+    Standard,
+    /// A factor of the estimated gas price from the node. `GasPrice::Standard`
+    /// is equivalent to `GasPrice::Factor(1.0)`.
+    Factor(f64),
+    /// Specify a specific gas price to use for the transaction. This will cause
+    /// the transaction `SendFuture` to not query the node for a gas price
+    /// estimation.
+    Value(U256),
+}
+
+impl GasPrice {
+    /// A low gas price. Using this may result in long confirmation times for
+    /// transactions, or the transactions not being mined at all.
+    pub fn low() -> Self {
+        GasPrice::Factor(0.8)
+    }
+
+    /// A high gas price that usually results in faster mining times.
+    /// transactions, or the transactions not being mined at all.
+    pub fn fast() -> Self {
+        GasPrice::Factor(6.0)
+    }
+
+    /// Calculates the gas price to use based on the estimated gas price.
+    fn get_price(&self, estimate: U256) -> U256 {
+        match self {
+            GasPrice::Standard => estimate,
+            GasPrice::Factor(factor) => {
+                // NOTE: U256 does not support floating point we we have to
+                //   convert everything to floats to multiply the factor and
+                //   then convert back. We are OK with the loss of precision
+                //   here.
+                let estimate_f = math::u256_to_f64(estimate);
+                math::f64_to_u256(estimate_f * factor)
+            }
+            GasPrice::Value(value) => *value,
+        }
+    }
+}
+
+impl Default for GasPrice {
+    fn default() -> Self {
+        GasPrice::Standard
     }
 }
 
@@ -170,7 +223,8 @@ pub struct TransactionBuilder<T: Transport> {
     /// Optional gas amount to use for transaction. Defaults to estimated gas.
     pub gas: Option<U256>,
     /// Optional gas price to use for transaction. Defaults to estimated gas
-    /// price.
+    /// price from the node (i.e. `GasPrice::Standard`).
+    //pub gas_price: Option<GasPrice>,
     pub gas_price: Option<U256>,
     /// The ETH value to send with the transaction. Defaults to 0.
     pub value: Option<U256>,
