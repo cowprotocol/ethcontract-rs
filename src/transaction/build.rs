@@ -153,7 +153,7 @@ type LocalParamsFuture<T> = Join<MaybeCallFuture<T, Vec<Address>>, OptionCallFut
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
 pub struct LocalBuildFuture<T: Transport> {
-    /// The partial transaction option with the optional condition.
+    /// The partial transaction object with the optional condition.
     tx: Option<(PartialTransaction, Option<TransactionCondition>)>,
     /// The inner future for retrieving the list of accounts on the node and
     /// gas price estimation.
@@ -612,18 +612,21 @@ mod tests {
         let chain_id = 77777;
 
         transport.add_response(json!(gas));
-        transport.add_response(json!(gas_price));
+        transport.add_response(json!(gas_price * 2));
         transport.add_response(json!(nonce));
         transport.add_response(json!(format!("{:#x}", chain_id)));
 
-        let tx1 = TransactionBuilder::new(web3.clone())
-            .from(Account::Offline(key.clone(), None))
-            .to(to)
-            .build()
-            .immediate()
-            .expect("sign succeeded")
-            .raw()
-            .expect("raw transaction");
+        let tx1 = OfflineBuildFuture::new(
+            &web3,
+            PartialTransaction {
+                to: Some(to),
+                ..Default::default()
+            },
+            key.clone(),
+            None,
+        )
+        .immediate()
+        .expect("sign succeeded");
 
         // assert that we ask the node for all the missing values
         transport.assert_request(
@@ -638,22 +641,46 @@ mod tests {
         transport.assert_request("eth_chainId", &[]);
         transport.assert_no_more_requests();
 
-        let tx2 = TransactionBuilder::new(web3)
-            .from(Account::Offline(key, Some(chain_id)))
-            .to(to)
-            .gas(gas)
-            .gas_price(gas_price.into())
-            .nonce(nonce)
-            .build()
-            .immediate()
-            .expect("sign succeeded")
-            .raw()
-            .expect("raw transaction");
+        transport.add_response(json!(gas_price));
+
+        let tx2 = OfflineBuildFuture::new(
+            &web3,
+            PartialTransaction {
+                to: Some(to),
+                gas: Some(gas),
+                gas_price: Some(GasPrice::Factor(2.0)),
+                nonce: Some(nonce),
+                ..Default::default()
+            },
+            key.clone(),
+            Some(chain_id),
+        )
+        .immediate()
+        .expect("sign succeeded");
+
+        transport.assert_request("eth_gasPrice", &[]);
+        transport.assert_no_more_requests();
+
+        let tx3 = OfflineBuildFuture::new(
+            &web3,
+            PartialTransaction {
+                to: Some(to),
+                gas: Some(gas),
+                gas_price: Some(GasPrice::Value(gas_price * 2)),
+                nonce: Some(nonce),
+                ..Default::default()
+            },
+            key,
+            Some(chain_id),
+        )
+        .immediate()
+        .expect("sign succeeded");
 
         // assert that if we provide all the values then we can sign right away
         transport.assert_no_more_requests();
 
         // check that if we sign with same values we get same results
-        assert_eq!(tx1, tx2);
+        assert_eq!(tx1, tx3);
+        assert_eq!(tx2, tx3);
     }
 }
