@@ -1,27 +1,26 @@
 //! Implementation for setting up, signing, estimating gas and sending
 //! transactions on the Ethereum network.
 
+pub mod build;
 pub mod confirm;
 
 use crate::errors::ExecutionError;
-use crate::future::{CompatCallFuture, MaybeReady};
+use crate::future::CompatCallFuture;
 use crate::math;
-use crate::sign::TransactionData;
+use crate::transaction::build::BuildFuture;
 use crate::transaction::confirm::{ConfirmFuture, ConfirmParams};
 use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
-use futures::future::{self, Join, OptionFuture, TryJoin4};
 use futures::ready;
 use pin_project::{pin_project, project};
 use std::future::Future;
 use std::pin::Pin;
-use std::str;
 use std::task::{Context, Poll};
 use web3::api::{Eth, Namespace, Web3};
 use web3::helpers::{self, CallFuture};
 use web3::types::{
-    Address, Bytes, CallRequest, RawTransaction, TransactionCondition, TransactionReceipt,
-    TransactionRequest, H256, U256, U64,
+    Address, Bytes, CallRequest, TransactionCondition, TransactionReceipt, TransactionRequest,
+    H256, U256, U64,
 };
 use web3::Transport;
 
@@ -102,7 +101,7 @@ impl GasPrice {
 
     /// Returns `Some(value)` if the gas price is explicitly specified, `None`
     /// otherwise.
-    fn value(&self) -> Option<U256> {
+    pub fn value(&self) -> Option<U256> {
         match self {
             GasPrice::Value(value) => Some(*value),
             _ => None,
@@ -150,10 +149,38 @@ macro_rules! impl_gas_price_from_integer {
     };
 }
 
-impl_gas_price_from_integer!(
-    i8, i16, i32, i64, i128, isize,
-    u8, u16, u32, u64, u128, usize,
-);
+impl_gas_price_from_integer!(i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize,);
+
+/// Represents a prepared and optionally signed transaction that is ready for
+/// sending created by a `TransactionBuilder`.
+#[derive(Clone, Debug, PartialEq)]
+#[allow(clippy::large_enum_variant)]
+pub enum Transaction {
+    /// A structured transaction request to be signed locally by the node.
+    Request(TransactionRequest),
+    /// A signed raw transaction request.
+    Raw(Bytes),
+}
+
+impl Transaction {
+    /// Unwraps the transaction into a transaction request, returning None if the
+    /// transaction is a raw transaction.
+    pub fn request(self) -> Option<TransactionRequest> {
+        match self {
+            Transaction::Request(tx) => Some(tx),
+            _ => None,
+        }
+    }
+
+    /// Unwraps the transaction into its raw bytes, returning None if it is a
+    /// transaction request.
+    pub fn raw(self) -> Option<Bytes> {
+        match self {
+            Transaction::Raw(tx) => Some(tx),
+            _ => None,
+        }
+    }
+}
 
 /// Represents the result of a sent transaction that can either be a transaction
 /// hash, in the case the transaction was not confirmed, or a full transaction
@@ -204,37 +231,6 @@ impl TransactionResult {
     pub fn as_receipt(&self) -> Option<&TransactionReceipt> {
         match self {
             TransactionResult::Receipt(ref tx) => Some(tx),
-            _ => None,
-        }
-    }
-}
-
-/// Represents a prepared and optionally signed transaction that is ready for
-/// sending created by a `TransactionBuilder`.
-#[derive(Clone, Debug, PartialEq)]
-#[allow(clippy::large_enum_variant)]
-pub enum Transaction {
-    /// A structured transaction request to be signed locally by the node.
-    Request(TransactionRequest),
-    /// A signed raw transaction request.
-    Raw(Bytes),
-}
-
-impl Transaction {
-    /// Unwraps the transaction into a transaction request, returning None if the
-    /// transaction is a raw transaction.
-    pub fn request(self) -> Option<TransactionRequest> {
-        match self {
-            Transaction::Request(tx) => Some(tx),
-            _ => None,
-        }
-    }
-
-    /// Unwraps the transaction into its raw bytes, returning None if it is a
-    /// transaction request.
-    pub fn raw(self) -> Option<Bytes> {
-        match self {
-            Transaction::Raw(tx) => Some(tx),
             _ => None,
         }
     }
@@ -420,247 +416,6 @@ impl<T: Transport> Future for EstimateGasFuture<T> {
     }
 }
 
-/// Future for preparing a transaction.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct BuildFuture<T: Transport> {
-    /// The gas pricing option.
-    gas_price: GasPrice,
-    /// The internal build state for preparing the transaction.
-    #[pin]
-    state: BuildState<T>,
-}
-
-/// Type alias for a call future that might already be resolved.
-type MaybeCallFuture<T, R> = MaybeReady<CompatCallFuture<T, R>>;
-
-/// Type alias for future retrieving default local account parameters.
-type LocalParamsFuture<T> =
-    Join<OptionFuture<CompatCallFuture<T, Vec<Address>>>, OptionFuture<CompatCallFuture<T, U256>>>;
-
-/// Type alias for future retrieving the optional parameters that may not have
-/// been specified by the transaction builder but are required for signing.
-type OfflineParamsFuture<T> = TryJoin4<
-    MaybeCallFuture<T, U256>,
-    MaybeCallFuture<T, U256>,
-    MaybeCallFuture<T, U256>,
-    MaybeCallFuture<T, U64>,
->;
-
-/// Internal build state for preparing transactions.
-#[allow(clippy::large_enum_variant)]
-#[pin_project]
-enum BuildState<T: Transport> {
-    /// Waiting for list of accounts and gas price estimation in order to
-    /// determine from address and calculate the gas price in order to finalize
-    /// a `TransactionRequest::Tx`.
-    Local {
-        /// The transaction request being built.
-        request: Option<TransactionRequest>,
-        /// The inner future for retrieving the list of accounts on the node and
-        /// gas price estimation.
-        #[pin]
-        params: LocalParamsFuture<T>,
-    },
-
-    /// Waiting for the node to sign with a locked account.
-    Locked {
-        /// Future waiting for the node to sign the request with a locked account.
-        #[pin]
-        sign: CompatCallFuture<T, RawTransaction>,
-    },
-
-    /// Waiting for missing transaction parameters needed to sign and produce a
-    /// `Request::Raw` result.
-    Offline {
-        /// The private key to use for signing.
-        key: SecretKey,
-        /// The recepient address.
-        to: Address,
-        /// The ETH value to be sent with the transaction.
-        value: U256,
-        /// The ABI encoded call parameters,
-        data: Bytes,
-        /// Future for retrieving gas, gas price, nonce and chain ID when they
-        /// where not specified.
-        #[pin]
-        params: OfflineParamsFuture<T>,
-    },
-}
-
-impl<T: Transport> BuildFuture<T> {
-    /// Create an instance from a `TransactionBuilder`.
-    pub fn from_builder(builder: TransactionBuilder<T>) -> Self {
-        let eth = builder.web3.eth();
-        let gas_price = builder.gas_price.unwrap_or_default();
-
-        let state = match builder.from {
-            None => BuildState::Local {
-                request: Some(TransactionRequest {
-                    from: Address::zero(),
-                    to: builder.to,
-                    gas: builder.gas,
-                    gas_price: gas_price.value(),
-                    value: builder.value,
-                    data: builder.data,
-                    nonce: builder.nonce,
-                    condition: None,
-                }),
-                params: future::join(
-                    Some(eth.accounts().compat()).into(),
-                    match gas_price {
-                        GasPrice::Standard | GasPrice::Value(_) => None,
-                        GasPrice::Factor(_) => Some(eth.gas_price().compat()),
-                    }
-                    .into(),
-                ),
-            },
-            Some(Account::Local(from, condition)) => BuildState::Local {
-                request: Some(TransactionRequest {
-                    from,
-                    to: builder.to,
-                    gas: builder.gas,
-                    gas_price: gas_price.value(),
-                    value: builder.value,
-                    data: builder.data,
-                    nonce: builder.nonce,
-                    condition,
-                }),
-                params: future::join(
-                    None.into(),
-                    match gas_price {
-                        GasPrice::Standard | GasPrice::Value(_) => None,
-                        GasPrice::Factor(_) => Some(eth.gas_price().compat()),
-                    }
-                    .into(),
-                ),
-            },
-            Some(Account::Locked(from, password, condition)) => {
-                let request = TransactionRequest {
-                    from,
-                    to: builder.to,
-                    gas: builder.gas,
-                    gas_price: gas_price.value(),
-                    value: builder.value,
-                    data: builder.data,
-                    nonce: builder.nonce,
-                    condition,
-                };
-                let password = unsafe { str::from_utf8_unchecked(password.as_ref()) };
-                let sign = builder
-                    .web3
-                    .personal()
-                    .sign_transaction(request, password)
-                    .compat();
-
-                BuildState::Locked { sign }
-            }
-            Some(Account::Offline(key, chain_id)) => {
-                macro_rules! maybe {
-                    ($o:expr, $c:expr) => {
-                        match $o {
-                            Some(v) => MaybeReady::ready(Ok(v)),
-                            None => MaybeReady::future($c),
-                        }
-                    };
-                }
-
-                let from = key.public().address().into();
-                let to = builder.to.unwrap_or_else(Address::zero);
-                let transport = builder.web3.transport();
-
-                let eth = builder.web3.eth();
-
-                let gas = maybe!(
-                    builder.gas,
-                    EstimateGasFuture::from_request(
-                        eth.clone(),
-                        CallRequest {
-                            from: Some(from),
-                            to,
-                            gas: None,
-                            gas_price: None,
-                            value: builder.value,
-                            data: builder.data.clone(),
-                        }
-                    )
-                    .0
-                );
-                let gas_price_estimate = maybe!(gas_price.value(), eth.gas_price().compat());
-                let nonce = maybe!(builder.nonce, eth.transaction_count(from, None).compat());
-                let chain_id = maybe!(
-                    chain_id.map(U64::from),
-                    CallFuture::new(transport.execute("eth_chainId", vec![])).compat()
-                );
-
-                BuildState::Offline {
-                    key,
-                    to,
-                    value: builder.value.unwrap_or_else(U256::zero),
-                    data: builder.data.unwrap_or_else(Bytes::default),
-                    params: future::try_join4(gas, gas_price_estimate, nonce, chain_id),
-                }
-            }
-        };
-
-        BuildFuture { gas_price, state }
-    }
-}
-
-impl<T: Transport> Future for BuildFuture<T> {
-    type Output = Result<Transaction, ExecutionError>;
-
-    #[project]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        #[project]
-        let BuildFuture { gas_price, state } = self.project();
-        #[project]
-        match state.project() {
-            BuildState::Local { request, params } => {
-                params.poll(cx).map(|(accounts, gas_price_estimate)| {
-                    let mut request = request.take().expect("future polled more than once");
-
-                    if let Some(accounts) = accounts {
-                        if let Some(from) = accounts?.get(0) {
-                            request.from = *from;
-                        }
-                    }
-                    request.gas_price = if let Some(gas_price_estimate) = gas_price_estimate {
-                        Some(gas_price.get_price(gas_price_estimate?))
-                    } else {
-                        gas_price.value()
-                    };
-
-                    Ok(Transaction::Request(request))
-                })
-            }
-            BuildState::Locked { sign } => sign.poll(cx).map(|raw| Ok(Transaction::Raw(raw?.raw))),
-            BuildState::Offline {
-                key,
-                to,
-                value,
-                data,
-                params,
-            } => params.poll(cx).map(|params| {
-                let (gas, gas_price_estimate, nonce, chain_id) = params?;
-                let gas_price = self.gas_price.get_price(gas_price_estimate);
-
-                let tx = TransactionData {
-                    nonce,
-                    gas_price,
-                    gas,
-                    to: *to,
-                    value: *value,
-                    data,
-                };
-                let raw = tx.sign(key, Some(chain_id.as_u64()))?;
-
-                Ok(Transaction::Raw(raw))
-            }),
-        }
-    }
-}
-
 /// Future for optionally signing and then sending a transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
@@ -794,138 +549,6 @@ mod tests {
 
         let estimate_gas = estimate_gas.immediate().expect("success");
         assert_eq!(estimate_gas, 0x42.into());
-    }
-
-    #[test]
-    fn tx_build_local_default_account() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let accounts = [
-            addr!("0x9876543210987654321098765432109876543210"),
-            addr!("0x1111111111111111111111111111111111111111"),
-            addr!("0x2222222222222222222222222222222222222222"),
-        ];
-
-        transport.add_response(json!(accounts)); // get accounts
-        let tx = TransactionBuilder::new(web3)
-            .build()
-            .immediate()
-            .expect("get accounts success")
-            .request()
-            .expect("transaction request");
-
-        transport.assert_request("eth_accounts", &[]);
-        transport.assert_no_more_requests();
-
-        // assert that if no from is specified that it uses the first account
-        assert_eq!(tx.from, accounts[0]);
-    }
-
-    #[test]
-    fn tx_build_locked() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let from = addr!("0x9876543210987654321098765432109876543210");
-        let pw = "foobar";
-        let to = addr!("0x0000000000000000000000000000000000000000");
-        let signed = bytes!("0x0123456789"); // doesn't have to be valid, we don't check
-
-        transport.add_response(json!({
-            "raw": signed,
-            "tx": {
-                "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-                "nonce": "0x0",
-                "from": from,
-                "value": "0x0",
-                "gas": "0x0",
-                "gasPrice": "0x0",
-                "input": "0x",
-            }
-        })); // sign transaction
-        let tx = TransactionBuilder::new(web3)
-            .from(Account::Locked(from, pw.into(), None))
-            .to(to)
-            .build()
-            .immediate()
-            .expect("sign succeeded")
-            .raw()
-            .expect("raw transaction");
-
-        transport.assert_request(
-            "personal_signTransaction",
-            &[
-                json!({
-                    "from": from,
-                    "to": to,
-                }),
-                json!(pw),
-            ],
-        );
-        transport.assert_no_more_requests();
-
-        assert_eq!(tx, signed);
-    }
-
-    #[test]
-    fn tx_build_offline() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
-        let from: Address = key.public().address().into();
-        let to = addr!("0x0000000000000000000000000000000000000000");
-
-        let gas = uint!("0x9a5");
-        let gas_price = uint!("0x1ce");
-        let nonce = uint!("0x42");
-        let chain_id = 77777;
-
-        transport.add_response(json!(gas));
-        transport.add_response(json!(gas_price));
-        transport.add_response(json!(nonce));
-        transport.add_response(json!(format!("{:#x}", chain_id)));
-
-        let tx1 = TransactionBuilder::new(web3.clone())
-            .from(Account::Offline(key.clone(), None))
-            .to(to)
-            .build()
-            .immediate()
-            .expect("sign succeeded")
-            .raw()
-            .expect("raw transaction");
-
-        // assert that we ask the node for all the missing values
-        transport.assert_request(
-            "eth_estimateGas",
-            &[json!({
-                "from": from,
-                "to": to,
-            })],
-        );
-        transport.assert_request("eth_gasPrice", &[]);
-        transport.assert_request("eth_getTransactionCount", &[json!(from), json!("latest")]);
-        transport.assert_request("eth_chainId", &[]);
-        transport.assert_no_more_requests();
-
-        let tx2 = TransactionBuilder::new(web3)
-            .from(Account::Offline(key, Some(chain_id)))
-            .to(to)
-            .gas(gas)
-            .gas_price(gas_price.into())
-            .nonce(nonce)
-            .build()
-            .immediate()
-            .expect("sign succeeded")
-            .raw()
-            .expect("raw transaction");
-
-        // assert that if we provide all the values then we can sign right away
-        transport.assert_no_more_requests();
-
-        // check that if we sign with same values we get same results
-        assert_eq!(tx1, tx2);
     }
 
     #[test]
