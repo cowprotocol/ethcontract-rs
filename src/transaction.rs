@@ -10,7 +10,7 @@ use crate::sign::TransactionData;
 use crate::transaction::confirm::{ConfirmFuture, ConfirmParams};
 use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
-use futures::future::{self, TryJoin4};
+use futures::future::{self, Join, OptionFuture, TryJoin4};
 use futures::ready;
 use pin_project::{pin_project, project};
 use std::future::Future;
@@ -100,6 +100,15 @@ impl GasPrice {
         GasPrice::Factor(6.0)
     }
 
+    /// Returns `Some(value)` if the gas price is explicitly specified, `None`
+    /// otherwise.
+    fn value(&self) -> Option<U256> {
+        match self {
+            GasPrice::Value(value) => Some(*value),
+            _ => None,
+        }
+    }
+
     /// Calculates the gas price to use based on the estimated gas price.
     fn get_price(&self, estimate: U256) -> U256 {
         match self {
@@ -122,6 +131,29 @@ impl Default for GasPrice {
         GasPrice::Standard
     }
 }
+
+impl From<U256> for GasPrice {
+    fn from(value: U256) -> Self {
+        GasPrice::Value(value)
+    }
+}
+
+macro_rules! impl_gas_price_from_integer {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl From<$t> for GasPrice {
+                fn from(value: $t) -> Self {
+                    GasPrice::Value(value.into())
+                }
+            }
+        )*
+    };
+}
+
+impl_gas_price_from_integer!(
+    i8, i16, i32, i64, i128, isize,
+    u8, u16, u32, u64, u128, usize,
+);
 
 /// Represents the result of a sent transaction that can either be a transaction
 /// hash, in the case the transaction was not confirmed, or a full transaction
@@ -224,8 +256,7 @@ pub struct TransactionBuilder<T: Transport> {
     pub gas: Option<U256>,
     /// Optional gas price to use for transaction. Defaults to estimated gas
     /// price from the node (i.e. `GasPrice::Standard`).
-    //pub gas_price: Option<GasPrice>,
-    pub gas_price: Option<U256>,
+    pub gas_price: Option<GasPrice>,
     /// The ETH value to send with the transaction. Defaults to 0.
     pub value: Option<U256>,
     /// The data for the transaction. Defaults to empty data.
@@ -277,7 +308,7 @@ impl<T: Transport> TransactionBuilder<T> {
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: U256) -> Self {
+    pub fn gas_price(mut self, value: GasPrice) -> Self {
         self.gas_price = Some(value);
         self
     }
@@ -393,6 +424,8 @@ impl<T: Transport> Future for EstimateGasFuture<T> {
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
 pub struct BuildFuture<T: Transport> {
+    /// The gas pricing option.
+    gas_price: GasPrice,
     /// The internal build state for preparing the transaction.
     #[pin]
     state: BuildState<T>,
@@ -401,9 +434,13 @@ pub struct BuildFuture<T: Transport> {
 /// Type alias for a call future that might already be resolved.
 type MaybeCallFuture<T, R> = MaybeReady<CompatCallFuture<T, R>>;
 
+/// Type alias for future retrieving default local account parameters.
+type LocalParamsFuture<T> =
+    Join<OptionFuture<CompatCallFuture<T, Vec<Address>>>, OptionFuture<CompatCallFuture<T, U256>>>;
+
 /// Type alias for future retrieving the optional parameters that may not have
 /// been specified by the transaction builder but are required for signing.
-type ParamsFuture<T> = TryJoin4<
+type OfflineParamsFuture<T> = TryJoin4<
     MaybeCallFuture<T, U256>,
     MaybeCallFuture<T, U256>,
     MaybeCallFuture<T, U256>,
@@ -414,20 +451,16 @@ type ParamsFuture<T> = TryJoin4<
 #[allow(clippy::large_enum_variant)]
 #[pin_project]
 enum BuildState<T: Transport> {
-    /// Waiting for list of accounts in order to determine from address so that
-    /// we can return a `Request::Tx`.
-    DefaultAccount {
+    /// Waiting for list of accounts and gas price estimation in order to
+    /// determine from address and calculate the gas price in order to finalize
+    /// a `TransactionRequest::Tx`.
+    Local {
         /// The transaction request being built.
         request: Option<TransactionRequest>,
-        /// The inner future for retrieving the list of accounts on the node.
+        /// The inner future for retrieving the list of accounts on the node and
+        /// gas price estimation.
         #[pin]
-        inner: CompatCallFuture<T, Vec<Address>>,
-    },
-
-    /// Ready to resolve imediately to a `Transaction::Request` result.
-    Local {
-        /// The ready transaction request.
-        request: Option<TransactionRequest>,
+        params: LocalParamsFuture<T>,
     },
 
     /// Waiting for the node to sign with a locked account.
@@ -451,45 +484,63 @@ enum BuildState<T: Transport> {
         /// Future for retrieving gas, gas price, nonce and chain ID when they
         /// where not specified.
         #[pin]
-        params: ParamsFuture<T>,
+        params: OfflineParamsFuture<T>,
     },
 }
 
 impl<T: Transport> BuildFuture<T> {
     /// Create an instance from a `TransactionBuilder`.
     pub fn from_builder(builder: TransactionBuilder<T>) -> Self {
+        let eth = builder.web3.eth();
+        let gas_price = builder.gas_price.unwrap_or_default();
+
         let state = match builder.from {
-            None => BuildState::DefaultAccount {
+            None => BuildState::Local {
                 request: Some(TransactionRequest {
                     from: Address::zero(),
                     to: builder.to,
                     gas: builder.gas,
-                    gas_price: builder.gas_price,
+                    gas_price: gas_price.value(),
                     value: builder.value,
                     data: builder.data,
                     nonce: builder.nonce,
                     condition: None,
                 }),
-                inner: builder.web3.eth().accounts().compat(),
+                params: future::join(
+                    Some(eth.accounts().compat()).into(),
+                    match gas_price {
+                        GasPrice::Standard | GasPrice::Value(_) => None,
+                        GasPrice::Factor(_) => Some(eth.gas_price().compat()),
+                    }
+                    .into(),
+                ),
             },
             Some(Account::Local(from, condition)) => BuildState::Local {
                 request: Some(TransactionRequest {
                     from,
                     to: builder.to,
                     gas: builder.gas,
-                    gas_price: builder.gas_price,
+                    gas_price: gas_price.value(),
                     value: builder.value,
                     data: builder.data,
                     nonce: builder.nonce,
                     condition,
                 }),
+                params: future::join(
+                    None.into(),
+                    match gas_price {
+                        GasPrice::Standard | GasPrice::Value(_) => None,
+                        GasPrice::Factor(_) => Some(eth.gas_price().compat()),
+                    }
+                    .into(),
+                ),
             },
             Some(Account::Locked(from, password, condition)) => {
                 let request = TransactionRequest {
                     from,
                     to: builder.to,
                     gas: builder.gas,
-                    gas_price: builder.gas_price,
+                    gas_price: gas_price.value(),
                     value: builder.value,
                     data: builder.data,
                     nonce: builder.nonce,
@@ -516,8 +567,9 @@ impl<T: Transport> BuildFuture<T> {
 
                 let from = key.public().address().into();
                 let to = builder.to.unwrap_or_else(Address::zero);
-                let eth = builder.web3.eth();
                 let transport = builder.web3.transport();
+
+                let eth = builder.web3.eth();
 
                 let gas = maybe!(
                     builder.gas,
@@ -534,8 +586,7 @@ impl<T: Transport> BuildFuture<T> {
                     )
                     .0
                 );
-
-                let gas_price = maybe!(builder.gas_price, eth.gas_price().compat());
+                let gas_price_estimate = maybe!(gas_price.value(), eth.gas_price().compat());
                 let nonce = maybe!(builder.nonce, eth.transaction_count(from, None).compat());
                 let chain_id = maybe!(
                     chain_id.map(U64::from),
@@ -547,12 +598,12 @@ impl<T: Transport> BuildFuture<T> {
                     to,
                     value: builder.value.unwrap_or_else(U256::zero),
                     data: builder.data.unwrap_or_else(Bytes::default),
-                    params: future::try_join4(gas, gas_price, nonce, chain_id),
+                    params: future::try_join4(gas, gas_price_estimate, nonce, chain_id),
                 }
             }
         };
 
-        BuildFuture { state }
+        BuildFuture { gas_price, state }
     }
 }
 
@@ -562,20 +613,27 @@ impl<T: Transport> Future for BuildFuture<T> {
     #[project]
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         #[project]
-        match self.project().state.project() {
-            BuildState::DefaultAccount { request, inner } => inner.poll(cx).map(|accounts| {
-                let accounts = accounts?;
+        let BuildFuture { gas_price, state } = self.project();
+        #[project]
+        match state.project() {
+            BuildState::Local { request, params } => {
+                params.poll(cx).map(|(accounts, gas_price_estimate)| {
+                    let mut request = request.take().expect("future polled more than once");
 
-                let mut request = request.take().expect("future polled more than once");
-                if let Some(from) = accounts.get(0) {
-                    request.from = *from;
-                }
+                    if let Some(accounts) = accounts {
+                        if let Some(from) = accounts?.get(0) {
+                            request.from = *from;
+                        }
+                    }
+                    request.gas_price = if let Some(gas_price_estimate) = gas_price_estimate {
+                        Some(gas_price.get_price(gas_price_estimate?))
+                    } else {
+                        gas_price.value()
+                    };
 
-                Ok(Transaction::Request(request))
-            }),
-            BuildState::Local { request } => Poll::Ready(Ok(Transaction::Request(
-                request.take().expect("future polled more than once"),
-            ))),
+                    Ok(Transaction::Request(request))
+                })
+            }
             BuildState::Locked { sign } => sign.poll(cx).map(|raw| Ok(Transaction::Raw(raw?.raw))),
             BuildState::Offline {
                 key,
@@ -584,7 +642,9 @@ impl<T: Transport> Future for BuildFuture<T> {
                 data,
                 params,
             } => params.poll(cx).map(|params| {
-                let (gas, gas_price, nonce, chain_id) = params?;
+                let (gas, gas_price_estimate, nonce, chain_id) = params?;
+                let gas_price = self.gas_price.get_price(gas_price_estimate);
+
                 let tx = TransactionData {
                     nonce,
                     gas_price,
@@ -853,7 +913,7 @@ mod tests {
             .from(Account::Offline(key, Some(chain_id)))
             .to(to)
             .gas(gas)
-            .gas_price(gas_price)
+            .gas_price(gas_price.into())
             .nonce(nonce)
             .build()
             .immediate()
