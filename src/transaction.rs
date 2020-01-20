@@ -109,7 +109,7 @@ impl GasPrice {
     }
 
     /// Calculates the gas price to use based on the estimated gas price.
-    fn get_price(&self, estimate: U256) -> U256 {
+    fn calculate_price(&self, estimate: U256) -> U256 {
         match self {
             GasPrice::Standard => estimate,
             GasPrice::Factor(factor) => {

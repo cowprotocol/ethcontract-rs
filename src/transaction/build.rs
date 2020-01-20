@@ -54,7 +54,7 @@ impl PartialTransaction {
     ) -> TransactionRequest {
         let gas_price = self.gas_price.unwrap_or_default();
         let gas_price = if let Some(gas_price_estimate) = gas_price_estimate {
-            Some(gas_price.get_price(gas_price_estimate))
+            Some(gas_price.calculate_price(gas_price_estimate))
         } else {
             gas_price.value()
         };
@@ -362,7 +362,7 @@ impl<T: Transport> Future for OfflineBuildFuture<T> {
         let mut this = self.project();
         this.params.as_mut().poll(cx).map(|params| {
             let (gas, gas_price_estimate, nonce, chain_id) = params?;
-            let gas_price = this.gas_price.get_price(gas_price_estimate);
+            let gas_price = this.gas_price.calculate_price(gas_price_estimate);
 
             let tx = TransactionData {
                 nonce,
