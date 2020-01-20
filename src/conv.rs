@@ -1,4 +1,4 @@
-//! Implements internal math utilities.
+//! Implements internal type conversion utilities.
 
 use web3::types::U256;
 
