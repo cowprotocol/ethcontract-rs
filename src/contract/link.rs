@@ -4,15 +4,14 @@
 
 use crate::contract::deploy::Deploy;
 use crate::errors::LinkerError;
-use crate::transaction::{Account, TransactionBuilder};
 use ethcontract_common::abi::ErrorKind as AbiErrorKind;
 use ethcontract_common::Bytecode;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::iter;
 use std::marker::PhantomData;
 use web3::api::Web3;
 use web3::contract::tokens::Tokenize;
-use web3::types::{U256, Address};
+use web3::types::Address;
 use web3::Transport;
 
 /// A trait that is implemented by a library used for linking.
@@ -55,19 +54,26 @@ pub trait DependsOn<L> {}
 #[derive(Clone, Debug)]
 enum Library {
     Resolved(Address),
-    Pending(DeploymentBytecode),
+    Pending(Code),
 }
 
 #[derive(Clone, Debug)]
-enum DeploymentBytecode {
+pub enum Code {
     Linked(Vec<u8>),
     Unlinked(Bytecode),
 }
 
-impl DeploymentBytecode {
+impl Code {
+    fn into_bytes(self) -> Option<Vec<u8>> {
+        match self {
+            Code::Linked(bytes) => Some(bytes),
+            _ => None,
+        }
+    }
+
     fn unlinked(&self) -> Option<&Bytecode> {
         match self {
-            DeploymentBytecode::Unlinked(code) => Some(code),
+            Code::Unlinked(code) => Some(code),
             _ => None,
         }
     }
@@ -77,10 +83,10 @@ impl DeploymentBytecode {
         S: AsRef<str>,
     {
         match self {
-            DeploymentBytecode::Unlinked(code) => {
+            Code::Unlinked(code) => {
                 if code.try_link(name, address) {
                     if let Some(bytes) = code.try_to_bytes() {
-                        *self = DeploymentBytecode::Linked(bytes);
+                        *self = Code::Linked(bytes);
                     }
                     true
                 } else {
@@ -105,11 +111,11 @@ impl DeploymentBytecode {
     }
 }
 
-impl From<&'_ Bytecode> for DeploymentBytecode {
+impl From<&'_ Bytecode> for Code {
     fn from(bytecode: &Bytecode) -> Self {
         match bytecode.to_bytes() {
-            Ok(bytes) => DeploymentBytecode::Linked(bytes),
-            Err(_) => DeploymentBytecode::Unlinked(bytecode.clone()),
+            Ok(bytes) => Code::Linked(bytes),
+            Err(_) => Code::Unlinked(bytecode.clone()),
         }
     }
 }
@@ -124,10 +130,9 @@ where
 {
     web3: Web3<T>,
     context: I::Context,
-    bytecode: DeploymentBytecode,
-    encoded_params: Vec<u8>,
+    contract: Code,
+    params: Vec<u8>,
     libraries: HashMap<String, Library>,
-    tx: TransactionBuilder<T>,
     _instance: PhantomData<I>,
 }
 
@@ -147,24 +152,24 @@ where
             return Err(LinkerError::EmptyBytecode);
         }
 
-        let bytecode = bytecode.into();
-
-        let params = params.into_tokens();
-        let encoded_params = match (I::abi(&context).constructor(), params.is_empty()) {
-            (None, false) => return Err(AbiErrorKind::InvalidData.into()),
-            (None, true) => Vec::new(),
-            (Some(ctor), _) => ctor.encode_input(Vec::new(), &params)?,
+        let contract = bytecode.into();
+        let params = {
+            let params = params.into_tokens();
+            match (I::abi(&context).constructor(), params.is_empty()) {
+                (None, false) => return Err(AbiErrorKind::InvalidData.into()),
+                (None, true) => Vec::new(),
+                (Some(ctor), _) => ctor.encode_input(Vec::new(), &params)?,
+            }
         };
 
         let libraries = HashMap::new();
 
         Ok(Linker {
-            web3: web3.clone(),
+            web3,
             context,
-            bytecode,
-            encoded_params,
+            contract,
+            params,
             libraries,
-            tx: TransactionBuilder::new(web3).confirmations(0),
             _instance: PhantomData,
         })
     }
@@ -209,49 +214,6 @@ where
         Ok(self)
     }
 
-    /// Specify the signing method to use for the transaction, if not specified
-    /// the the transaction will be locally signed with the default user.
-    pub fn from(mut self, value: Account) -> Self {
-        self.tx = self.tx.from(value);
-        self
-    }
-
-    /// Secify amount of gas to use, if not specified then a gas estimate will
-    /// be used.
-    pub fn gas(mut self, value: U256) -> Self {
-        self.tx = self.tx.gas(value);
-        self
-    }
-
-    /// Specify the gas price to use, if not specified then the estimated gas
-    /// price will be used.
-    pub fn gas_price(mut self, value: U256) -> Self {
-        self.tx = self.tx.gas_price(value);
-        self
-    }
-
-    /// Specify what how much ETH to transfer with the transaction, if not
-    /// specified then no ETH will be sent.
-    pub fn value(mut self, value: U256) -> Self {
-        self.tx = self.tx.value(value);
-        self
-    }
-
-    /// Specify the nonce for the transation, if not specified will use the
-    /// current transaction count for the signing account.
-    pub fn nonce(mut self, value: U256) -> Self {
-        self.tx = self.tx.nonce(value);
-        self
-    }
-
-    /// Specify the number of confirmations to wait for when confirming the
-    /// transaction, if not specified will wait for the transaction to be mined
-    /// without any extra confirmations.
-    pub fn confirmations(mut self, value: usize) -> Self {
-        self.tx = self.tx.confirmations(value);
-        self
-    }
-
     /// Links the libraries and binaries together and returns a verified
     /// deployment that is guaranteed to have all required libraries.
     ///
@@ -277,7 +239,7 @@ where
         // Link all resolved libraries into the pending bytecodes. Note that we
         // also have to link libraries in case there are nested dependencies.
         for (name, address) in resolved {
-            let is_unused = iter::once(&mut self.bytecode)
+            let is_unused = iter::once(&mut self.contract)
                 .chain(pending.values_mut())
                 .map(|code| code.try_link(&name, address))
                 .all(|result| !result);
@@ -291,7 +253,7 @@ where
         // libraries. Note that for the missing library check, we don't need to
         // consider the resolved libraries as they have already been linked into
         // the bytecode of the contract and pending libraries.
-        let remaining_deps = iter::once(&self.bytecode)
+        let remaining_deps = iter::once(&self.contract)
             .chain(pending.values())
             .filter_map(|code| code.unlinked())
             .flat_map(|code| code.undefined_libraries())
@@ -315,8 +277,9 @@ where
 
         // Order the pending dependencies so that libraries that have nested
         // dependencies come after their nested dependencies.
+        /*
         let mut included = HashSet::new();
-        let mut libraries = Vec::with_capacity(pending.len());
+        let mut libraries = VecDeque::with_capacity(pending.len());
         while !pending.is_empty() {
             match pending
                 .iter()
@@ -327,7 +290,7 @@ where
                     let code = pending.remove(&name).unwrap();
 
                     included.insert(name.clone());
-                    libraries.push((name, code));
+                    libraries.push_back((name, code));
                 }
                 None => {
                     return Err(LinkerError::CircularDependencies(
@@ -336,11 +299,16 @@ where
                 }
             }
         }
+        */
+
+        let mut remaining = Vec::new();
+        let mut libraries = Vec::new();
+        for 
 
         Ok(VerifiedDeployment {
             libraries,
-            contract: self.bytecode,
-            params: self.encoded_params,
+            contract: self.contract,
+            params: self.params,
         })
     }
 
@@ -356,7 +324,84 @@ where
 
 #[derive(Clone, Debug)]
 pub struct VerifiedDeployment {
-    libraries: Vec<(String, DeploymentBytecode)>,
-    contract: DeploymentBytecode,
-    params: Vec<u8>,
+    libraries: VecDeque<(String, Code)>,
+    contract: (Code, Vec<u8>),
+}
+
+impl VerifiedDeployment {
+    pub fn from_raw_contract(code: Vec<u8>) -> Self {
+        VerifiedDeployment {
+            libraries: VecDeque::new(),
+            contract: (Code::Linked(code), Vec::new()),
+        }
+    }
+
+    pub fn bytecodes(self) -> (Vec<u8>, PendingBytecodes) {
+        let mut bytecodes = PendingBytecodes {
+            pending_library_name: None,
+            libraries: self.libraries,
+            contract: Some(self.contract),
+        };
+
+        (
+            bytecodes
+                .pop()
+            bytecodes,
+        )
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PendingBytecodes {
+    pending_library_name: Option<String>,
+    libraries: VecDeque<(String, Code)>,
+    contract: Option<(Code, Vec<u8>)>,
+}
+
+impl PendingBytecodes {
+    fn empty() -> Self {
+        PendingBytecodes {
+            pending_library_name: None,
+            libraries: VecDeque::new(),
+            contract: None,
+        }
+    }
+
+    fn pop(&mut self) -> Vec<u8> {
+        if let Some((name, library)) = self.libraries.pop_front() {
+            // Library is always guaranteed to be completely linked, so this
+            // should never panic.
+            self.pending_library_name = Some(name);
+                library
+                    .into_bytes()
+                    .expect("unexpected unlinked library in bytecode")
+        } else if let Some((contract, params)) = self.contract.take() {
+            // Contract is always guaranteed to be completely linked, so this
+            // should never panic.
+            let mut bytecode = contract
+                .into_bytes()
+                .expect("unexpected unlinked library in bytecode");
+            bytecode.extend_from_slice(&params);
+            bytecode
+        } else {
+        // A verified deployment is always guaranteed to at least have contract
+        // bytes, so `pop`-ing the first bytecode from the pending bytecodes
+        // will never return `None` and hence the unwrap will never panic.
+            unreachable!()
+        }
+    }
+
+    pub fn next(&mut self, previous_code_address: Address) -> Option<Vec<u8>> {
+        if let Some(name) = self.pending_library_name.take() {
+            for code in self
+                .libraries
+                .iter_mut()
+                .map(|(_, code)| code)
+                .chain(self.contract.iter_mut().map(|(code, _)| code))
+            {
+                code.try_link(&name, previous_code_address);
+            }
+        }
+        Some(self.pop())
+    }
 }
