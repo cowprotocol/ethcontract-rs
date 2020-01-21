@@ -5,7 +5,8 @@
 use crate::errors::{ExecutionError, MethodError};
 use crate::future::CompatCallFuture;
 use crate::hash;
-use crate::transaction::{Account, SendFuture, TransactionBuilder};
+use crate::transaction::send::SendFuture;
+use crate::transaction::{Account, TransactionBuilder};
 use ethcontract_common::abi::{self, Function, ParamType};
 use futures::compat::Future01CompatExt;
 use lazy_static::lazy_static;

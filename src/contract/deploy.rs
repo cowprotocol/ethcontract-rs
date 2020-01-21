@@ -3,7 +3,8 @@
 
 use crate::errors::{DeployError, ExecutionError};
 use crate::future::CompatCallFuture;
-use crate::transaction::{Account, SendFuture, TransactionBuilder, TransactionResult};
+use crate::transaction::send::SendFuture;
+use crate::transaction::{Account, TransactionBuilder, TransactionResult};
 use ethcontract_common::abi::ErrorKind as AbiErrorKind;
 use ethcontract_common::{Abi, Bytecode};
 use futures::compat::Future01CompatExt;
