@@ -24,8 +24,8 @@
   "devDependencies": {
     "@gnosis.pm/util-contracts": "^2.0.6",
     "@openzeppelin/contracts": "^2.4.0",
-    "@truffle/hdwallet-provider": "^1.0.28",
-    "truffle": "^5.1.8",
-    "truffle-plugin-verify": "^0.3.6"
+    "@truffle/hdwallet-provider": "^1.0.29",
+    "truffle": "^5.1.9",
+    "truffle-plugin-verify": "^0.3.8"
   }
 }
