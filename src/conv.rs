@@ -4,7 +4,9 @@ use web3::types::U256;
 
 /// Lossy conversion from a `U256` to a `f64`.
 pub fn u256_to_f64(value: U256) -> f64 {
-    // NOTE: take 1 extra bit for rounding
+    // NOTE: IEEE 754 double precision floats (AKA `f64`) have 53 bits of
+    //   precision, take 1 extra bit so that the `u64` to `f64` conversion does
+    //   rounding for us, instead of implementing it ourselves.
     let exponent = value.bits().saturating_sub(54);
     let mantissa = (value >> U256::from(exponent)).as_u64();
 
