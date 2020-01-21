@@ -1,26 +1,19 @@
 //! Implementation for setting up, signing, estimating gas and sending
 //! transactions on the Ethereum network.
 
+pub mod build;
 pub mod confirm;
+pub mod estimate_gas;
+pub mod send;
 
-use crate::errors::ExecutionError;
-use crate::future::{CompatCallFuture, MaybeReady};
-use crate::sign::TransactionData;
-use crate::transaction::confirm::{ConfirmFuture, ConfirmParams};
+use crate::transaction::build::BuildFuture;
+use crate::transaction::confirm::ConfirmParams;
+use crate::transaction::estimate_gas::EstimateGasFuture;
+use crate::transaction::send::SendFuture;
 use ethsign::{Protected, SecretKey};
-use futures::compat::Future01CompatExt;
-use futures::future::{self, TryJoin4};
-use futures::ready;
-use pin_project::{pin_project, project};
-use std::future::Future;
-use std::pin::Pin;
-use std::str;
-use std::task::{Context, Poll};
-use web3::api::{Eth, Namespace, Web3};
-use web3::helpers::{self, CallFuture};
+use web3::api::Web3;
 use web3::types::{
-    Address, Bytes, CallRequest, RawTransaction, TransactionCondition, TransactionReceipt,
-    TransactionRequest, H256, U256, U64,
+    Address, Bytes, TransactionCondition, TransactionReceipt, TransactionRequest, H256, U256,
 };
 use web3::Transport;
 
@@ -67,6 +60,37 @@ pub enum ResolveCondition {
 impl Default for ResolveCondition {
     fn default() -> Self {
         ResolveCondition::Confirmed(Default::default())
+    }
+}
+
+/// Represents a prepared and optionally signed transaction that is ready for
+/// sending created by a `TransactionBuilder`.
+#[derive(Clone, Debug, PartialEq)]
+#[allow(clippy::large_enum_variant)]
+pub enum Transaction {
+    /// A structured transaction request to be signed locally by the node.
+    Request(TransactionRequest),
+    /// A signed raw transaction request.
+    Raw(Bytes),
+}
+
+impl Transaction {
+    /// Unwraps the transaction into a transaction request, returning None if the
+    /// transaction is a raw transaction.
+    pub fn request(self) -> Option<TransactionRequest> {
+        match self {
+            Transaction::Request(tx) => Some(tx),
+            _ => None,
+        }
+    }
+
+    /// Unwraps the transaction into its raw bytes, returning None if it is a
+    /// transaction request.
+    pub fn raw(self) -> Option<Bytes> {
+        match self {
+            Transaction::Raw(tx) => Some(tx),
+            _ => None,
+        }
     }
 }
 
@@ -119,37 +143,6 @@ impl TransactionResult {
     pub fn as_receipt(&self) -> Option<&TransactionReceipt> {
         match self {
             TransactionResult::Receipt(ref tx) => Some(tx),
-            _ => None,
-        }
-    }
-}
-
-/// Represents a prepared and optionally signed transaction that is ready for
-/// sending created by a `TransactionBuilder`.
-#[derive(Clone, Debug, PartialEq)]
-#[allow(clippy::large_enum_variant)]
-pub enum Transaction {
-    /// A structured transaction request to be signed locally by the node.
-    Request(TransactionRequest),
-    /// A signed raw transaction request.
-    Raw(Bytes),
-}
-
-impl Transaction {
-    /// Unwraps the transaction into a transaction request, returning None if the
-    /// transaction is a raw transaction.
-    pub fn request(self) -> Option<TransactionRequest> {
-        match self {
-            Transaction::Request(tx) => Some(tx),
-            _ => None,
-        }
-    }
-
-    /// Unwraps the transaction into its raw bytes, returning None if it is a
-    /// transaction request.
-    pub fn raw(self) -> Option<Bytes> {
-        match self {
-            Transaction::Raw(tx) => Some(tx),
             _ => None,
         }
     }
@@ -290,369 +283,10 @@ impl<T: Transport> TransactionBuilder<T> {
     }
 }
 
-/// Future for estimating gas for a transaction.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct EstimateGasFuture<T: Transport>(#[pin] CompatCallFuture<T, U256>);
-
-impl<T: Transport> EstimateGasFuture<T> {
-    /// Create a instance from a `TransactionBuilder`.
-    pub fn from_builder(builder: TransactionBuilder<T>) -> Self {
-        let eth = builder.web3.eth();
-
-        let from = builder.from.map(|account| account.address());
-        let to = builder.to.unwrap_or_else(Address::zero);
-        let request = CallRequest {
-            from,
-            to,
-            gas: None,
-            gas_price: None,
-            value: builder.value,
-            data: builder.data,
-        };
-
-        EstimateGasFuture::from_request(eth, request)
-    }
-
-    fn from_request(eth: Eth<T>, request: CallRequest) -> Self {
-        // NOTE(nlordell): work around issue tomusdrw/rust-web3#290; while this
-        //   bas been fixed in master, it has not been released yet
-        EstimateGasFuture(
-            CallFuture::new(
-                eth.transport()
-                    .execute("eth_estimateGas", vec![helpers::serialize(&request)]),
-            )
-            .compat(),
-        )
-    }
-}
-
-impl<T: Transport> Future for EstimateGasFuture<T> {
-    type Output = Result<U256, ExecutionError>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.project().0.poll(cx).map_err(ExecutionError::from)
-    }
-}
-
-/// Future for preparing a transaction.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct BuildFuture<T: Transport> {
-    /// The internal build state for preparing the transaction.
-    #[pin]
-    state: BuildState<T>,
-}
-
-/// Type alias for a call future that might already be resolved.
-type MaybeCallFuture<T, R> = MaybeReady<CompatCallFuture<T, R>>;
-
-/// Type alias for future retrieving the optional parameters that may not have
-/// been specified by the transaction builder but are required for signing.
-type ParamsFuture<T> = TryJoin4<
-    MaybeCallFuture<T, U256>,
-    MaybeCallFuture<T, U256>,
-    MaybeCallFuture<T, U256>,
-    MaybeCallFuture<T, U64>,
->;
-
-/// Internal build state for preparing transactions.
-#[allow(clippy::large_enum_variant)]
-#[pin_project]
-enum BuildState<T: Transport> {
-    /// Waiting for list of accounts in order to determine from address so that
-    /// we can return a `Request::Tx`.
-    DefaultAccount {
-        /// The transaction request being built.
-        request: Option<TransactionRequest>,
-        /// The inner future for retrieving the list of accounts on the node.
-        #[pin]
-        inner: CompatCallFuture<T, Vec<Address>>,
-    },
-
-    /// Ready to resolve imediately to a `Transaction::Request` result.
-    Local {
-        /// The ready transaction request.
-        request: Option<TransactionRequest>,
-    },
-
-    /// Waiting for the node to sign with a locked account.
-    Locked {
-        /// Future waiting for the node to sign the request with a locked account.
-        #[pin]
-        sign: CompatCallFuture<T, RawTransaction>,
-    },
-
-    /// Waiting for missing transaction parameters needed to sign and produce a
-    /// `Request::Raw` result.
-    Offline {
-        /// The private key to use for signing.
-        key: SecretKey,
-        /// The recepient address.
-        to: Address,
-        /// The ETH value to be sent with the transaction.
-        value: U256,
-        /// The ABI encoded call parameters,
-        data: Bytes,
-        /// Future for retrieving gas, gas price, nonce and chain ID when they
-        /// where not specified.
-        #[pin]
-        params: ParamsFuture<T>,
-    },
-}
-
-impl<T: Transport> BuildFuture<T> {
-    /// Create an instance from a `TransactionBuilder`.
-    pub fn from_builder(builder: TransactionBuilder<T>) -> Self {
-        let state = match builder.from {
-            None => BuildState::DefaultAccount {
-                request: Some(TransactionRequest {
-                    from: Address::zero(),
-                    to: builder.to,
-                    gas: builder.gas,
-                    gas_price: builder.gas_price,
-                    value: builder.value,
-                    data: builder.data,
-                    nonce: builder.nonce,
-                    condition: None,
-                }),
-                inner: builder.web3.eth().accounts().compat(),
-            },
-            Some(Account::Local(from, condition)) => BuildState::Local {
-                request: Some(TransactionRequest {
-                    from,
-                    to: builder.to,
-                    gas: builder.gas,
-                    gas_price: builder.gas_price,
-                    value: builder.value,
-                    data: builder.data,
-                    nonce: builder.nonce,
-                    condition,
-                }),
-            },
-            Some(Account::Locked(from, password, condition)) => {
-                let request = TransactionRequest {
-                    from,
-                    to: builder.to,
-                    gas: builder.gas,
-                    gas_price: builder.gas_price,
-                    value: builder.value,
-                    data: builder.data,
-                    nonce: builder.nonce,
-                    condition,
-                };
-                let password = unsafe { str::from_utf8_unchecked(password.as_ref()) };
-                let sign = builder
-                    .web3
-                    .personal()
-                    .sign_transaction(request, password)
-                    .compat();
-
-                BuildState::Locked { sign }
-            }
-            Some(Account::Offline(key, chain_id)) => {
-                macro_rules! maybe {
-                    ($o:expr, $c:expr) => {
-                        match $o {
-                            Some(v) => MaybeReady::ready(Ok(v)),
-                            None => MaybeReady::future($c),
-                        }
-                    };
-                }
-
-                let from = key.public().address().into();
-                let to = builder.to.unwrap_or_else(Address::zero);
-                let eth = builder.web3.eth();
-                let transport = builder.web3.transport();
-
-                let gas = maybe!(
-                    builder.gas,
-                    EstimateGasFuture::from_request(
-                        eth.clone(),
-                        CallRequest {
-                            from: Some(from),
-                            to,
-                            gas: None,
-                            gas_price: None,
-                            value: builder.value,
-                            data: builder.data.clone(),
-                        }
-                    )
-                    .0
-                );
-
-                let gas_price = maybe!(builder.gas_price, eth.gas_price().compat());
-                let nonce = maybe!(builder.nonce, eth.transaction_count(from, None).compat());
-                let chain_id = maybe!(
-                    chain_id.map(U64::from),
-                    CallFuture::new(transport.execute("eth_chainId", vec![])).compat()
-                );
-
-                BuildState::Offline {
-                    key,
-                    to,
-                    value: builder.value.unwrap_or_else(U256::zero),
-                    data: builder.data.unwrap_or_else(Bytes::default),
-                    params: future::try_join4(gas, gas_price, nonce, chain_id),
-                }
-            }
-        };
-
-        BuildFuture { state }
-    }
-}
-
-impl<T: Transport> Future for BuildFuture<T> {
-    type Output = Result<Transaction, ExecutionError>;
-
-    #[project]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        #[project]
-        match self.project().state.project() {
-            BuildState::DefaultAccount { request, inner } => inner.poll(cx).map(|accounts| {
-                let accounts = accounts?;
-
-                let mut request = request.take().expect("future polled more than once");
-                if let Some(from) = accounts.get(0) {
-                    request.from = *from;
-                }
-
-                Ok(Transaction::Request(request))
-            }),
-            BuildState::Local { request } => Poll::Ready(Ok(Transaction::Request(
-                request.take().expect("future polled more than once"),
-            ))),
-            BuildState::Locked { sign } => sign.poll(cx).map(|raw| Ok(Transaction::Raw(raw?.raw))),
-            BuildState::Offline {
-                key,
-                to,
-                value,
-                data,
-                params,
-            } => params.poll(cx).map(|params| {
-                let (gas, gas_price, nonce, chain_id) = params?;
-                let tx = TransactionData {
-                    nonce,
-                    gas_price,
-                    gas,
-                    to: *to,
-                    value: *value,
-                    data,
-                };
-                let raw = tx.sign(key, Some(chain_id.as_u64()))?;
-
-                Ok(Transaction::Raw(raw))
-            }),
-        }
-    }
-}
-
-/// Future for optionally signing and then sending a transaction.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct SendFuture<T: Transport> {
-    web3: Web3<T>,
-    /// The confirmation options to use for the transaction once it has been
-    /// sent. Stored as an option as we require transfer of ownership.
-    resolve: Option<ResolveCondition>,
-    /// Internal execution state.
-    #[pin]
-    state: SendState<T>,
-}
-
-/// The state of the send future.
-#[pin_project]
-enum SendState<T: Transport> {
-    /// The transaction is being built into a request or a signed raw
-    /// transaction.
-    Building(#[pin] BuildFuture<T>),
-    /// The transaction is being sent to the node.
-    Sending(#[pin] CompatCallFuture<T, H256>),
-    /// The transaction is being confirmed.
-    Confirming(#[pin] ConfirmFuture<T>),
-}
-
-impl<T: Transport> SendFuture<T> {
-    /// Creates a new future from a `TransactionBuilder`
-    pub fn from_builder(mut builder: TransactionBuilder<T>) -> Self {
-        let web3 = builder.web3.clone();
-        let resolve = Some(builder.resolve.take().unwrap_or_default());
-        let state = SendState::Building(BuildFuture::from_builder(builder));
-
-        SendFuture {
-            web3,
-            resolve,
-            state,
-        }
-    }
-}
-
-impl<T: Transport> Future for SendFuture<T> {
-    type Output = Result<TransactionResult, ExecutionError>;
-
-    #[project]
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        loop {
-            #[project]
-            let SendFuture {
-                web3,
-                resolve,
-                state,
-            } = self.as_mut().project();
-
-            #[project]
-            let next_state = match state.project() {
-                SendState::Building(build) => {
-                    let tx = match ready!(build.poll(cx)) {
-                        Ok(tx) => tx,
-                        Err(err) => return Poll::Ready(Err(err)),
-                    };
-
-                    let eth = web3.eth();
-                    let send = match tx {
-                        Transaction::Request(tx) => eth.send_transaction(tx).compat(),
-                        Transaction::Raw(tx) => eth.send_raw_transaction(tx).compat(),
-                    };
-
-                    SendState::Sending(send)
-                }
-                SendState::Sending(send) => {
-                    let tx_hash = match ready!(send.poll(cx)) {
-                        Ok(tx_hash) => tx_hash,
-                        Err(err) => return Poll::Ready(Err(err.into())),
-                    };
-
-                    let confirm = match resolve.take().expect("confirmation called more than once")
-                    {
-                        ResolveCondition::Pending => {
-                            return Poll::Ready(Ok(TransactionResult::Hash(tx_hash)))
-                        }
-                        ResolveCondition::Confirmed(params) => {
-                            ConfirmFuture::new(&web3, tx_hash, params)
-                        }
-                    };
-
-                    SendState::Confirming(confirm)
-                }
-                SendState::Confirming(confirm) => {
-                    return confirm.poll(cx).map(|result| {
-                        let tx = result?;
-                        match tx.status {
-                            Some(U64([1])) => Ok(TransactionResult::Receipt(tx)),
-                            _ => Err(ExecutionError::Failure(tx.transaction_hash)),
-                        }
-                    })
-                }
-            };
-
-            self.state = next_state;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::ExecutionError;
     use crate::test::prelude::*;
     use web3::types::H2048;
 
