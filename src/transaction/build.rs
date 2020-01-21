@@ -335,7 +335,7 @@ impl<T: Transport> OfflineBuildFuture<T> {
                     data: tx.data.clone(),
                 }
             )
-            .0
+            .into_inner()
         );
         let gas_price_estimate = maybe!(gas_price.value(), eth.gas_price().compat());
         let nonce = maybe!(tx.nonce, eth.transaction_count(from, None).compat());
