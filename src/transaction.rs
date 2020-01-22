@@ -143,7 +143,10 @@ macro_rules! impl_gas_price_from_integer {
     };
 }
 
-impl_gas_price_from_integer!(i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize,);
+impl_gas_price_from_integer! {
+    i8, i16, i32, i64, i128, isize,
+    u8, u16, u32, u64, u128, usize,
+}
 
 /// Represents a prepared and optionally signed transaction that is ready for
 /// sending created by a `TransactionBuilder`.
