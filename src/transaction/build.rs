@@ -73,12 +73,12 @@ impl TransactionRequestOptions {
 #[pin_project]
 pub enum BuildFuture<T: Transport> {
     /// Locally signed transaction. Produces a `Transaction::Request` result.
-    LocallySigned(#[pin] BuildTransactionRequestForLocalSigningFuture<T>),
+    Local(#[pin] BuildTransactionRequestForLocalSigningFuture<T>),
     /// Locally signed transaction with locked account. Produces a
     /// `Transaction::Raw` result.
-    SignedWithLockedAccount(#[pin] BuildTransactionSignedWithLockedAccountFuture<T>),
+    Locked(#[pin] BuildTransactionSignedWithLockedAccountFuture<T>),
     /// Offline signed transaction. Produces a `Transaction::Raw` result.
-    OfflineSigned(#[pin] BuildOfflineSignedTransactionFuture<T>),
+    Offline(#[pin] BuildOfflineSignedTransactionFuture<T>),
 }
 
 impl<T: Transport> BuildFuture<T> {
@@ -94,29 +94,27 @@ impl<T: Transport> BuildFuture<T> {
         };
 
         match builder.from {
-            None => BuildFuture::LocallySigned(BuildTransactionRequestForLocalSigningFuture::new(
+            None => BuildFuture::Local(BuildTransactionRequestForLocalSigningFuture::new(
                 &builder.web3,
                 None,
                 TransactionRequestOptions(options, None),
             )),
             Some(Account::Local(from, condition)) => {
-                BuildFuture::LocallySigned(BuildTransactionRequestForLocalSigningFuture::new(
+                BuildFuture::Local(BuildTransactionRequestForLocalSigningFuture::new(
                     &builder.web3,
                     Some(from),
                     TransactionRequestOptions(options, condition),
                 ))
             }
             Some(Account::Locked(from, password, condition)) => {
-                BuildFuture::SignedWithLockedAccount(
-                    BuildTransactionSignedWithLockedAccountFuture::new(
-                        &builder.web3,
-                        from,
-                        password,
-                        TransactionRequestOptions(options, condition),
-                    ),
-                )
+                BuildFuture::Locked(BuildTransactionSignedWithLockedAccountFuture::new(
+                    &builder.web3,
+                    from,
+                    password,
+                    TransactionRequestOptions(options, condition),
+                ))
             }
-            Some(Account::Offline(key, chain_id)) => BuildFuture::OfflineSigned(
+            Some(Account::Offline(key, chain_id)) => BuildFuture::Offline(
                 BuildOfflineSignedTransactionFuture::new(&builder.web3, key, chain_id, options),
             ),
         }
@@ -130,15 +128,11 @@ impl<T: Transport> Future for BuildFuture<T> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         #[project]
         match self.project() {
-            BuildFuture::LocallySigned(local) => local
+            BuildFuture::Local(local) => local
                 .poll(cx)
                 .map(|request| Ok(Transaction::Request(request?))),
-            BuildFuture::SignedWithLockedAccount(locked) => {
-                locked.poll(cx).map(|raw| Ok(Transaction::Raw(raw?)))
-            }
-            BuildFuture::OfflineSigned(offline) => {
-                offline.poll(cx).map(|raw| Ok(Transaction::Raw(raw?)))
-            }
+            BuildFuture::Locked(locked) => locked.poll(cx).map(|raw| Ok(Transaction::Raw(raw?))),
+            BuildFuture::Offline(offline) => offline.poll(cx).map(|raw| Ok(Transaction::Raw(raw?))),
         }
     }
 }
