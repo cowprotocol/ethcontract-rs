@@ -21,8 +21,10 @@ pub enum GasPrice {
     /// used by transactions.
     Standard,
     /// A factor of the estimated gas price from the node. `GasPrice::Standard`
-    /// is equivalent to `GasPrice::Scaled(1.0)` (not considering possible
-    /// rounding errors).
+    /// is similar to `GasPrice::Scaled(1.0)` but because of how the scaling is
+    /// calculated, `GasPrice::Scaled(1.0)` can lead to some rounding errors
+    /// caused by converting the estimated gas price from the node to a `f64`
+    /// and back.
     Scaled(f64),
     /// Specify a specific gas price to use for the transaction. This will cause
     /// the transaction `SendFuture` to not query the node for a gas price
