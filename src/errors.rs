@@ -68,7 +68,7 @@ pub enum ExecutionError {
     #[error("parse chain ID error: {0}")]
     Parse(#[from] ParseIntError),
 
-    /// An error indicating that an attempt was made to build or send a locall
+    /// An error indicating that an attempt was made to build or send a locally
     /// signed transaction to a node without any local accounts.
     #[error("no local accounts")]
     NoLocalAccounts,
