@@ -73,12 +73,12 @@ impl TransactionRequestOptions {
 #[pin_project]
 pub enum BuildFuture<T: Transport> {
     /// Locally signed transaction. Produces a `Transaction::Request` result.
-    LocallySigned(#[pin] LocalBuildFuture<T>),
+    LocallySigned(#[pin] BuildLocallySignedTransactionFuture<T>),
     /// Locally signed transaction with locked account. Produces a
     /// `Transaction::Raw` result.
-    SignedWithLockedAccount(#[pin] LockedBuildFuture<T>),
+    SignedWithLockedAccount(#[pin] BuildTransactionSignedWithLockedAccountFuture<T>),
     /// Offline signed transaction. Produces a `Transaction::Raw` result.
-    OfflineSigned(#[pin] OfflineBuildFuture<T>),
+    OfflineSigned(#[pin] BuildOfflineSignedTransactionFuture<T>),
 }
 
 impl<T: Transport> BuildFuture<T> {
@@ -94,28 +94,30 @@ impl<T: Transport> BuildFuture<T> {
         };
 
         match builder.from {
-            None => BuildFuture::LocallySigned(LocalBuildFuture::new(
+            None => BuildFuture::LocallySigned(BuildLocallySignedTransactionFuture::new(
                 &builder.web3,
                 None,
                 TransactionRequestOptions(options, None),
             )),
             Some(Account::Local(from, condition)) => {
-                BuildFuture::LocallySigned(LocalBuildFuture::new(
+                BuildFuture::LocallySigned(BuildLocallySignedTransactionFuture::new(
                     &builder.web3,
                     Some(from),
                     TransactionRequestOptions(options, condition),
                 ))
             }
             Some(Account::Locked(from, password, condition)) => {
-                BuildFuture::SignedWithLockedAccount(LockedBuildFuture::new(
-                    &builder.web3,
-                    from,
-                    password,
-                    TransactionRequestOptions(options, condition),
-                ))
+                BuildFuture::SignedWithLockedAccount(
+                    BuildTransactionSignedWithLockedAccountFuture::new(
+                        &builder.web3,
+                        from,
+                        password,
+                        TransactionRequestOptions(options, condition),
+                    ),
+                )
             }
             Some(Account::Offline(key, chain_id)) => BuildFuture::OfflineSigned(
-                OfflineBuildFuture::new(&builder.web3, key, chain_id, options),
+                BuildOfflineSignedTransactionFuture::new(&builder.web3, key, chain_id, options),
             ),
         }
     }
@@ -156,7 +158,7 @@ type MaybeCallFuture<T, R> = MaybeReady<CompatCallFuture<T, R>>;
 /// A future for building a locally signed transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct LocalBuildFuture<T: Transport> {
+pub struct BuildLocallySignedTransactionFuture<T: Transport> {
     /// The transaction options used for contructing a `TransactionRequest`. An
     /// `Option` is used here as the `Future` implementation requires moving the
     /// transaction options in order to construct the `TransactionRequest`.
@@ -178,7 +180,7 @@ enum LocalAccountState<T: Transport> {
     RetrievingAccounts(#[pin] CompatCallFuture<T, Vec<Address>>),
 }
 
-impl<T: Transport> LocalBuildFuture<T> {
+impl<T: Transport> BuildLocallySignedTransactionFuture<T> {
     /// Create a new future for building a locally singed transaction request
     /// from a partial transaction object and account information.
     pub fn new(web3: &Web3<T>, from: Option<Address>, options: TransactionRequestOptions) -> Self {
@@ -189,11 +191,11 @@ impl<T: Transport> LocalBuildFuture<T> {
             LocalAccountState::RetrievingAccounts(web3.eth().accounts().compat())
         };
 
-        LocalBuildFuture { options, state }
+        BuildLocallySignedTransactionFuture { options, state }
     }
 }
 
-impl<T: Transport> Future for LocalBuildFuture<T> {
+impl<T: Transport> Future for BuildLocallySignedTransactionFuture<T> {
     type Output = Result<TransactionRequest, ExecutionError>;
 
     #[project]
@@ -225,13 +227,13 @@ impl<T: Transport> Future for LocalBuildFuture<T> {
 /// A future for building a locally signed transaction with a locked account.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct LockedBuildFuture<T: Transport> {
+pub struct BuildTransactionSignedWithLockedAccountFuture<T: Transport> {
     /// The inner future for the transaction signing with a locked account.
     #[pin]
     sign: CompatCallFuture<T, RawTransaction>,
 }
 
-impl<T: Transport> LockedBuildFuture<T> {
+impl<T: Transport> BuildTransactionSignedWithLockedAccountFuture<T> {
     /// Create a new future for building a locally singed transaction request
     /// from a partial transaction object and account information.
     pub fn new(
@@ -245,11 +247,11 @@ impl<T: Transport> LockedBuildFuture<T> {
         let password = unsafe { str::from_utf8_unchecked(password.as_ref()) };
         let sign = web3.personal().sign_transaction(request, password).compat();
 
-        LockedBuildFuture { sign }
+        BuildTransactionSignedWithLockedAccountFuture { sign }
     }
 }
 
-impl<T: Transport> Future for LockedBuildFuture<T> {
+impl<T: Transport> Future for BuildTransactionSignedWithLockedAccountFuture<T> {
     type Output = Result<Bytes, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -269,7 +271,7 @@ type OfflineParamsFuture<T> = TryJoin4<
 /// A future for building a offline signed transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct OfflineBuildFuture<T: Transport> {
+pub struct BuildOfflineSignedTransactionFuture<T: Transport> {
     /// The private key to use for signing.
     key: SecretKey,
     /// The recepient address.
@@ -284,7 +286,7 @@ pub struct OfflineBuildFuture<T: Transport> {
     params: OfflineParamsFuture<T>,
 }
 
-impl<T: Transport> OfflineBuildFuture<T> {
+impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
     /// Create a new future for building a locally singed transaction request
     /// from a partial transaction object and account information.
     pub fn new(
@@ -328,7 +330,7 @@ impl<T: Transport> OfflineBuildFuture<T> {
 
         let data = options.data.unwrap_or_else(Bytes::default);
 
-        OfflineBuildFuture {
+        BuildOfflineSignedTransactionFuture {
             key,
             to,
             value,
@@ -338,7 +340,7 @@ impl<T: Transport> OfflineBuildFuture<T> {
     }
 }
 
-impl<T: Transport> Future for OfflineBuildFuture<T> {
+impl<T: Transport> Future for BuildOfflineSignedTransactionFuture<T> {
     type Output = Result<Bytes, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -367,6 +369,25 @@ mod tests {
     use crate::test::prelude::*;
 
     #[test]
+    fn tx_build_local() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0x9876543210987654321098765432109876543210");
+
+        let tx = BuildLocallySignedTransactionFuture::new(
+            &web3,
+            Some(from),
+            TransactionRequestOptions::default(),
+        )
+        .immediate()
+        .expect("get accounts success");
+
+        transport.assert_no_more_requests();
+        assert_eq!(tx.from, from);
+    }
+
+    #[test]
     fn tx_build_local_default_account() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
@@ -378,15 +399,46 @@ mod tests {
         ];
 
         transport.add_response(json!(accounts)); // get accounts
-        let tx = LocalBuildFuture::new(&web3, None, TransactionRequestOptions::default())
-            .immediate()
-            .expect("get accounts success");
+        let tx = BuildLocallySignedTransactionFuture::new(
+            &web3,
+            None,
+            TransactionRequestOptions::default(),
+        )
+        .immediate()
+        .expect("get accounts success");
 
         transport.assert_request("eth_accounts", &[]);
         transport.assert_no_more_requests();
 
         assert_eq!(tx.from, accounts[0]);
         assert_eq!(tx.gas_price, None);
+    }
+
+    #[test]
+    fn tx_build_local_no_local_accounts() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        transport.add_response(json!([])); // get accounts
+        let err = BuildLocallySignedTransactionFuture::new(
+            &web3,
+            None,
+            TransactionRequestOptions::default(),
+        )
+        .immediate()
+        .expect_err("unexpected success building tx");
+
+        transport.assert_request("eth_accounts", &[]);
+        transport.assert_no_more_requests();
+
+        assert!(
+            match err {
+                ExecutionError::NoLocalAccounts => true,
+                _ => false,
+            },
+            "expected no local accounts error but got '{:?}'",
+            err
+        );
     }
 
     #[test]
@@ -411,7 +463,7 @@ mod tests {
                 "input": "0x",
             }
         })); // sign transaction
-        let tx = LockedBuildFuture::new(
+        let tx = BuildTransactionSignedWithLockedAccountFuture::new(
             &web3,
             from,
             pw.into(),
@@ -460,7 +512,7 @@ mod tests {
         transport.add_response(json!(nonce));
         transport.add_response(json!(format!("{:#x}", chain_id)));
 
-        let tx1 = OfflineBuildFuture::new(
+        let tx1 = BuildOfflineSignedTransactionFuture::new(
             &web3,
             key.clone(),
             None,
@@ -487,7 +539,7 @@ mod tests {
 
         transport.add_response(json!(gas_price));
 
-        let tx2 = OfflineBuildFuture::new(
+        let tx2 = BuildOfflineSignedTransactionFuture::new(
             &web3,
             key,
             Some(chain_id),
