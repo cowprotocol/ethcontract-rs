@@ -39,7 +39,7 @@ impl GasPrice {
 
     /// A high gas price that usually results in faster mining times.
     /// transactions, or the transactions not being mined at all.
-    pub fn fast() -> Self {
+    pub fn high() -> Self {
         GasPrice::Scaled(6.0)
     }
 
