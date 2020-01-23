@@ -93,6 +93,7 @@
 mod test_macros;
 
 pub mod contract;
+mod conv;
 pub mod errors;
 mod future;
 mod hash;

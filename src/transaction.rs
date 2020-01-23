@@ -3,6 +3,7 @@
 
 pub mod build;
 pub mod confirm;
+pub mod gas_price;
 pub mod estimate_gas;
 pub mod send;
 
