@@ -4,6 +4,7 @@
 pub mod build;
 pub mod confirm;
 pub mod estimate_gas;
+pub mod gas_price;
 pub mod send;
 
 use crate::transaction::build::BuildFuture;
