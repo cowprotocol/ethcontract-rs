@@ -4,12 +4,13 @@
 pub mod build;
 pub mod confirm;
 pub mod estimate_gas;
+pub mod gas_price;
 pub mod send;
 
-use crate::conv;
 use crate::transaction::build::BuildFuture;
 use crate::transaction::confirm::ConfirmParams;
 use crate::transaction::estimate_gas::EstimateGasFuture;
+pub use crate::transaction::gas_price::GasPrice;
 use crate::transaction::send::SendFuture;
 use ethsign::{Protected, SecretKey};
 use web3::api::Web3;
@@ -62,90 +63,6 @@ impl Default for ResolveCondition {
     fn default() -> Self {
         ResolveCondition::Confirmed(Default::default())
     }
-}
-
-/// The gas price setting to use.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum GasPrice {
-    /// The standard estimated gas price from the node, this is usually the
-    /// median gas price from the last few blocks. This is the default gas price
-    /// used by transactions.
-    Standard,
-    /// A factor of the estimated gas price from the node. `GasPrice::Standard`
-    /// is equivalent to `GasPrice::Factor(1.0)`.
-    Factor(f64),
-    /// Specify a specific gas price to use for the transaction. This will cause
-    /// the transaction `SendFuture` to not query the node for a gas price
-    /// estimation.
-    Value(U256),
-}
-
-impl GasPrice {
-    /// A low gas price. Using this may result in long confirmation times for
-    /// transactions, or the transactions not being mined at all.
-    pub fn low() -> Self {
-        GasPrice::Factor(0.8)
-    }
-
-    /// A high gas price that usually results in faster mining times.
-    /// transactions, or the transactions not being mined at all.
-    pub fn fast() -> Self {
-        GasPrice::Factor(6.0)
-    }
-
-    /// Returns `Some(value)` if the gas price is explicitly specified, `None`
-    /// otherwise.
-    pub fn value(&self) -> Option<U256> {
-        match self {
-            GasPrice::Value(value) => Some(*value),
-            _ => None,
-        }
-    }
-
-    /// Calculates the gas price to use based on the estimated gas price.
-    fn calculate_price(&self, estimate: U256) -> U256 {
-        match self {
-            GasPrice::Standard => estimate,
-            GasPrice::Factor(factor) => {
-                // NOTE: U256 does not support floating point we we have to
-                //   convert everything to floats to multiply the factor and
-                //   then convert back. We are OK with the loss of precision
-                //   here.
-                let estimate_f = conv::u256_to_f64(estimate);
-                conv::f64_to_u256(estimate_f * factor)
-            }
-            GasPrice::Value(value) => *value,
-        }
-    }
-}
-
-impl Default for GasPrice {
-    fn default() -> Self {
-        GasPrice::Standard
-    }
-}
-
-impl From<U256> for GasPrice {
-    fn from(value: U256) -> Self {
-        GasPrice::Value(value)
-    }
-}
-
-macro_rules! impl_gas_price_from_integer {
-    ($($t:ty),* $(,)?) => {
-        $(
-            impl From<$t> for GasPrice {
-                fn from(value: $t) -> Self {
-                    GasPrice::Value(value.into())
-                }
-            }
-        )*
-    };
-}
-
-impl_gas_price_from_integer! {
-    i8, i16, i32, i64, i128, isize,
-    u8, u16, u32, u64, u128, usize,
 }
 
 /// Represents a prepared and optionally signed transaction that is ready for
