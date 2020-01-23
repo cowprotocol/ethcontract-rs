@@ -58,8 +58,8 @@ impl GasPrice {
     /// the gas price is calculated as this may require contacting the node for
     /// gas price estimates in the case of `GasPrice::Standard` and
     /// `GasPrice::Scaled`.
-    pub fn resolve<T: Transport>(web3: &Web3<T>, gas_price: Self) -> ResolveGasPriceFuture<T> {
-        ResolveGasPriceFuture::new(web3, gas_price)
+    pub fn resolve<T: Transport>(self, web3: &Web3<T>) -> ResolveGasPriceFuture<T> {
+        ResolveGasPriceFuture::new(web3, self)
     }
 
     /// Resolves the gas price into an `Option<U256>` intendend to be used by a
@@ -72,7 +72,7 @@ impl GasPrice {
     ) -> ResolveTransactionRequestGasPriceFuture<T> {
         let future = match gas_price {
             None | Some(GasPrice::Standard) => None,
-            Some(gas_price) => Some(GasPrice::resolve(web3, gas_price)),
+            Some(gas_price) => Some(gas_price.resolve(web3)),
         };
         future.into()
     }
@@ -201,7 +201,8 @@ mod tests {
 
         transport.add_response(json!(gas_price));
         assert_eq!(
-            GasPrice::resolve(&web3, GasPrice::Standard)
+            GasPrice::Standard
+                .resolve(&web3)
                 .immediate()
                 .expect("error resolving gas price"),
             gas_price
@@ -211,7 +212,8 @@ mod tests {
 
         transport.add_response(json!(gas_price));
         assert_eq!(
-            GasPrice::resolve(&web3, GasPrice::Scaled(2.0))
+            GasPrice::Scaled(2.0)
+                .resolve(&web3)
                 .immediate()
                 .expect("error resolving gas price"),
             gas_price * 2
@@ -220,7 +222,8 @@ mod tests {
         transport.assert_no_more_requests();
 
         assert_eq!(
-            GasPrice::resolve(&web3, GasPrice::Value(gas_price))
+            GasPrice::Value(gas_price)
+                .resolve(&web3)
                 .immediate()
                 .expect("error resolving gas price"),
             gas_price
