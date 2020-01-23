@@ -73,7 +73,7 @@ impl TransactionRequestOptions {
 #[pin_project]
 pub enum BuildFuture<T: Transport> {
     /// Locally signed transaction. Produces a `Transaction::Request` result.
-    LocallySigned(#[pin] BuildLocallySignedTransactionFuture<T>),
+    LocallySigned(#[pin] BuildTransactionRequestForLocalSigningFuture<T>),
     /// Locally signed transaction with locked account. Produces a
     /// `Transaction::Raw` result.
     SignedWithLockedAccount(#[pin] BuildTransactionSignedWithLockedAccountFuture<T>),
@@ -94,13 +94,13 @@ impl<T: Transport> BuildFuture<T> {
         };
 
         match builder.from {
-            None => BuildFuture::LocallySigned(BuildLocallySignedTransactionFuture::new(
+            None => BuildFuture::LocallySigned(BuildTransactionRequestForLocalSigningFuture::new(
                 &builder.web3,
                 None,
                 TransactionRequestOptions(options, None),
             )),
             Some(Account::Local(from, condition)) => {
-                BuildFuture::LocallySigned(BuildLocallySignedTransactionFuture::new(
+                BuildFuture::LocallySigned(BuildTransactionRequestForLocalSigningFuture::new(
                     &builder.web3,
                     Some(from),
                     TransactionRequestOptions(options, condition),
@@ -158,7 +158,7 @@ type MaybeCallFuture<T, R> = MaybeReady<CompatCallFuture<T, R>>;
 /// A future for building a locally signed transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct BuildLocallySignedTransactionFuture<T: Transport> {
+pub struct BuildTransactionRequestForLocalSigningFuture<T: Transport> {
     /// The transaction options used for contructing a `TransactionRequest`. An
     /// `Option` is used here as the `Future` implementation requires moving the
     /// transaction options in order to construct the `TransactionRequest`.
@@ -180,7 +180,7 @@ enum LocalAccountState<T: Transport> {
     RetrievingAccounts(#[pin] CompatCallFuture<T, Vec<Address>>),
 }
 
-impl<T: Transport> BuildLocallySignedTransactionFuture<T> {
+impl<T: Transport> BuildTransactionRequestForLocalSigningFuture<T> {
     /// Create a new future for building a locally singed transaction request
     /// from a partial transaction object and account information.
     pub fn new(web3: &Web3<T>, from: Option<Address>, options: TransactionRequestOptions) -> Self {
@@ -191,11 +191,11 @@ impl<T: Transport> BuildLocallySignedTransactionFuture<T> {
             LocalAccountState::RetrievingAccounts(web3.eth().accounts().compat())
         };
 
-        BuildLocallySignedTransactionFuture { options, state }
+        BuildTransactionRequestForLocalSigningFuture { options, state }
     }
 }
 
-impl<T: Transport> Future for BuildLocallySignedTransactionFuture<T> {
+impl<T: Transport> Future for BuildTransactionRequestForLocalSigningFuture<T> {
     type Output = Result<TransactionRequest, ExecutionError>;
 
     #[project]
@@ -375,7 +375,7 @@ mod tests {
 
         let from = addr!("0x9876543210987654321098765432109876543210");
 
-        let tx = BuildLocallySignedTransactionFuture::new(
+        let tx = BuildTransactionRequestForLocalSigningFuture::new(
             &web3,
             Some(from),
             TransactionRequestOptions::default(),
@@ -399,7 +399,7 @@ mod tests {
         ];
 
         transport.add_response(json!(accounts)); // get accounts
-        let tx = BuildLocallySignedTransactionFuture::new(
+        let tx = BuildTransactionRequestForLocalSigningFuture::new(
             &web3,
             None,
             TransactionRequestOptions::default(),
@@ -420,7 +420,7 @@ mod tests {
         let web3 = Web3::new(transport.clone());
 
         transport.add_response(json!([])); // get accounts
-        let err = BuildLocallySignedTransactionFuture::new(
+        let err = BuildTransactionRequestForLocalSigningFuture::new(
             &web3,
             None,
             TransactionRequestOptions::default(),
