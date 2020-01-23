@@ -173,9 +173,9 @@ pub type ResolveTransactionRequestGasPriceFuture<T> = OptionFuture<ResolveGasPri
 
 /// Apply a scaling factor to a gas price.
 fn scale_gas_price(gas_price: U256, factor: f64) -> U256 {
-    // NOTE: U256 does not support floating point we we have to convert
-    //   everything to floats to multiply the factor and then convert back. We
-    //   are OK with the loss of precision here.
+    // NOTE: U256 does not support floating point multiplication we have to
+    //   convert everything to floats to multiply the factor and then convert
+    //   back. We are OK with the loss of precision here.
     let gas_price_f = conv::u256_to_f64(gas_price);
     conv::f64_to_u256(gas_price_f * factor)
 }
