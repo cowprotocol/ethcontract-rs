@@ -7,7 +7,8 @@
 use crate::errors::ExecutionError;
 use crate::future::{CompatCallFuture, MaybeReady};
 use crate::sign::TransactionData;
-use crate::transaction::{Account, EstimateGasFuture, Transaction, TransactionBuilder};
+use crate::transaction::estimate_gas::EstimateGasFuture;
+use crate::transaction::{Account, Transaction, TransactionBuilder};
 use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
 use futures::future::{self, TryJoin4};
