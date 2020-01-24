@@ -3,7 +3,7 @@
 //! state.
 
 mod deploy;
-mod link;
+pub mod link;
 mod method;
 
 use crate::errors::{DeployError, LinkError};

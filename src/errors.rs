@@ -23,30 +23,35 @@ pub enum LinkerError {
     #[error("error ABI ecoding constructor parameters: {0}")]
     Abi(#[from] AbiError),
 
-    /// An error indicating that an attempt was made to link a library that has
-    /// already been linked.
-    #[error("multiple definitions of library '{0}'")]
-    MultipleDefinitions(String),
-
-    /// And error indicating that there were missing dependencies while linking
-    /// the contract and library bytecode.
+    /// An error indicating that there was a missing dependency while linking
+    /// the contract bytecode.
     #[error("missing dependency '{0}'")]
     MissingDependency(String),
 
-    /// And error indicating that there were unused dependencies while linking
-    /// the contract and library bytecode.
+    /// An error indicating that there was a dependency was unable to link,
+    /// this can be because the library is not needed (as in the contract does
+    /// include a placeholder for it) or it was linked multiple times.
     #[error("unused dependency '{0}'")]
     UnusedDependency(String),
 
-    /// An error indicating that circular dependencies were found while linking
-    /// the contract and library bytecode.
-    #[error("circular dependencies '{0:?}'")]
-    CircularDependencies(Vec<String>),
+    /// An error indicating a library added to be deployed with the contract
+    /// has nested dependencies.
+    #[error("one ore more nested dependencies in library '{0}'")]
+    NestedDependencies(String),
 }
 
 impl From<AbiErrorKind> for LinkerError {
     fn from(err: AbiErrorKind) -> Self {
         LinkerError::Abi(err.into())
+    }
+}
+
+impl From<LinkError> for LinkerError {
+    fn from(err: LinkError) -> Self {
+        match err {
+            LinkError::NotFound(name) => LinkerError::UnusedDependency(name),
+            LinkError::UndefinedLibrary(name) => LinkerError::MissingDependency(name),
+        }
     }
 }
 

@@ -343,7 +343,7 @@ mod tests {
         assert_eq!(tx.gas, Some(1.into()));
         assert_eq!(tx.gas_price, Some(2.into()));
         assert_eq!(tx.value, Some(28.into()));
-        assert_eq!(tx.data, Some(bytecode.to_bytes().unwrap()));
+        assert_eq!(tx.data, Some(Bytes(bytecode.to_bytes().unwrap())));
         assert_eq!(tx.nonce, Some(42.into()));
         transport.assert_no_more_requests();
     }
