@@ -68,6 +68,11 @@ pub enum ExecutionError {
     #[error("parse chain ID error: {0}")]
     Parse(#[from] ParseIntError),
 
+    /// An error indicating that an attempt was made to build or send a locally
+    /// signed transaction to a node without any local accounts.
+    #[error("no local accounts")]
+    NoLocalAccounts,
+
     /// An error occured while signing a transaction offline.
     #[error("offline sign error: {0}")]
     Sign(#[from] SignError),
