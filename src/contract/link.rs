@@ -11,10 +11,7 @@ use web3::contract::tokens::Tokenize;
 use web3::types::Address;
 use web3::Transport;
 
-/// A trait that is implemented by a library used for linking.
-///
-/// This is intended to be used by the generated contract bindings for type-safe
-/// linking.
+/// A trait that is implemented by a library instance and can used for linking.
 pub trait LibraryInstance {
     /// The name of the library.
     fn name(&self) -> &str;
@@ -40,9 +37,6 @@ where
 
 /// A trait that is implemented by a library type that can be deployed alongside
 /// a contract when deploying the contract with its libraries.
-///
-/// This is intended to be used by the generated contract bindings for type-safe
-/// linking.
 pub trait DeployLibrary {
     /// Retrieve the name of the library.
     fn name() -> &'static str;
@@ -56,7 +50,8 @@ pub trait DeployLibrary {
 ///
 /// This marker trait is intended to be used by the generated code to for
 /// type-safe linking. This allows contracts to mark all libraries that can be
-/// safely linked to.
+/// safely linked to and thus make it impossible to link a contract with a
+/// library that it does not need.
 pub trait DependsOn<L> {}
 
 /// A library included in the linker.
