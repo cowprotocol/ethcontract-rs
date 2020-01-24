@@ -282,7 +282,7 @@ pub struct BuildOfflineSignedTransactionFuture<T: Transport> {
 }
 
 impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
-    /// Create a new future for building a locally singed transaction request
+    /// Create a new future for building a locally signed transaction request
     /// from a partial transaction object and account information.
     pub fn new(
         web3: &Web3<T>,
