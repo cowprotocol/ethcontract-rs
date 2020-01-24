@@ -17,7 +17,7 @@ to Ethereum smart contracts.
 name = "ethcontract"
 
 [features]
-default = []
+default = ["ethcontract-derive"]
 samples = []
 
 [workspace]
@@ -30,7 +30,7 @@ members = [
 
 [dependencies]
 ethcontract-common = { version = "0.2.0", path = "./common" }
-ethcontract-derive = { version = "0.2.0", path = "./derive" }
+ethcontract-derive = { version = "0.2.0", path = "./derive", optional = true}
 ethsign = "0.7"
 futures = { version = "0.3", features = ["compat"] }
 futures-timer = "2.0"

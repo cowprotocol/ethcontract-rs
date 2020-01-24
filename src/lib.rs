@@ -107,7 +107,7 @@ pub use crate::transaction::Account;
 pub use crate::transport::DynTransport;
 pub use ethcontract_common as common;
 pub use ethcontract_common::truffle::Artifact;
-pub use ethcontract_derive::contract;
+#[cfg(feature = "ethcontract-derive")] pub use ethcontract_derive::contract;
 pub use ethsign::{self, Protected, SecretKey};
 pub use serde_json as json;
 pub use web3;

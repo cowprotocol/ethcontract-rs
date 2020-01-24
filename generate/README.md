@@ -17,6 +17,8 @@ generator:
 ```toml
 [dependencies]
 ethcontract = "..."
+# `no-default-features = true` can be specified if the `contract` macro is
+# not needed because only generate is being used.
 
 [build-dependencies]
 ethcontract-generate = "..."
