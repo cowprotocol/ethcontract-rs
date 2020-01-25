@@ -7,10 +7,11 @@
 use crate::errors::ExecutionError;
 use crate::future::{CompatCallFuture, MaybeReady};
 use crate::sign::TransactionData;
+use crate::transaction::estimate_gas::EstimateGasFuture;
 use crate::transaction::gas_price::{
     GasPrice, ResolveGasPriceFuture, ResolveTransactionRequestGasPriceFuture,
 };
-use crate::transaction::{Account, EstimateGasFuture, Transaction, TransactionBuilder};
+use crate::transaction::{Account, Transaction, TransactionBuilder};
 use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
 use futures::future::{self, Join, TryJoin4};
@@ -74,17 +75,18 @@ impl TransactionRequestOptions {
 #[pin_project]
 pub enum BuildFuture<T: Transport> {
     /// Locally signed transaction. Produces a `Transaction::Request` result.
-    LocallySigned(#[pin] LocalBuildFuture<T>),
+    Local(#[pin] BuildTransactionRequestForLocalSigningFuture<T>),
     /// Locally signed transaction with locked account. Produces a
     /// `Transaction::Raw` result.
-    SignedWithLockedAccount(#[pin] LockedBuildFuture<T>),
+    Locked(#[pin] BuildTransactionSignedWithLockedAccountFuture<T>),
     /// Offline signed transaction. Produces a `Transaction::Raw` result.
-    OfflineSigned(#[pin] OfflineBuildFuture<T>),
+    Offline(#[pin] BuildOfflineSignedTransactionFuture<T>),
 }
 
 impl<T: Transport> BuildFuture<T> {
     /// Create an instance from a `TransactionBuilder`.
     pub fn from_builder(builder: TransactionBuilder<T>) -> Self {
+        let gas_price = builder.gas_price.unwrap_or_default();
         let options = TransactionOptions {
             to: builder.to,
             gas: builder.gas,
@@ -94,32 +96,38 @@ impl<T: Transport> BuildFuture<T> {
         };
 
         match builder.from {
-            None => BuildFuture::LocallySigned(LocalBuildFuture::new(
+            None => BuildFuture::Local(BuildTransactionRequestForLocalSigningFuture::new(
                 &builder.web3,
                 None,
-                builder.gas_price,
+                gas_price,
                 TransactionRequestOptions(options, None),
             )),
             Some(Account::Local(from, condition)) => {
-                BuildFuture::LocallySigned(LocalBuildFuture::new(
+                BuildFuture::Local(BuildTransactionRequestForLocalSigningFuture::new(
                     &builder.web3,
                     Some(from),
-                    builder.gas_price,
+                    gas_price,
                     TransactionRequestOptions(options, condition),
                 ))
             }
             Some(Account::Locked(from, password, condition)) => {
-                BuildFuture::SignedWithLockedAccount(LockedBuildFuture::new(
+                BuildFuture::Locked(BuildTransactionSignedWithLockedAccountFuture::new(
                     builder.web3,
                     from,
                     password,
-                    builder.gas_price,
+                    gas_price,
                     TransactionRequestOptions(options, condition),
                 ))
             }
-            Some(Account::Offline(key, chain_id)) => BuildFuture::OfflineSigned(
-                OfflineBuildFuture::new(&builder.web3, key, chain_id, builder.gas_price, options),
-            ),
+            Some(Account::Offline(key, chain_id)) => {
+                BuildFuture::Offline(BuildOfflineSignedTransactionFuture::new(
+                    &builder.web3,
+                    key,
+                    chain_id,
+                    gas_price,
+                    options,
+                ))
+            }
         }
     }
 }
@@ -131,15 +139,11 @@ impl<T: Transport> Future for BuildFuture<T> {
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         #[project]
         match self.project() {
-            BuildFuture::LocallySigned(local) => local
+            BuildFuture::Local(local) => local
                 .poll(cx)
                 .map(|request| Ok(Transaction::Request(request?))),
-            BuildFuture::SignedWithLockedAccount(locked) => {
-                locked.poll(cx).map(|raw| Ok(Transaction::Raw(raw?)))
-            }
-            BuildFuture::OfflineSigned(offline) => {
-                offline.poll(cx).map(|raw| Ok(Transaction::Raw(raw?)))
-            }
+            BuildFuture::Locked(locked) => locked.poll(cx).map(|raw| Ok(Transaction::Raw(raw?))),
+            BuildFuture::Offline(offline) => offline.poll(cx).map(|raw| Ok(Transaction::Raw(raw?))),
         }
     }
 }
@@ -163,52 +167,57 @@ type LocalParamsFuture<T> =
 /// A future for building a locally signed transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct LocalBuildFuture<T: Transport> {
+pub struct BuildTransactionRequestForLocalSigningFuture<T: Transport> {
     /// The transaction options used for contructing a `TransactionRequest`. An
     /// `Option` is used here as the `Future` implementation requires moving the
     /// transaction options in order to construct the `TransactionRequest`.
     options: Option<TransactionRequestOptions>,
-    /// The inner future for retrieving the list of accounts on the node and
-    /// gas price estimation. These are the required missing transaction
-    /// parameters that are needed to contruct the `TransactionRequest` from the
-    /// transaction options.
+    /// The inner future for retrieving the missing parameters required for
+    /// finalizaing the transaction request: the list of accounts on the node
+    /// (in order determine the default account if none was specified) and the
+    /// resolved gas price (in case a scaled gas price is used).
     #[pin]
     params: LocalParamsFuture<T>,
 }
 
-impl<T: Transport> LocalBuildFuture<T> {
+impl<T: Transport> BuildTransactionRequestForLocalSigningFuture<T> {
     /// Create a new future for building a locally singed transaction request
     /// from a partial transaction object and account information.
     pub fn new(
         web3: &Web3<T>,
         from: Option<Address>,
-        gas_price: Option<GasPrice>,
+        gas_price: GasPrice,
         options: TransactionRequestOptions,
     ) -> Self {
         let options = Some(options);
         let params = {
             let eth = web3.eth();
             let accounts = maybe!(from.map(|from| vec![from]), eth.accounts().compat());
-            let gas_price = GasPrice::resolve_for_transaction_request(gas_price, web3);
+            let gas_price = gas_price.resolve_for_transaction_request(web3);
             future::join(accounts, gas_price)
         };
 
-        LocalBuildFuture { params, options }
+        BuildTransactionRequestForLocalSigningFuture { options, params }
     }
 }
 
-impl<T: Transport> Future for LocalBuildFuture<T> {
+impl<T: Transport> Future for BuildTransactionRequestForLocalSigningFuture<T> {
     type Output = Result<TransactionRequest, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let mut this = self.project();
+
         this.params.as_mut().poll(cx).map(|(accounts, gas_price)| {
+            let (accounts, gas_price) = (accounts?, gas_price.transpose()?);
+            let from = match accounts.get(0) {
+                Some(address) => *address,
+                None => return Err(ExecutionError::NoLocalAccounts),
+            };
+
             let options = this.options.take().expect("future polled more than once");
+            let request = options.build_request(from, gas_price);
 
-            let from = accounts?.get(0).copied().unwrap_or_default();
-            let gas_price = gas_price.transpose()?;
-
-            Ok(options.build_request(from, gas_price))
+            Ok(request)
         })
     }
 }
@@ -216,54 +225,55 @@ impl<T: Transport> Future for LocalBuildFuture<T> {
 /// A future for building a locally signed transaction with a locked account.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct LockedBuildFuture<T: Transport> {
-    /// The underlying web3 provider.
+pub struct BuildTransactionSignedWithLockedAccountFuture<T: Transport> {
+    /// The web3 provider.
     web3: Web3<T>,
-    /// The address of the locked account singing the transaction.
+    /// The locked account to use for signing.
     from: Address,
-    /// The password used for signing.
+    /// The password for unlocking the account.
     password: Protected,
-    /// The transaction options. Note that we use an `Option` here as the future
-    /// needs to move the transaction options to contruct a `TransactionRequest`
-    /// for signing.
+    /// The options for building the transaction request to be signed. Note that
+    /// an `Option` is used here as the future must move the value.
     options: Option<TransactionRequestOptions>,
-    /// The state of the build future.
+    /// The inner state for the locked account future.
     #[pin]
-    state: LockedBuildState<T>,
+    state: BuildTransactionSignedWithLockedAccountState<T>,
 }
 
-/// The state of the `LockedBuildFuture`.
+/// The inner state of the future for building locally signed transactions.
 #[pin_project]
-enum LockedBuildState<T: Transport> {
-    /// Preparing the transaction request.
+enum BuildTransactionSignedWithLockedAccountState<T: Transport> {
+    /// The gas price is being resolved.
     ResolvingGasPrice(#[pin] ResolveTransactionRequestGasPriceFuture<T>),
-    /// Signing the transaction request.
+    /// Signing the transaction with the locked account.
     Signing(#[pin] CompatCallFuture<T, RawTransaction>),
 }
 
-impl<T: Transport> LockedBuildFuture<T> {
+impl<T: Transport> BuildTransactionSignedWithLockedAccountFuture<T> {
     /// Create a new future for building a locally singed transaction request
     /// from a partial transaction object and account information.
     pub fn new(
         web3: Web3<T>,
         from: Address,
         password: Protected,
-        gas_price: Option<GasPrice>,
+        gas_price: GasPrice,
         options: TransactionRequestOptions,
     ) -> Self {
-        let options = Some(options);
-        let gas_price = GasPrice::resolve_for_transaction_request(gas_price, &web3);
-        LockedBuildFuture {
+        let state = BuildTransactionSignedWithLockedAccountState::ResolvingGasPrice(
+            gas_price.resolve_for_transaction_request(&web3),
+        );
+
+        BuildTransactionSignedWithLockedAccountFuture {
             web3,
             from,
             password,
-            options,
-            state: LockedBuildState::ResolvingGasPrice(gas_price),
+            options: Some(options),
+            state,
         }
     }
 }
 
-impl<T: Transport> Future for LockedBuildFuture<T> {
+impl<T: Transport> Future for BuildTransactionSignedWithLockedAccountFuture<T> {
     type Output = Result<Bytes, ExecutionError>;
 
     #[project]
@@ -273,7 +283,7 @@ impl<T: Transport> Future for LockedBuildFuture<T> {
         loop {
             #[project]
             let next_state = match this.state.as_mut().project() {
-                LockedBuildState::ResolvingGasPrice(gas_price) => {
+                BuildTransactionSignedWithLockedAccountState::ResolvingGasPrice(gas_price) => {
                     let gas_price = match ready!(gas_price.poll(cx)).transpose() {
                         Ok(gas_price) => gas_price,
                         Err(err) => return Poll::Ready(Err(err.into())),
@@ -289,9 +299,11 @@ impl<T: Transport> Future for LockedBuildFuture<T> {
                         .sign_transaction(request, password)
                         .compat();
 
-                    LockedBuildState::Signing(sign)
+                    BuildTransactionSignedWithLockedAccountState::Signing(sign)
                 }
-                LockedBuildState::Signing(sign) => return sign.poll(cx).map(|raw| Ok(raw?.raw)),
+                BuildTransactionSignedWithLockedAccountState::Signing(sign) => {
+                    return sign.poll(cx).map(|raw| Ok(raw?.raw))
+                }
             };
 
             *this.state = next_state;
@@ -311,7 +323,7 @@ type OfflineParamsFuture<T> = TryJoin4<
 /// A future for building a offline signed transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct OfflineBuildFuture<T: Transport> {
+pub struct BuildOfflineSignedTransactionFuture<T: Transport> {
     /// The private key to use for signing.
     key: SecretKey,
     /// The recepient address.
@@ -326,14 +338,14 @@ pub struct OfflineBuildFuture<T: Transport> {
     params: OfflineParamsFuture<T>,
 }
 
-impl<T: Transport> OfflineBuildFuture<T> {
-    /// Create a new future for building a locally singed transaction request
+impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
+    /// Create a new future for building a locally signed transaction request
     /// from a partial transaction object and account information.
     pub fn new(
         web3: &Web3<T>,
         key: SecretKey,
         chain_id: Option<u64>,
-        gas_price: Option<GasPrice>,
+        gas_price: GasPrice,
         options: TransactionOptions,
     ) -> Self {
         let to = options.to.unwrap_or_else(Address::zero);
@@ -359,7 +371,7 @@ impl<T: Transport> OfflineBuildFuture<T> {
                 )
                 .into_inner()
             );
-            let gas_price = gas_price.unwrap_or_default().resolve(web3);
+            let gas_price = gas_price.resolve(web3);
             let nonce = maybe!(options.nonce, eth.transaction_count(from, None).compat());
             let chain_id = maybe!(
                 chain_id.map(U64::from),
@@ -371,7 +383,7 @@ impl<T: Transport> OfflineBuildFuture<T> {
 
         let data = options.data.unwrap_or_else(Bytes::default);
 
-        OfflineBuildFuture {
+        BuildOfflineSignedTransactionFuture {
             key,
             to,
             value,
@@ -381,7 +393,7 @@ impl<T: Transport> OfflineBuildFuture<T> {
     }
 }
 
-impl<T: Transport> Future for OfflineBuildFuture<T> {
+impl<T: Transport> Future for BuildOfflineSignedTransactionFuture<T> {
     type Output = Result<Bytes, ExecutionError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
@@ -410,6 +422,26 @@ mod tests {
     use crate::test::prelude::*;
 
     #[test]
+    fn tx_build_local() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0x9876543210987654321098765432109876543210");
+
+        let tx = BuildTransactionRequestForLocalSigningFuture::new(
+            &web3,
+            Some(from),
+            GasPrice::Standard,
+            TransactionRequestOptions::default(),
+        )
+        .immediate()
+        .expect("get accounts success");
+
+        transport.assert_no_more_requests();
+        assert_eq!(tx.from, from);
+    }
+
+    #[test]
     fn tx_build_local_default_account() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
@@ -421,9 +453,14 @@ mod tests {
         ];
 
         transport.add_response(json!(accounts)); // get accounts
-        let tx = LocalBuildFuture::new(&web3, None, None, TransactionRequestOptions::default())
-            .immediate()
-            .expect("get accounts success");
+        let tx = BuildTransactionRequestForLocalSigningFuture::new(
+            &web3,
+            None,
+            GasPrice::Standard,
+            TransactionRequestOptions::default(),
+        )
+        .immediate()
+        .expect("get accounts success");
 
         transport.assert_request("eth_accounts", &[]);
         transport.assert_no_more_requests();
@@ -445,10 +482,10 @@ mod tests {
 
         transport.add_response(json!(accounts)); // get accounts
         transport.add_response(json!("0x42")); // gas price
-        let tx = LocalBuildFuture::new(
+        let tx = BuildTransactionRequestForLocalSigningFuture::new(
             &web3,
             None,
-            Some(GasPrice::Scaled(2.0)),
+            GasPrice::Scaled(2.0),
             TransactionRequestOptions::default(),
         )
         .immediate()
@@ -470,10 +507,10 @@ mod tests {
         let from = addr!("0xffffffffffffffffffffffffffffffffffffffff");
 
         transport.add_response(json!("0x42")); // gas price
-        let tx = LocalBuildFuture::new(
+        let tx = BuildTransactionRequestForLocalSigningFuture::new(
             &web3,
             Some(from),
-            Some(GasPrice::Scaled(2.0)),
+            GasPrice::Scaled(2.0),
             TransactionRequestOptions::default(),
         )
         .immediate()
@@ -493,10 +530,10 @@ mod tests {
 
         let from = addr!("0xffffffffffffffffffffffffffffffffffffffff");
 
-        let tx = LocalBuildFuture::new(
+        let tx = BuildTransactionRequestForLocalSigningFuture::new(
             &web3,
             Some(from),
-            Some(GasPrice::Value(1337.into())),
+            GasPrice::Value(1337.into()),
             TransactionRequestOptions::default(),
         )
         .immediate()
@@ -506,6 +543,34 @@ mod tests {
 
         assert_eq!(tx.from, from);
         assert_eq!(tx.gas_price, Some(1337.into()));
+    }
+
+    #[test]
+    fn tx_build_local_no_local_accounts() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        transport.add_response(json!([])); // get accounts
+        let err = BuildTransactionRequestForLocalSigningFuture::new(
+            &web3,
+            None,
+            GasPrice::Standard,
+            TransactionRequestOptions::default(),
+        )
+        .immediate()
+        .expect_err("unexpected success building tx");
+
+        transport.assert_request("eth_accounts", &[]);
+        transport.assert_no_more_requests();
+
+        assert!(
+            match err {
+                ExecutionError::NoLocalAccounts => true,
+                _ => false,
+            },
+            "expected no local accounts error but got '{:?}'",
+            err
+        );
     }
 
     #[test]
@@ -530,11 +595,11 @@ mod tests {
                 "input": "0x",
             }
         })); // sign transaction
-        let tx = LockedBuildFuture::new(
+        let tx = BuildTransactionSignedWithLockedAccountFuture::new(
             web3,
             from,
             pw.into(),
-            None,
+            GasPrice::Standard,
             TransactionRequestOptions(
                 TransactionOptions {
                     to: Some(to),
@@ -584,11 +649,11 @@ mod tests {
                 "input": "0x",
             }
         })); // sign transaction
-        let tx = LockedBuildFuture::new(
+        let tx = BuildTransactionSignedWithLockedAccountFuture::new(
             web3,
             from,
             pw.into(),
-            Some(GasPrice::Scaled(2.0)),
+            GasPrice::Scaled(2.0),
             TransactionRequestOptions::default(),
         )
         .immediate()
@@ -629,11 +694,11 @@ mod tests {
         transport.add_response(json!(nonce));
         transport.add_response(json!(format!("{:#x}", chain_id)));
 
-        let tx1 = OfflineBuildFuture::new(
+        let tx1 = BuildOfflineSignedTransactionFuture::new(
             &web3,
             key.clone(),
             None,
-            None,
+            GasPrice::Standard,
             TransactionOptions {
                 to: Some(to),
                 ..Default::default()
@@ -657,11 +722,11 @@ mod tests {
 
         transport.add_response(json!(gas_price));
 
-        let tx2 = OfflineBuildFuture::new(
+        let tx2 = BuildOfflineSignedTransactionFuture::new(
             &web3,
             key.clone(),
             Some(chain_id),
-            Some(GasPrice::Scaled(2.0)),
+            GasPrice::Scaled(2.0),
             TransactionOptions {
                 to: Some(to),
                 gas: Some(gas),
@@ -675,11 +740,11 @@ mod tests {
         transport.assert_request("eth_gasPrice", &[]);
         transport.assert_no_more_requests();
 
-        let tx3 = OfflineBuildFuture::new(
+        let tx3 = BuildOfflineSignedTransactionFuture::new(
             &web3,
             key,
             Some(chain_id),
-            Some(GasPrice::Value(gas_price * 2)),
+            GasPrice::Value(gas_price * 2),
             TransactionOptions {
                 to: Some(to),
                 gas: Some(gas),
@@ -694,7 +759,7 @@ mod tests {
         transport.assert_no_more_requests();
 
         // check that if we sign with same values we get same results
-        assert_eq!(tx1, tx3);
+        assert_eq!(tx1, tx2);
         assert_eq!(tx2, tx3);
     }
 }
