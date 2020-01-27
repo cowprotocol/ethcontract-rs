@@ -558,7 +558,7 @@ mod tests {
             TransactionRequestOptions::default(),
         )
         .immediate()
-        .expect_err("unexpected success building tx");
+        .expect_err("unexpected success building transaction");
 
         transport.assert_request("eth_accounts", &[]);
         transport.assert_no_more_requests();
@@ -681,7 +681,7 @@ mod tests {
         let web3 = Web3::new(transport.clone());
 
         let from = addr!("0x9876543210987654321098765432109876543210");
-        let pw = b"\xff";
+        let pw = b"\xff"; // 0xff is not a valid UTF-8 codepoint
 
         let err = BuildTransactionSignedWithLockedAccountFuture::new(
             web3,
