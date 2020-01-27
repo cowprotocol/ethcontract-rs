@@ -291,7 +291,7 @@ impl<T: Transport> Future for BuildTransactionSignedWithLockedAccountFuture<T> {
 
                     let options = this.options.take().expect("future called more than once");
                     let request = options.build_request(*this.from, gas_price);
-                    let password = unsafe { str::from_utf8_unchecked(this.password.as_ref()) };
+                    let password = str::from_utf8(this.password.as_ref())?;
 
                     let sign = this
                         .web3
@@ -673,6 +673,36 @@ mod tests {
         transport.assert_no_more_requests();
 
         assert_eq!(tx, signed);
+    }
+
+    #[test]
+    fn tx_build_locked_invalid_utf8_password() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0x9876543210987654321098765432109876543210");
+        let pw = b"\xff";
+
+        let err = BuildTransactionSignedWithLockedAccountFuture::new(
+            web3,
+            from,
+            pw[..].into(),
+            GasPrice::Standard,
+            TransactionRequestOptions::default(),
+        )
+        .immediate()
+        .expect_err("unexpected success building tx");
+
+        transport.assert_no_more_requests();
+
+        assert!(
+            match err {
+                ExecutionError::PasswordUtf8(_) => true,
+                _ => false,
+            },
+            "expected no invalid UTF-8 password error but got '{:?}'",
+            err
+        );
     }
 
     #[test]
