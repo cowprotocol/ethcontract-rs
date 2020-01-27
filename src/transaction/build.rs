@@ -8,10 +8,13 @@ use crate::errors::ExecutionError;
 use crate::future::{CompatCallFuture, MaybeReady};
 use crate::sign::TransactionData;
 use crate::transaction::estimate_gas::EstimateGasFuture;
+use crate::transaction::gas_price::{
+    GasPrice, ResolveGasPriceFuture, ResolveTransactionRequestGasPriceFuture,
+};
 use crate::transaction::{Account, Transaction, TransactionBuilder};
 use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
-use futures::future::{self, TryJoin4};
+use futures::future::{self, Join, TryJoin4};
 use futures::ready;
 use pin_project::{pin_project, project};
 use std::future::Future;
@@ -34,8 +37,6 @@ pub struct TransactionOptions {
     pub to: Option<Address>,
     /// The amount of gas to use for the transaction.
     pub gas: Option<U256>,
-    /// The gas price to use for the transaction.
-    pub gas_price: Option<U256>,
     /// The ETH value to send with the transaction.
     pub value: Option<U256>,
     /// The data for the transaction.
@@ -53,12 +54,12 @@ pub struct TransactionRequestOptions(pub TransactionOptions, pub Option<Transact
 impl TransactionRequestOptions {
     /// Builds a `TransactionRequest` from a `TransactionRequestOptions` by
     /// specifying the missing parameters.
-    fn build_request(self, from: Address) -> TransactionRequest {
+    fn build_request(self, from: Address, gas_price: Option<U256>) -> TransactionRequest {
         TransactionRequest {
             from,
             to: self.0.to,
             gas: self.0.gas,
-            gas_price: self.0.gas_price,
+            gas_price,
             value: self.0.value,
             data: self.0.data,
             nonce: self.0.nonce,
@@ -85,10 +86,10 @@ pub enum BuildFuture<T: Transport> {
 impl<T: Transport> BuildFuture<T> {
     /// Create an instance from a `TransactionBuilder`.
     pub fn from_builder(builder: TransactionBuilder<T>) -> Self {
+        let gas_price = builder.gas_price.unwrap_or_default();
         let options = TransactionOptions {
             to: builder.to,
             gas: builder.gas,
-            gas_price: builder.gas_price,
             value: builder.value,
             data: builder.data,
             nonce: builder.nonce,
@@ -98,26 +99,35 @@ impl<T: Transport> BuildFuture<T> {
             None => BuildFuture::Local(BuildTransactionRequestForLocalSigningFuture::new(
                 &builder.web3,
                 None,
+                gas_price,
                 TransactionRequestOptions(options, None),
             )),
             Some(Account::Local(from, condition)) => {
                 BuildFuture::Local(BuildTransactionRequestForLocalSigningFuture::new(
                     &builder.web3,
                     Some(from),
+                    gas_price,
                     TransactionRequestOptions(options, condition),
                 ))
             }
             Some(Account::Locked(from, password, condition)) => {
                 BuildFuture::Locked(BuildTransactionSignedWithLockedAccountFuture::new(
-                    &builder.web3,
+                    builder.web3,
                     from,
                     password,
+                    gas_price,
                     TransactionRequestOptions(options, condition),
                 ))
             }
-            Some(Account::Offline(key, chain_id)) => BuildFuture::Offline(
-                BuildOfflineSignedTransactionFuture::new(&builder.web3, key, chain_id, options),
-            ),
+            Some(Account::Offline(key, chain_id)) => {
+                BuildFuture::Offline(BuildOfflineSignedTransactionFuture::new(
+                    &builder.web3,
+                    key,
+                    chain_id,
+                    gas_price,
+                    options,
+                ))
+            }
         }
     }
 }
@@ -150,6 +160,10 @@ macro_rules! maybe {
 /// Type alias for a call future that might already be resolved.
 type MaybeCallFuture<T, R> = MaybeReady<CompatCallFuture<T, R>>;
 
+/// Type alias for future retrieving default local account parameters.
+type LocalParamsFuture<T> =
+    Join<MaybeCallFuture<T, Vec<Address>>, ResolveTransactionRequestGasPriceFuture<T>>;
+
 /// A future for building a locally signed transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
@@ -158,64 +172,53 @@ pub struct BuildTransactionRequestForLocalSigningFuture<T: Transport> {
     /// `Option` is used here as the `Future` implementation requires moving the
     /// transaction options in order to construct the `TransactionRequest`.
     options: Option<TransactionRequestOptions>,
-    /// The inner future for retrieving the list of accounts on the node to
-    /// determine the default account if none were specified.
+    /// The inner future for retrieving the missing parameters required for
+    /// finalizing the transaction request: the list of accounts on the node
+    /// (in order determine the default account if none was specified) and the
+    /// resolved gas price (in case a scaled gas price is used).
     #[pin]
-    state: LocalAccountState<T>,
-}
-
-/// The inner state of the future for building locally signed transactions.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-enum LocalAccountState<T: Transport> {
-    /// The account to use for local signing is already known.
-    Address(Address),
-    /// Retrieving the list of accounts that can be used for local signing from
-    /// the node.
-    RetrievingAccounts(#[pin] CompatCallFuture<T, Vec<Address>>),
+    params: LocalParamsFuture<T>,
 }
 
 impl<T: Transport> BuildTransactionRequestForLocalSigningFuture<T> {
     /// Create a new future for building a locally singed transaction request
     /// from a partial transaction object and account information.
-    pub fn new(web3: &Web3<T>, from: Option<Address>, options: TransactionRequestOptions) -> Self {
+    pub fn new(
+        web3: &Web3<T>,
+        from: Option<Address>,
+        gas_price: GasPrice,
+        options: TransactionRequestOptions,
+    ) -> Self {
         let options = Some(options);
-        let state = if let Some(from) = from {
-            LocalAccountState::Address(from)
-        } else {
-            LocalAccountState::RetrievingAccounts(web3.eth().accounts().compat())
+        let params = {
+            let eth = web3.eth();
+            let accounts = maybe!(from.map(|from| vec![from]), eth.accounts().compat());
+            let gas_price = gas_price.resolve_for_transaction_request(web3);
+            future::join(accounts, gas_price)
         };
 
-        BuildTransactionRequestForLocalSigningFuture { options, state }
+        BuildTransactionRequestForLocalSigningFuture { options, params }
     }
 }
 
 impl<T: Transport> Future for BuildTransactionRequestForLocalSigningFuture<T> {
     type Output = Result<TransactionRequest, ExecutionError>;
 
-    #[project]
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let mut this = self.project();
 
-        #[project]
-        let from = match this.state.as_mut().project() {
-            LocalAccountState::Address(from) => *from,
-            LocalAccountState::RetrievingAccounts(accounts) => {
-                let default_account = ready!(accounts.poll(cx).map(|accounts| accounts?
-                    .get(0)
-                    .copied()
-                    .ok_or_else(|| ExecutionError::NoLocalAccounts)));
-                match default_account {
-                    Ok(address) => address,
-                    Err(err) => return Poll::Ready(Err(err)),
-                }
-            }
-        };
+        this.params.as_mut().poll(cx).map(|(accounts, gas_price)| {
+            let (accounts, gas_price) = (accounts?, gas_price.transpose()?);
+            let from = match accounts.get(0) {
+                Some(address) => *address,
+                None => return Err(ExecutionError::NoLocalAccounts),
+            };
 
-        let options = this.options.take().expect("future polled more than once");
-        let request = options.build_request(from);
+            let options = this.options.take().expect("future polled more than once");
+            let request = options.build_request(from, gas_price);
 
-        Poll::Ready(Ok(request))
+            Ok(request)
+        })
     }
 }
 
@@ -223,34 +226,88 @@ impl<T: Transport> Future for BuildTransactionRequestForLocalSigningFuture<T> {
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
 pub struct BuildTransactionSignedWithLockedAccountFuture<T: Transport> {
-    /// The inner future for the transaction signing with a locked account.
+    /// The web3 provider.
+    web3: Web3<T>,
+    /// The locked account to use for signing.
+    from: Address,
+    /// The password for unlocking the account.
+    password: Protected,
+    /// The options for building the transaction request to be signed. Note that
+    /// an `Option` is used here as the future must move the value.
+    options: Option<TransactionRequestOptions>,
+    /// The inner state for the locked account future.
     #[pin]
-    sign: CompatCallFuture<T, RawTransaction>,
+    state: BuildTransactionSignedWithLockedAccountState<T>,
+}
+
+/// The inner state of the future for building locally signed transactions.
+#[pin_project]
+enum BuildTransactionSignedWithLockedAccountState<T: Transport> {
+    /// The gas price is being resolved.
+    ResolvingGasPrice(#[pin] ResolveTransactionRequestGasPriceFuture<T>),
+    /// Signing the transaction with the locked account.
+    Signing(#[pin] CompatCallFuture<T, RawTransaction>),
 }
 
 impl<T: Transport> BuildTransactionSignedWithLockedAccountFuture<T> {
     /// Create a new future for building a locally singed transaction request
     /// from a partial transaction object and account information.
     pub fn new(
-        web3: &Web3<T>,
+        web3: Web3<T>,
         from: Address,
         password: Protected,
+        gas_price: GasPrice,
         options: TransactionRequestOptions,
     ) -> Self {
-        let request = options.build_request(from);
+        let state = BuildTransactionSignedWithLockedAccountState::ResolvingGasPrice(
+            gas_price.resolve_for_transaction_request(&web3),
+        );
 
-        let password = unsafe { str::from_utf8_unchecked(password.as_ref()) };
-        let sign = web3.personal().sign_transaction(request, password).compat();
-
-        BuildTransactionSignedWithLockedAccountFuture { sign }
+        BuildTransactionSignedWithLockedAccountFuture {
+            web3,
+            from,
+            password,
+            options: Some(options),
+            state,
+        }
     }
 }
 
 impl<T: Transport> Future for BuildTransactionSignedWithLockedAccountFuture<T> {
     type Output = Result<Bytes, ExecutionError>;
 
+    #[project]
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.project().sign.poll(cx).map(|raw| Ok(raw?.raw))
+        let mut this = self.project();
+
+        loop {
+            #[project]
+            let next_state = match this.state.as_mut().project() {
+                BuildTransactionSignedWithLockedAccountState::ResolvingGasPrice(gas_price) => {
+                    let gas_price = match ready!(gas_price.poll(cx)).transpose() {
+                        Ok(gas_price) => gas_price,
+                        Err(err) => return Poll::Ready(Err(err.into())),
+                    };
+
+                    let options = this.options.take().expect("future called more than once");
+                    let request = options.build_request(*this.from, gas_price);
+                    let password = unsafe { str::from_utf8_unchecked(this.password.as_ref()) };
+
+                    let sign = this
+                        .web3
+                        .personal()
+                        .sign_transaction(request, password)
+                        .compat();
+
+                    BuildTransactionSignedWithLockedAccountState::Signing(sign)
+                }
+                BuildTransactionSignedWithLockedAccountState::Signing(sign) => {
+                    return sign.poll(cx).map(|raw| Ok(raw?.raw))
+                }
+            };
+
+            *this.state = next_state;
+        }
     }
 }
 
@@ -258,7 +315,7 @@ impl<T: Transport> Future for BuildTransactionSignedWithLockedAccountFuture<T> {
 /// been specified by the transaction builder but are required for signing.
 type OfflineParamsFuture<T> = TryJoin4<
     MaybeCallFuture<T, U256>,
-    MaybeCallFuture<T, U256>,
+    ResolveGasPriceFuture<T>,
     MaybeCallFuture<T, U256>,
     MaybeCallFuture<T, U64>,
 >;
@@ -288,6 +345,7 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
         web3: &Web3<T>,
         key: SecretKey,
         chain_id: Option<u64>,
+        gas_price: GasPrice,
         options: TransactionOptions,
     ) -> Self {
         let to = options.to.unwrap_or_else(Address::zero);
@@ -313,7 +371,7 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
                 )
                 .into_inner()
             );
-            let gas_price = maybe!(options.gas_price, eth.gas_price().compat());
+            let gas_price = gas_price.resolve(web3);
             let nonce = maybe!(options.nonce, eth.transaction_count(from, None).compat());
             let chain_id = maybe!(
                 chain_id.map(U64::from),
@@ -373,6 +431,7 @@ mod tests {
         let tx = BuildTransactionRequestForLocalSigningFuture::new(
             &web3,
             Some(from),
+            GasPrice::Standard,
             TransactionRequestOptions::default(),
         )
         .immediate()
@@ -397,6 +456,7 @@ mod tests {
         let tx = BuildTransactionRequestForLocalSigningFuture::new(
             &web3,
             None,
+            GasPrice::Standard,
             TransactionRequestOptions::default(),
         )
         .immediate()
@@ -410,6 +470,82 @@ mod tests {
     }
 
     #[test]
+    fn tx_build_local_default_account_with_extra_gas_price() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let accounts = [
+            addr!("0x9876543210987654321098765432109876543210"),
+            addr!("0x1111111111111111111111111111111111111111"),
+            addr!("0x2222222222222222222222222222222222222222"),
+        ];
+
+        transport.add_response(json!(accounts)); // get accounts
+        transport.add_response(json!("0x42")); // gas price
+        let tx = BuildTransactionRequestForLocalSigningFuture::new(
+            &web3,
+            None,
+            GasPrice::Scaled(2.0),
+            TransactionRequestOptions::default(),
+        )
+        .immediate()
+        .expect("get accounts success");
+
+        transport.assert_request("eth_accounts", &[]);
+        transport.assert_request("eth_gasPrice", &[]);
+        transport.assert_no_more_requests();
+
+        assert_eq!(tx.from, accounts[0]);
+        assert_eq!(tx.gas_price, Some(U256::from(0x42 * 2)));
+    }
+
+    #[test]
+    fn tx_build_local_with_extra_gas_price() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0xffffffffffffffffffffffffffffffffffffffff");
+
+        transport.add_response(json!("0x42")); // gas price
+        let tx = BuildTransactionRequestForLocalSigningFuture::new(
+            &web3,
+            Some(from),
+            GasPrice::Scaled(2.0),
+            TransactionRequestOptions::default(),
+        )
+        .immediate()
+        .expect("get accounts success");
+
+        transport.assert_request("eth_gasPrice", &[]);
+        transport.assert_no_more_requests();
+
+        assert_eq!(tx.from, from);
+        assert_eq!(tx.gas_price, Some(U256::from(0x42 * 2)));
+    }
+
+    #[test]
+    fn tx_build_local_with_explicit_gas_price() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0xffffffffffffffffffffffffffffffffffffffff");
+
+        let tx = BuildTransactionRequestForLocalSigningFuture::new(
+            &web3,
+            Some(from),
+            GasPrice::Value(1337.into()),
+            TransactionRequestOptions::default(),
+        )
+        .immediate()
+        .expect("get accounts success");
+
+        transport.assert_no_more_requests();
+
+        assert_eq!(tx.from, from);
+        assert_eq!(tx.gas_price, Some(1337.into()));
+    }
+
+    #[test]
     fn tx_build_local_no_local_accounts() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
@@ -418,6 +554,7 @@ mod tests {
         let err = BuildTransactionRequestForLocalSigningFuture::new(
             &web3,
             None,
+            GasPrice::Standard,
             TransactionRequestOptions::default(),
         )
         .immediate()
@@ -459,9 +596,10 @@ mod tests {
             }
         })); // sign transaction
         let tx = BuildTransactionSignedWithLockedAccountFuture::new(
-            &web3,
+            web3,
             from,
             pw.into(),
+            GasPrice::Standard,
             TransactionRequestOptions(
                 TransactionOptions {
                     to: Some(to),
@@ -489,6 +627,55 @@ mod tests {
     }
 
     #[test]
+    fn tx_build_locked_with_extra_gas_price() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let from = addr!("0x9876543210987654321098765432109876543210");
+        let pw = "foobar";
+        let gas_price = U256::from(1337);
+        let signed = bytes!("0x0123456789"); // doesn't have to be valid, we don't check
+
+        transport.add_response(json!(gas_price));
+        transport.add_response(json!({
+            "raw": signed,
+            "tx": {
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "nonce": "0x0",
+                "from": from,
+                "value": "0x0",
+                "gas": "0x0",
+                "gasPrice": gas_price,
+                "input": "0x",
+            }
+        })); // sign transaction
+        let tx = BuildTransactionSignedWithLockedAccountFuture::new(
+            web3,
+            from,
+            pw.into(),
+            GasPrice::Scaled(2.0),
+            TransactionRequestOptions::default(),
+        )
+        .immediate()
+        .expect("sign succeeded");
+
+        transport.assert_request("eth_gasPrice", &[]);
+        transport.assert_request(
+            "personal_signTransaction",
+            &[
+                json!({
+                    "from": from,
+                    "gasPrice": gas_price * 2,
+                }),
+                json!(pw),
+            ],
+        );
+        transport.assert_no_more_requests();
+
+        assert_eq!(tx, signed);
+    }
+
+    #[test]
     fn tx_build_offline() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
@@ -503,7 +690,7 @@ mod tests {
         let chain_id = 77777;
 
         transport.add_response(json!(gas));
-        transport.add_response(json!(gas_price));
+        transport.add_response(json!(gas_price * 2));
         transport.add_response(json!(nonce));
         transport.add_response(json!(format!("{:#x}", chain_id)));
 
@@ -511,6 +698,7 @@ mod tests {
             &web3,
             key.clone(),
             None,
+            GasPrice::Standard,
             TransactionOptions {
                 to: Some(to),
                 ..Default::default()
@@ -536,12 +724,30 @@ mod tests {
 
         let tx2 = BuildOfflineSignedTransactionFuture::new(
             &web3,
-            key,
+            key.clone(),
             Some(chain_id),
+            GasPrice::Scaled(2.0),
             TransactionOptions {
                 to: Some(to),
                 gas: Some(gas),
-                gas_price: Some(gas_price),
+                nonce: Some(nonce),
+                ..Default::default()
+            },
+        )
+        .immediate()
+        .expect("sign succeeded");
+
+        transport.assert_request("eth_gasPrice", &[]);
+        transport.assert_no_more_requests();
+
+        let tx3 = BuildOfflineSignedTransactionFuture::new(
+            &web3,
+            key,
+            Some(chain_id),
+            GasPrice::Value(gas_price * 2),
+            TransactionOptions {
+                to: Some(to),
+                gas: Some(gas),
                 nonce: Some(nonce),
                 ..Default::default()
             },
@@ -554,5 +760,6 @@ mod tests {
 
         // check that if we sign with same values we get same results
         assert_eq!(tx1, tx2);
+        assert_eq!(tx2, tx3);
     }
 }

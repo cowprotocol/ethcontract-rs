@@ -10,6 +10,7 @@ pub mod send;
 use crate::transaction::build::BuildFuture;
 use crate::transaction::confirm::ConfirmParams;
 use crate::transaction::estimate_gas::EstimateGasFuture;
+pub use crate::transaction::gas_price::GasPrice;
 use crate::transaction::send::SendFuture;
 use ethsign::{Protected, SecretKey};
 use web3::api::Web3;
@@ -164,8 +165,8 @@ pub struct TransactionBuilder<T: Transport> {
     /// Optional gas amount to use for transaction. Defaults to estimated gas.
     pub gas: Option<U256>,
     /// Optional gas price to use for transaction. Defaults to estimated gas
-    /// price.
-    pub gas_price: Option<U256>,
+    /// price from the node (i.e. `GasPrice::Standard`).
+    pub gas_price: Option<GasPrice>,
     /// The ETH value to send with the transaction. Defaults to 0.
     pub value: Option<U256>,
     /// The data for the transaction. Defaults to empty data.
@@ -217,7 +218,7 @@ impl<T: Transport> TransactionBuilder<T> {
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: U256) -> Self {
+    pub fn gas_price(mut self, value: GasPrice) -> Self {
         self.gas_price = Some(value);
         self
     }

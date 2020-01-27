@@ -67,12 +67,12 @@ impl GasPrice {
     /// to the node's estimate (i.e. `GasPrice::Standard`) when omitted, so this
     /// allows for a small optimization by foregoing a JSON RPC request.
     pub fn resolve_for_transaction_request<T: Transport>(
+        self,
         web3: &Web3<T>,
-        gas_price: Option<Self>,
     ) -> ResolveTransactionRequestGasPriceFuture<T> {
-        let future = match gas_price {
-            None | Some(GasPrice::Standard) => None,
-            Some(gas_price) => Some(gas_price.resolve(web3)),
+        let future = match self {
+            GasPrice::Standard => None,
+            _ => Some(self.resolve(web3)),
         };
         future.into()
     }
@@ -239,16 +239,8 @@ mod tests {
         let gas_price = U256::from(1_000_000);
 
         assert_eq!(
-            GasPrice::resolve_for_transaction_request(&web3, None)
-                .immediate()
-                .transpose()
-                .expect("error resolving gas price"),
-            None
-        );
-        transport.assert_no_more_requests();
-
-        assert_eq!(
-            GasPrice::resolve_for_transaction_request(&web3, Some(GasPrice::Standard))
+            GasPrice::Standard
+                .resolve_for_transaction_request(&web3)
                 .immediate()
                 .transpose()
                 .expect("error resolving gas price"),
@@ -258,7 +250,8 @@ mod tests {
 
         transport.add_response(json!(gas_price));
         assert_eq!(
-            GasPrice::resolve_for_transaction_request(&web3, Some(GasPrice::Scaled(2.0)))
+            GasPrice::Scaled(2.0)
+                .resolve_for_transaction_request(&web3)
                 .immediate()
                 .transpose()
                 .expect("error resolving gas price"),
@@ -268,7 +261,8 @@ mod tests {
         transport.assert_no_more_requests();
 
         assert_eq!(
-            GasPrice::resolve_for_transaction_request(&web3, Some(GasPrice::Value(gas_price)))
+            GasPrice::Value(gas_price)
+                .resolve_for_transaction_request(&web3)
                 .immediate()
                 .transpose()
                 .expect("error resolving gas price"),

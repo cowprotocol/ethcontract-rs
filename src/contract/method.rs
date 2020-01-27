@@ -6,7 +6,7 @@ use crate::errors::{ExecutionError, MethodError};
 use crate::future::CompatCallFuture;
 use crate::hash;
 use crate::transaction::send::SendFuture;
-use crate::transaction::{Account, TransactionBuilder};
+use crate::transaction::{Account, GasPrice, TransactionBuilder};
 use ethcontract_common::abi::{self, Function, ParamType};
 use futures::compat::Future01CompatExt;
 use lazy_static::lazy_static;
@@ -28,7 +28,7 @@ pub struct MethodDefaults {
     /// Default gas amount to use for transaction.
     pub gas: Option<U256>,
     /// Default gas price to use for transaction.
-    pub gas_price: Option<U256>,
+    pub gas_price: Option<GasPrice>,
 }
 
 /// Data used for building a contract method call or transaction. The method
@@ -79,7 +79,7 @@ impl<T: Transport, R> MethodBuilder<T, R> {
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: U256) -> Self {
+    pub fn gas_price(mut self, value: GasPrice) -> Self {
         self.tx = self.tx.gas_price(value);
         self
     }
@@ -211,7 +211,7 @@ impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: U256) -> Self {
+    pub fn gas_price(mut self, value: GasPrice) -> Self {
         self.m = self.m.gas_price(value);
         self
     }
@@ -262,7 +262,11 @@ impl<T: Transport, R: Detokenize> CallFuture<T, R> {
                         from: builder.m.tx.from.map(|account| account.address()),
                         to: builder.m.tx.to.unwrap_or_default(),
                         gas: builder.m.tx.gas,
-                        gas_price: builder.m.tx.gas_price,
+                        gas_price: builder
+                            .m
+                            .tx
+                            .gas_price
+                            .and_then(|gas_price| gas_price.value()),
                         value: builder.m.tx.value,
                         data: builder.m.tx.data,
                     },
