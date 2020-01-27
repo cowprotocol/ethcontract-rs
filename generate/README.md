@@ -16,7 +16,7 @@ generator:
 
 ```toml
 [dependencies]
-ethcontract = "..."
+ethcontract = { version = "...", no-default-features = true }
 
 [build-dependencies]
 ethcontract-generate = "..."
