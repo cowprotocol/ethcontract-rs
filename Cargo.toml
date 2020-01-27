@@ -17,7 +17,8 @@ to Ethereum smart contracts.
 name = "ethcontract"
 
 [features]
-default = ["ethcontract-derive"]
+default = ["derive"]
+derive = ["ethcontract-derive"]
 samples = []
 
 [workspace]
