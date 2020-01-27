@@ -173,7 +173,7 @@ pub struct BuildTransactionRequestForLocalSigningFuture<T: Transport> {
     /// transaction options in order to construct the `TransactionRequest`.
     options: Option<TransactionRequestOptions>,
     /// The inner future for retrieving the missing parameters required for
-    /// finalizaing the transaction request: the list of accounts on the node
+    /// finalizing the transaction request: the list of accounts on the node
     /// (in order determine the default account if none was specified) and the
     /// resolved gas price (in case a scaled gas price is used).
     #[pin]
