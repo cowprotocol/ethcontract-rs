@@ -21,7 +21,7 @@ use std::time::Duration;
 use web3::api::{CreateFilter, FilterStream, Web3};
 use web3::futures::stream::{Skip as Skip01, StreamFuture as StreamFuture01};
 use web3::futures::Stream as Stream01;
-use web3::types::{TransactionReceipt, H256, U256};
+use web3::types::{TransactionReceipt, H256, U64};
 use web3::Transport;
 
 /// A struct with the confirmation parameters.
@@ -91,7 +91,7 @@ pub struct ConfirmFuture<T: Transport> {
     params: ConfirmParams,
     /// The current block number when confirmation started. This is used for
     /// timeouts.
-    starting_block_num: Option<U256>,
+    starting_block_num: Option<U64>,
     /// The current state of the confirmation.
     #[pin]
     state: ConfirmState<T>,
@@ -112,17 +112,17 @@ enum ConfirmState<T: Transport> {
     Checking(#[pin] CheckFuture<T>),
     /// The future is waiting for the block filter to be created so that it can
     /// wait for blocks to go by.
-    CreatingFilter(#[pin] CompatCreateFilter<T, H256>, U256, u64),
+    CreatingFilter(#[pin] CompatCreateFilter<T, H256>, U64, u64),
     /// The future is waiting for new blocks to be mined and added to the chain
     /// so that the transaction can be confirmed the desired number of blocks.
     WaitingForBlocks(#[pin] CompatFilterFuture<T, H256>),
     /// The future is waiting for a poll timeout. This state happens when the
     /// node does not support block filters for the given transport (like Infura
     /// over HTTPS) so we need to fallback to polling.
-    PollDelay(#[pin] MaybeDelay, U256),
+    PollDelay(#[pin] MaybeDelay, U64),
     /// The future is checking that the current block number has reached a
     /// certain target after waiting the poll delay.
-    PollCheckingBlockNumber(#[pin] CompatCallFuture<T, U256>, U256),
+    PollCheckingBlockNumber(#[pin] CompatCallFuture<T, U64>, U64),
 }
 
 impl<T: Transport> ConfirmFuture<T> {
@@ -188,7 +188,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         let starting_block_num = *starting_block_num.get_or_insert(block_num);
                         let elapsed_blocks = block_num.saturating_sub(starting_block_num);
 
-                        if elapsed_blocks > U256::from(block_timeout) {
+                        if elapsed_blocks > U64::from(block_timeout) {
                             return Poll::Ready(Err(ExecutionError::ConfirmTimeout));
                         }
                     }
@@ -271,7 +271,7 @@ impl<T: Transport> Debug for ConfirmState<T> {
 /// calls. Used when checking that the transaction has been confirmed by enough
 /// blocks.
 type CheckFuture<T> =
-    TryJoin<MaybeReady<CompatCallFuture<T, U256>>, CompatCallFuture<T, Option<TransactionReceipt>>>;
+    TryJoin<MaybeReady<CompatCallFuture<T, U64>>, CompatCallFuture<T, Option<TransactionReceipt>>>;
 
 /// A type alias for a future creating a `eth_newBlockFilter` filter.
 type CompatCreateFilter<T, R> = Compat01As03<CreateFilter<T, R>>;
@@ -301,7 +301,7 @@ mod tests {
     use serde_json::Value;
     use web3::types::H2048;
 
-    fn generate_tx_receipt<U: Into<U256>>(hash: H256, block_num: U) -> Value {
+    fn generate_tx_receipt<U: Into<U64>>(hash: H256, block_num: U) -> Value {
         json!({
             "transactionHash": hash,
             "transactionIndex": "0x1",
