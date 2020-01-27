@@ -435,7 +435,7 @@ mod tests {
             TransactionRequestOptions::default(),
         )
         .immediate()
-        .expect("get accounts success");
+        .expect("failed to build local transaction");
 
         transport.assert_no_more_requests();
         assert_eq!(tx.from, from);
@@ -460,7 +460,7 @@ mod tests {
             TransactionRequestOptions::default(),
         )
         .immediate()
-        .expect("get accounts success");
+        .expect("failed to build local transaction");
 
         transport.assert_request("eth_accounts", &[]);
         transport.assert_no_more_requests();
@@ -489,7 +489,7 @@ mod tests {
             TransactionRequestOptions::default(),
         )
         .immediate()
-        .expect("get accounts success");
+        .expect("failed to build local transaction");
 
         transport.assert_request("eth_accounts", &[]);
         transport.assert_request("eth_gasPrice", &[]);
@@ -514,7 +514,7 @@ mod tests {
             TransactionRequestOptions::default(),
         )
         .immediate()
-        .expect("get accounts success");
+        .expect("failed to build local transaction");
 
         transport.assert_request("eth_gasPrice", &[]);
         transport.assert_no_more_requests();
@@ -537,7 +537,7 @@ mod tests {
             TransactionRequestOptions::default(),
         )
         .immediate()
-        .expect("get accounts success");
+        .expect("failed to build local transaction");
 
         transport.assert_no_more_requests();
 
@@ -558,7 +558,7 @@ mod tests {
             TransactionRequestOptions::default(),
         )
         .immediate()
-        .expect_err("unexpected success building tx");
+        .expect_err("unexpected success building transaction");
 
         transport.assert_request("eth_accounts", &[]);
         transport.assert_no_more_requests();
@@ -609,7 +609,7 @@ mod tests {
             ),
         )
         .immediate()
-        .expect("sign succeeded");
+        .expect("failed to build locked transaction");
 
         transport.assert_request(
             "personal_signTransaction",
@@ -657,7 +657,7 @@ mod tests {
             TransactionRequestOptions::default(),
         )
         .immediate()
-        .expect("sign succeeded");
+        .expect("failed to build locked transaction");
 
         transport.assert_request("eth_gasPrice", &[]);
         transport.assert_request(
@@ -705,7 +705,7 @@ mod tests {
             },
         )
         .immediate()
-        .expect("sign succeeded");
+        .expect("failed to build offline transaction");
 
         // assert that we ask the node for all the missing values
         transport.assert_request(
@@ -735,7 +735,7 @@ mod tests {
             },
         )
         .immediate()
-        .expect("sign succeeded");
+        .expect("failed to build offline transaction");
 
         transport.assert_request("eth_gasPrice", &[]);
         transport.assert_no_more_requests();
@@ -753,7 +753,7 @@ mod tests {
             },
         )
         .immediate()
-        .expect("sign succeeded");
+        .expect("failed to build offline transaction");
 
         // assert that if we provide all the values then we can sign right away
         transport.assert_no_more_requests();
