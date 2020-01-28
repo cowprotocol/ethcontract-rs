@@ -700,7 +700,7 @@ mod tests {
                 ExecutionError::PasswordUtf8(_) => true,
                 _ => false,
             },
-            "expected no invalid UTF-8 password error but got '{:?}'",
+            "expected invalid UTF-8 password error but got '{:?}'",
             err
         );
     }
