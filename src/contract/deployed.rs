@@ -117,31 +117,4 @@ mod tests {
 
         assert_eq!(instance.address(), address);
     }
-
-    #[test]
-    fn deployed_not_found() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let network_id = "42";
-
-        transport.add_response(json!(network_id)); // get network ID response
-        let networks = Deployments::new(Artifact::empty());
-        let err = InstanceDeployedFuture::new(web3, networks)
-            .immediate()
-            .expect_err("unexpected success getting deployed contract");
-
-        transport.assert_request("net_version", &[]);
-        transport.assert_no_more_requests();
-
-        assert!(
-            match &err {
-                DeployError::NotFound(id) => id == network_id,
-                _ => false,
-            },
-            "expected network {} not found error but got '{:?}'",
-            network_id,
-            err
-        );
-    }
 }

@@ -24,7 +24,6 @@ pub use self::method::{
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
-#[derive(Debug, Clone)]
 pub struct Instance<T: Transport> {
     web3: Web3<T>,
     abi: Abi,
