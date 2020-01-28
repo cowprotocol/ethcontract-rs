@@ -34,7 +34,7 @@ ethcontract-common = { version = "0.2.0", path = "./common" }
 ethcontract-derive = { version = "0.2.0", path = "./derive", optional = true}
 ethsign = "0.7"
 futures = { version = "0.3", features = ["compat"] }
-futures-timer = "2.0"
+futures-timer = "3.0"
 jsonrpc-core = "11.0"
 lazy_static = "1.4"
 pin-project = "0.4"
