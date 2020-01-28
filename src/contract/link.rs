@@ -4,7 +4,7 @@ use crate::contract::deploy::Deploy;
 use crate::errors::LinkerError;
 use ethcontract_common::abi::ErrorKind as AbiErrorKind;
 use ethcontract_common::Bytecode;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::marker::PhantomData;
 use web3::api::Web3;
 use web3::contract::tokens::Tokenize;
@@ -62,7 +62,7 @@ enum Library {
     /// A library that is not yet deployed and must be deployed before the
     /// contract so its address may be determined and linked into the contract
     /// bytecode.
-    Pending(&'static Bytecode),
+    Pending(Bytecode),
 }
 
 /// Builder for specifying options for deploying a linked contract.
@@ -129,16 +129,16 @@ where
     }
 
     /// Adds a library instance to the linker.
-    pub fn link_library<L>(self, library: L) -> Self
+    pub fn library<L>(self, library: L) -> Self
     where
         L: LibraryInstance,
         I: DependsOn<L>,
     {
-        self.link_library_at(library.name(), library.address())
+        self.library_at(library.name(), library.address())
     }
 
     /// Adds a library to the linker by name and address.
-    pub fn link_library_at<S>(self, name: S, address: Address) -> Self
+    pub fn library_at<S>(self, name: S, address: Address) -> Self
     where
         S: AsRef<str>,
     {
@@ -151,7 +151,15 @@ where
         L: DeployLibrary,
         I: DependsOn<L>,
     {
-        self.add_library(L::name(), Library::Pending(L::bytecode()))
+        self.deploy_library_bytecode(L::name(), L::bytecode().clone())
+    }
+
+    /// Adds a library to deploy by name and bytecode.
+    pub fn deploy_library_bytecode<S>(self, name: S, bytecode: Bytecode) -> Self
+    where
+        S: AsRef<str>,
+    {
+        self.add_library(name.as_ref(), Library::Pending(bytecode))
     }
 
     /// Add a library to the current dependency graph.
@@ -223,4 +231,238 @@ pub struct Deployment {
     libraries: Vec<(String, Vec<u8>)>,
     /// The contract to be deployed.
     contract: (Bytecode, Vec<u8>),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::contract::{Instance, Linker as Binary};
+    use crate::test::prelude::*;
+    use ethcontract_common::{Artifact, Bytecode};
+    use web3::types::Bytes;
+
+    type InstanceLinker<T> = Linker<T, Instance<T>>;
+
+    #[test]
+    fn link_contract() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport);
+
+        let bytecode = Bytecode::from_hex_str(
+            "0x\
+             00__Library0______________________________\
+             00__Library0______________________________\
+             01__Library1______________________________\
+             02__Library2______________________________",
+        )
+        .expect("failed to parse bytecode");
+        let library_bytecode =
+            Bytecode::from_hex_str("0x00").expect("failed to parse library bytecode");
+
+        let binary = Binary::new(Artifact {
+            bytecode,
+            ..Artifact::empty()
+        });
+
+        let deployment = InstanceLinker::new(web3, binary, ())
+            .expect("failed to create linker for contract")
+            .library_at("Library0", Address::zero())
+            .deploy_library_bytecode("Library1", library_bytecode)
+            .library_at("Library2", Address::repeat_byte(2))
+            .link()
+            .expect("failed to link contract");
+
+        assert_eq!(deployment.libraries, vec![("Library1".into(), vec![0x00])]);
+
+        let (mut bytecode, params) = deployment.contract;
+        assert_eq!(
+            bytecode.undefined_libraries().collect::<Vec<_>>(),
+            vec!["Library1"]
+        );
+        assert_eq!(
+            {
+                bytecode
+                    .link("Library1", Address::repeat_byte(1))
+                    .expect("failed to link pending library");
+                Bytes(
+                    bytecode
+                        .to_bytes()
+                        .expect("failed to convert bytecode to bytes"),
+                )
+            },
+            bytes!(
+                "0x\
+                 000000000000000000000000000000000000000000\
+                 000000000000000000000000000000000000000000\
+                 010101010101010101010101010101010101010101\
+                 020202020202020202020202020202020202020202"
+            )
+        );
+        assert_eq!(Bytes(params), Bytes::default());
+    }
+
+    #[test]
+    fn link_same_library_more_than_once() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport);
+
+        let bytecode = Bytecode::from_hex_str("0x00__Library0______________________________")
+            .expect("failed to parse bytecode");
+        let library_bytecode =
+            Bytecode::from_hex_str("0x00").expect("failed to parse library bytecode");
+
+        let binary = Binary::new(Artifact {
+            bytecode,
+            ..Artifact::empty()
+        });
+
+        let err = InstanceLinker::new(web3.clone(), binary.clone(), ())
+            .expect("failed to create linker for contract")
+            .library_at("Library0", Address::zero())
+            .library_at("Library0", Address::repeat_byte(1))
+            .link()
+            .expect_err("unexpected success linking contract");
+
+        assert!(
+            match &err {
+                LinkerError::UnusedDependency(name) => name == "Library0",
+                _ => false,
+            },
+            "expected unused Library0 dependency error but got '{:?}'",
+            err
+        );
+
+        let err = InstanceLinker::new(web3.clone(), binary.clone(), ())
+            .expect("failed to create linker for contract")
+            .deploy_library_bytecode("Library0", library_bytecode.clone())
+            .library_at("Library0", Address::repeat_byte(1))
+            .link()
+            .expect_err("unexpected success linking contract");
+
+        assert!(
+            match &err {
+                LinkerError::UnusedDependency(name) => name == "Library0",
+                _ => false,
+            },
+            "expected unused Library0 dependency error but got '{:?}'",
+            err
+        );
+
+        let err = InstanceLinker::new(web3, binary, ())
+            .expect("failed to create linker for contract")
+            .deploy_library_bytecode("Library0", library_bytecode.clone())
+            .deploy_library_bytecode("Library0", library_bytecode)
+            .link()
+            .expect_err("unexpected success linking contract");
+
+        assert!(
+            match &err {
+                LinkerError::UnusedDependency(name) => name == "Library0",
+                _ => false,
+            },
+            "expected unused Library0 dependency error but got '{:?}'",
+            err
+        );
+    }
+
+    #[test]
+    fn link_missing_library() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport);
+
+        let bytecode = Bytecode::from_hex_str("0x00").expect("failed to parse bytecode");
+        let binary = Binary::new(Artifact {
+            bytecode: bytecode.clone(),
+            ..Artifact::empty()
+        });
+
+        let err = InstanceLinker::new(web3.clone(), binary.clone(), ())
+            .expect("failed to create linker for contract")
+            .library_at("Library0", Address::zero())
+            .link()
+            .expect_err("unexpected success linking contract");
+
+        assert!(
+            match &err {
+                LinkerError::UnusedDependency(name) => name == "Library0",
+                _ => false,
+            },
+            "expected unused Library0 dependency error but got '{:?}'",
+            err
+        );
+
+        let err = InstanceLinker::new(web3, binary, ())
+            .expect("failed to create linker for contract")
+            .deploy_library_bytecode("Library0", bytecode)
+            .link()
+            .expect_err("unexpected success linking contract");
+
+        assert!(
+            match &err {
+                LinkerError::UnusedDependency(name) => name == "Library0",
+                _ => false,
+            },
+            "expected unused Library0 dependency error but got '{:?}'",
+            err
+        );
+    }
+
+    #[test]
+    fn link_unused_library() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport);
+
+        let bytecode = Bytecode::from_hex_str("0x00__Library0______________________________")
+            .expect("failed to parse bytecode");
+        let binary = Binary::new(Artifact {
+            bytecode,
+            ..Artifact::empty()
+        });
+
+        let err = InstanceLinker::new(web3, binary, ())
+            .expect("failed to create linker for contract")
+            .link()
+            .expect_err("unexpected success linking contract");
+
+        assert!(
+            match &err {
+                LinkerError::MissingDependency(name) => name == "Library0",
+                _ => false,
+            },
+            "expected missing Library0 dependency error but got '{:?}'",
+            err
+        );
+    }
+
+    #[test]
+    fn link_nested_dependency() {
+        let transport = TestTransport::new();
+        let web3 = Web3::new(transport);
+
+        let bytecode = Bytecode::from_hex_str("0x00__Library0______________________________")
+            .expect("failed to parse bytecode");
+        let library_bytecode =
+            Bytecode::from_hex_str("0x00__Library1______________________________")
+                .expect("failed to parse library bytecode");
+
+        let binary = Binary::new(Artifact {
+            bytecode,
+            ..Artifact::empty()
+        });
+
+        let err = InstanceLinker::new(web3, binary, ())
+            .expect("failed to create linker for contract")
+            .deploy_library_bytecode("Library0", library_bytecode)
+            .link()
+            .expect_err("unexpected success linking contract");
+
+        assert!(
+            match &err {
+                LinkerError::NestedDependencies(name) => name == "Library0",
+                _ => false,
+            },
+            "expected nested dependencies error for Library0 but got '{:?}'",
+            err
+        );
+    }
 }
