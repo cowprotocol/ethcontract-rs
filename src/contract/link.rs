@@ -170,14 +170,12 @@ where
     ///
     /// This method will return an error if it finds unresolved or unused
     /// libraries during the linking process.
-    pub fn build(mut self) -> Result<Deployment, LinkerError> {
+    pub fn link(mut self) -> Result<Deployment, LinkerError> {
         let mut pending_libraries = HashMap::new();
         for (name, library) in self.libraries {
             match library {
                 Library::Resolved(address) => self.contract_bytecode.link(&name, address)?,
                 Library::Pending(bytecode) => {
-                    // NOTE: Check that the map doesn't contain the library
-                    //   first because inserting moves `name` into the map.
                     if pending_libraries.contains_key(&name) {
                         return Err(LinkerError::UnusedDependency(name));
                     }
@@ -189,7 +187,7 @@ where
         let mut libraries_to_deploy = Vec::new();
         for library in self.contract_bytecode.undefined_libraries() {
             if let Some((name, bytecode)) = pending_libraries.remove_entry(library) {
-                let bytes = match bytecode.try_to_bytes() {
+                let bytes = match bytecode.to_bytes().ok() {
                     Some(bytes) => bytes,
                     None => return Err(LinkerError::NestedDependencies(name)),
                 };
@@ -203,7 +201,9 @@ where
         //   linkable, as we linked all the library instance addresses and
         //   verfied that the remaining dependencies are to be deployed. The
         //   libraries remaning in `pending_libraries` are extra uneeded
-        //   dependencies. Report an error with the first unused dependency.
+        //   dependencies since we already removed the libraries that were
+        //   required for linking from the hash map. Report an error with the
+        //   first unused dependency.
         if let Some(unused_dependency) = pending_libraries.keys().next() {
             return Err(LinkerError::UnusedDependency(unused_dependency.to_owned()));
         }
@@ -228,6 +228,8 @@ where
 /// deployed before the contract.
 #[derive(Clone, Debug)]
 pub struct Deployment {
+    /// The list of libraries and their bytecodes.
     libraries: Vec<(String, Vec<u8>)>,
+    /// The contract to be deployed.
     contract: (Bytecode, Vec<u8>),
 }
