@@ -2,12 +2,10 @@
 //! new contracts.
 
 use crate::errors::{DeployError, ExecutionError};
-use crate::future::CompatCallFuture;
 use crate::transaction::send::SendFuture;
 use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
 use ethcontract_common::abi::ErrorKind as AbiErrorKind;
 use ethcontract_common::{Abi, Bytecode};
-use futures::compat::Future01CompatExt;
 use futures::ready;
 use pin_project::pin_project;
 use std::future::Future;
@@ -18,76 +16,6 @@ use web3::api::Web3;
 use web3::contract::tokens::Tokenize;
 use web3::types::{Address, Bytes, U256};
 use web3::Transport;
-
-/// a factory trait for deployable contract instances. this traits provides
-/// functionality for creating instances of a contract type for a given network
-/// ID.
-///
-/// this allows generated contracts to be deployable without having to create
-/// new builder and future types.
-pub trait FromNetwork<T: Transport>: Sized {
-    /// Context passed to the `Deployments`.
-    type Context;
-
-    /// Create a contract instance for the specified network. This method should
-    /// return `None` when no deployment can be found for the specified network
-    /// ID.
-    fn from_network(web3: Web3<T>, network_id: &str, cx: Self::Context) -> Option<Self>;
-}
-
-/// Future for creating a deployed contract instance.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct DeployedFuture<T, I>
-where
-    T: Transport,
-    I: FromNetwork<T>,
-{
-    /// The deployment arguments.
-    args: Option<(Web3<T>, I::Context)>,
-    /// The factory used to locate the contract address from a netowkr ID.
-    /// Underlying future for retrieving the network ID.
-    #[pin]
-    network_id: CompatCallFuture<T, String>,
-    _instance: PhantomData<Box<I>>,
-}
-
-impl<T, I> DeployedFuture<T, I>
-where
-    T: Transport,
-    I: FromNetwork<T>,
-{
-    /// Construct a new future that resolves when a deployed contract is located
-    /// from a `web3` provider and artifact data.
-    pub fn new(web3: Web3<T>, context: I::Context) -> Self {
-        let net = web3.net();
-        DeployedFuture {
-            args: Some((web3, context)),
-            network_id: net.version().compat(),
-            _instance: PhantomData,
-        }
-    }
-}
-
-impl<T, I> Future for DeployedFuture<T, I>
-where
-    T: Transport,
-    I: FromNetwork<T>,
-{
-    type Output = Result<I, DeployError>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.as_mut()
-            .project()
-            .network_id
-            .poll(cx)
-            .map(|network_id| {
-                let network_id = network_id?;
-                let (web3, context) = self.args.take().expect("called more than once");
-                I::from_network(web3, &network_id, context).ok_or(DeployError::NotFound(network_id))
-            })
-    }
-}
 
 /// a factory trait for deployable contract instances. this traits provides
 /// functionality for building a deployment and creating instances of a
@@ -281,41 +209,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contract::{Deployments, Instance, Linker};
+    use crate::contract::{Instance, Linker};
     use crate::test::prelude::*;
-    use ethcontract_common::truffle::Network;
     use ethcontract_common::{Artifact, Bytecode};
 
-    type InstanceDeployedFuture<T> = DeployedFuture<T, Instance<T>>;
-
     type InstanceDeployBuilder<T> = DeployBuilder<T, Instance<T>>;
-
-    #[test]
-    fn deployed() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let network_id = "42";
-        let address = addr!("0x0102030405060708091011121314151617181920");
-        let artifact = {
-            let mut artifact = Artifact::empty();
-            artifact
-                .networks
-                .insert(network_id.to_string(), Network { address });
-            artifact
-        };
-
-        transport.add_response(json!(network_id)); // estimate gas response
-        let networks = Deployments::new(artifact);
-        let instance = InstanceDeployedFuture::new(web3, networks)
-            .immediate()
-            .expect("successful deployment");
-
-        transport.assert_request("net_version", &[]);
-        transport.assert_no_more_requests();
-
-        assert_eq!(instance.address(), address);
-    }
 
     #[test]
     fn deploy_tx_options() {
