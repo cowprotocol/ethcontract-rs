@@ -4,7 +4,7 @@ use crate::contract::deploy::Deploy;
 use crate::errors::LinkerError;
 use ethcontract_common::abi::ErrorKind as AbiErrorKind;
 use ethcontract_common::Bytecode;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
 use web3::api::Web3;
 use web3::contract::tokens::Tokenize;
@@ -179,14 +179,16 @@ where
     /// This method will return an error if it finds unresolved or unused
     /// libraries during the linking process.
     pub fn link(mut self) -> Result<Deployment, LinkerError> {
+        let mut included_libraries = HashSet::new();
         let mut pending_libraries = HashMap::new();
         for (name, library) in self.libraries {
+            if !included_libraries.insert(name.clone()) {
+                return Err(LinkerError::DuplicateDependency(name));
+            }
+
             match library {
                 Library::Resolved(address) => self.contract_bytecode.link(&name, address)?,
                 Library::Pending(bytecode) => {
-                    if pending_libraries.contains_key(&name) {
-                        return Err(LinkerError::UnusedDependency(name));
-                    }
                     pending_libraries.insert(name, bytecode);
                 }
             }
@@ -325,7 +327,7 @@ mod tests {
 
         assert!(
             match &err {
-                LinkerError::UnusedDependency(name) => name == "Library0",
+                LinkerError::DuplicateDependency(name) => name == "Library0",
                 _ => false,
             },
             "expected unused Library0 dependency error but got '{:?}'",
@@ -341,7 +343,7 @@ mod tests {
 
         assert!(
             match &err {
-                LinkerError::UnusedDependency(name) => name == "Library0",
+                LinkerError::DuplicateDependency(name) => name == "Library0",
                 _ => false,
             },
             "expected unused Library0 dependency error but got '{:?}'",
@@ -357,7 +359,7 @@ mod tests {
 
         assert!(
             match &err {
-                LinkerError::UnusedDependency(name) => name == "Library0",
+                LinkerError::DuplicateDependency(name) => name == "Library0",
                 _ => false,
             },
             "expected unused Library0 dependency error but got '{:?}'",

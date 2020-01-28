@@ -23,16 +23,21 @@ pub enum LinkerError {
     #[error("error ABI ecoding constructor parameters: {0}")]
     Abi(#[from] AbiError),
 
-    /// An error indicating that there was a missing dependency while linking
-    /// the contract bytecode.
-    #[error("missing dependency '{0}'")]
-    MissingDependency(String),
+    /// An error indicating that a dependency was added more than once to the
+    /// linker.
+    #[error("duplicate dependency '{0}'")]
+    DuplicateDependency(String),
 
     /// An error indicating that there was a dependency was unable to link,
     /// this can be because the library is not needed (as in the contract does
     /// include a placeholder for it) or it was linked multiple times.
     #[error("unused dependency '{0}'")]
     UnusedDependency(String),
+
+    /// An error indicating that there was a missing dependency while linking
+    /// the contract bytecode.
+    #[error("missing dependency '{0}'")]
+    MissingDependency(String),
 
     /// An error indicating a library added to be deployed with the contract
     /// has nested dependencies.
