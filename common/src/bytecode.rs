@@ -6,7 +6,7 @@ use serde::{Deserialize, Deserializer};
 use std::collections::HashSet;
 use std::fmt::{Formatter, Result as FmtResult};
 use std::mem;
-use web3::types::Address;
+use web3::types::{Address, Bytes};
 
 /// The string representation of the byte code. Note that this must be a
 /// `String` since `solc` linking requires string manipulation of the
@@ -63,27 +63,6 @@ impl Bytecode {
         S: AsRef<str>,
     {
         let name = name.as_ref();
-        if self.try_link(name, address) {
-            Ok(())
-        } else {
-            Err(LinkError::NotFound(name.into()))
-        }
-    }
-
-    /// Tries to link a library into the current bytecode. Returns true if the
-    /// linking was successful. This method can be used instead of
-    /// `Bytecode::link` when the error is not needed as it will save a `String`
-    /// allocation.
-    ///
-    /// # Panics
-    ///
-    /// Panics if an invalid library name is used (for example if it is more
-    /// than 38 characters long).
-    pub fn try_link<S>(&mut self, name: S, address: Address) -> bool
-    where
-        S: AsRef<str>,
-    {
-        let name = name.as_ref();
         if name.len() > 38 {
             panic!("invalid library name for linking");
         }
@@ -93,25 +72,19 @@ impl Bytecode {
         //   `LinkedContract` contract for and example of how it looks like
         let placeholder = format!("__{:_<38}", name);
         let address = address.to_fixed_hex();
-        self.0.replace_all_in_place(&placeholder, &address)
+        let matched = self.0.replace_all_in_place(&placeholder, &address);
+        if !matched {
+            return Err(LinkError::NotFound(name.to_string()));
+        }
+
+        Ok(())
     }
 
     /// Convert a bytecode into its byte representation.
-    pub fn to_bytes(&self) -> Result<Vec<u8>, LinkError> {
+    pub fn to_bytes(&self) -> Result<Bytes, LinkError> {
         match self.undefined_libraries().next() {
             Some(library) => Err(LinkError::UndefinedLibrary(library.to_string())),
-            None => Ok(hex::decode(&self.0).expect("valid hex")),
-        }
-    }
-
-    /// Try and convert a bytecode into its byte representation. This method can
-    /// be used instead of `Bytecode::to_bytes` when the error is not needed as
-    /// it will save a `String` allocation.
-    pub fn try_to_bytes(&self) -> Option<Vec<u8>> {
-        if self.requires_linking() {
-            None
-        } else {
-            Some(hex::decode(&self.0).expect("valid hex"))
+            None => Ok(Bytes(hex::decode(&self.0).expect("valid hex"))),
         }
     }
 
