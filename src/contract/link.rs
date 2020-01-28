@@ -213,15 +213,6 @@ where
             contract: (self.contract_bytecode, self.encoded_contructor_params),
         })
     }
-
-    /// Links the libraries and binaries together and returns a `DeployBuilder`
-    /// to setup the transaction for deploying the contract and its libraries.
-    ///
-    /// This method will return an error if it finds unresolved or unused
-    /// libraries during the linking process.
-    pub fn deploy(self) -> Result<(), LinkerError> {
-        todo!()
-    }
 }
 
 /// A full deployment of a contract including required libraries that must be
