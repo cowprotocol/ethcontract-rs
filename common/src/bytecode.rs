@@ -6,7 +6,7 @@ use serde::{Deserialize, Deserializer};
 use std::collections::HashSet;
 use std::fmt::{Formatter, Result as FmtResult};
 use std::mem;
-use web3::types::{Address, Bytes};
+use web3::types::Address;
 
 /// The string representation of the byte code. Note that this must be a
 /// `String` since `solc` linking requires string manipulation of the
@@ -81,10 +81,10 @@ impl Bytecode {
     }
 
     /// Convert a bytecode into its byte representation.
-    pub fn to_bytes(&self) -> Result<Bytes, LinkError> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, LinkError> {
         match self.undefined_libraries().next() {
             Some(library) => Err(LinkError::UndefinedLibrary(library.to_string())),
-            None => Ok(Bytes(hex::decode(&self.0).expect("valid hex"))),
+            None => Ok(hex::decode(&self.0).expect("valid hex")),
         }
     }
 
