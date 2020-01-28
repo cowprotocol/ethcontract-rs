@@ -37,7 +37,7 @@ where
 
 /// A trait that is implemented by a library type that can be deployed alongside
 /// a contract when deploying the contract with its libraries.
-pub trait DeployLibrary {
+pub trait DeployableLibrary {
     /// Retrieve the name of the library.
     fn name() -> &'static str;
 
@@ -148,7 +148,7 @@ where
     /// Adds a library to deploy.
     pub fn deploy_library<L>(self) -> Self
     where
-        L: DeployLibrary,
+        L: DeployableLibrary,
         I: DependsOn<L>,
     {
         self.deploy_library_bytecode(L::name(), L::bytecode().clone())
