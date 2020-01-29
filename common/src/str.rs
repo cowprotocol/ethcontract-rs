@@ -8,7 +8,8 @@ pub trait StringReplaceExt {
     ///
     /// # Returns
     ///
-    /// True if a match was found and replaced
+    /// Whether a match was found and thus replaced
+    /// If from and to are empty returns false and does nothing
     ///
     /// # Panics
     ///
@@ -21,6 +22,14 @@ impl StringReplaceExt for String {
         let len = from.len();
         if to.len() != len {
             panic!("mismatch length of from and to string");
+        }
+
+        if len == 0 {
+            return false;
+        }
+
+        if from == to {
+            return self.find(from).is_some();
         }
 
         let mut found = false;
@@ -66,6 +75,16 @@ mod tests {
             assert_eq!(value.replace_all_in_place("foo", "bar"), *matched);
             assert_eq!(&value, expected);
         }
+    }
+
+    #[test]
+    fn replace_in_place_empty() {
+        assert_eq!("abc".to_string().replace_all_in_place("", ""), false);
+    }
+
+    #[test]
+    fn replace_in_place_same() {
+        assert_eq!("abc".to_string().replace_all_in_place("b", "b"), true);
     }
 
     #[test]
