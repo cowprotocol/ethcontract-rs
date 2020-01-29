@@ -1,11 +1,13 @@
 //! This module implements secrets in the form of protected memory.
 
-use secp256k1::{Error as Secp256k1Error, SecretKey};
+use crate::hash;
+use secp256k1::key::ONE_KEY;
+use secp256k1::{Error as Secp256k1Error, PublicKey, Secp256k1, SecretKey};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
 use web3::types::Address;
-use zeroize::Zeroizing;
+use zeroize::{DefaultIsZeroes, Zeroizing};
 
 /// A secret key used for signing and hashing.
 ///
@@ -13,7 +15,7 @@ use zeroize::Zeroizing;
 /// Additionally, it implements `Drop` to zeroize the memory to make leaking
 /// passwords less likely.
 #[derive(Clone)]
-pub struct PrivateKey(SecretKey);
+pub struct PrivateKey(Zeroizing<ZeroizeSecretKey>);
 
 impl PrivateKey {
     /// Creates a new private key from raw bytes.
@@ -23,7 +25,8 @@ impl PrivateKey {
 
     /// Creates a new private key from a slice of bytes.
     pub fn from_slice<B: AsRef<[u8]>>(raw: B) -> Result<Self, Secp256k1Error> {
-        Ok(PrivateKey(SecretKey::from_slice(raw.as_ref())?))
+        let secret_key = SecretKey::from_slice(raw.as_ref())?;
+        Ok(PrivateKey(Zeroizing::new(secret_key.into())))
     }
 
     /// Creates a new private key from a hex string representation. Accepts hex
@@ -37,14 +40,24 @@ impl PrivateKey {
                 s
             }
         };
-        let key = SecretKey::from_str(hex_str)?;
-
-        Ok(PrivateKey(key))
+        let secret_key = SecretKey::from_str(hex_str)?;
+        Ok(PrivateKey(Zeroizing::new(secret_key.into())))
     }
 
     /// Gets the public address for a given private key.
     pub fn public_address(&self) -> Address {
-        todo!()
+        let secp = Secp256k1::signing_only();
+        let public_key = PublicKey::from_secret_key(&secp, &*self).serialize_uncompressed();
+
+        // NOTE: An ethereum address is the last 20 bytes of the keccak hash of
+        //   the public key. Note that `libsecp256k1` public key is serialized
+        //   into 65 bytes as the first byte is always 0x04 as a tag to mark a
+        //   uncompressed public key. Discard it for the public address
+        //   calculation.
+        debug_assert_eq!(public_key[0], 0x04);
+        let hash = hash::keccak256(&public_key[1..]);
+
+        Address::from_slice(&hash[12..])
     }
 }
 
@@ -60,15 +73,42 @@ impl Deref for PrivateKey {
     type Target = SecretKey;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &(self.0).0
     }
 }
 
 impl Debug for PrivateKey {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "PrivateKey(********)")
+        f.debug_tuple("PrivateKey")
+            .field(&self.public_address())
+            .finish()
     }
 }
+
+/// An internal type that allows us to implement `Zeroize` on `SecretKey`. This
+/// allows `PrivateKey` to correctly zeroize (almost, we use the `ONE_KEY`
+/// instead of `0`s since it is the first valid key) in a way that does not get
+/// optimized away by the compiler or get access reordered.
+///
+/// For more information, consult the `zeroize` crate
+/// [`README`](https://github.com/iqlusioninc/crates/tree/develop/zeroize).
+#[derive(Clone, Copy, Eq, PartialEq)]
+#[cfg_attr(test, derive(Debug))]
+struct ZeroizeSecretKey(SecretKey);
+
+impl From<SecretKey> for ZeroizeSecretKey {
+    fn from(secret_key: SecretKey) -> Self {
+        ZeroizeSecretKey(secret_key)
+    }
+}
+
+impl Default for ZeroizeSecretKey {
+    fn default() -> Self {
+        ONE_KEY.into()
+    }
+}
+
+impl DefaultIsZeroes for ZeroizeSecretKey {}
 
 /// A password string.
 ///
@@ -81,7 +121,7 @@ pub struct Password(Zeroizing<String>);
 impl Password {
     /// Creates a new password from a string.
     pub fn new<S: Into<String>>(password: S) -> Self {
-        Password(password.into().into())
+        Password(Zeroizing::new(password.into()))
     }
 }
 
@@ -107,6 +147,38 @@ impl Deref for Password {
 
 impl Debug for Password {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "Password(********)")
+        f.debug_tuple("Password").field(&"********").finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zeroize::Zeroize;
+
+    #[test]
+    fn private_key_address() {
+        // retrieved test vector from both (since the two cited examples use the
+        // same message and key - as the hashes and signatures match):
+        // https://web3js.readthedocs.io/en/v1.2.5/web3-eth-accounts.html#sign
+        // https://web3js.readthedocs.io/en/v1.2.5/web3-eth-accounts.html#recover
+        let key = key!("0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318");
+        let address = addr!("0x2c7536E3605D9C16a7a3D7b1898e529396a65c23");
+
+        assert_eq!(key.public_address(), address);
+    }
+
+    #[test]
+    fn drop_private_key() {
+        let mut key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
+        key.0.zeroize();
+        assert_eq!(*key, ONE_KEY);
+    }
+
+    #[test]
+    fn drop_password() {
+        let mut pw = Password::new("foobar");
+        pw.0.zeroize();
+        assert_eq!(&*pw, "");
     }
 }

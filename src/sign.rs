@@ -2,11 +2,11 @@
 //! Hopefully we can move this functionailly upstream to the `web3` crate as
 //! part of the missing `accounts` namespace.
 
+use crate::hash;
 use crate::secret::PrivateKey;
 use rlp::RlpStream;
 use secp256k1::recovery::RecoveryId;
 use secp256k1::{Message, Secp256k1};
-use tiny_keccak::{Hasher, Keccak};
 use web3::types::{Address, Bytes, U256};
 
 /// Raw transaction data to sign
@@ -31,13 +31,7 @@ impl<'a> TransactionData<'a> {
         let mut rlp = RlpStream::new();
         self.rlp_append_unsigned(&mut rlp, chain_id);
 
-        let hash = {
-            let mut output = [0u8; 32];
-            let mut hasher = Keccak::v256();
-            hasher.update(&rlp.as_raw());
-            hasher.finalize(&mut output);
-            output
-        };
+        let hash = hash::keccak256(&rlp.as_raw());
         rlp.clear();
 
         // NOTE: secp256k1 messages for singing must be exactly 32 bytes long
