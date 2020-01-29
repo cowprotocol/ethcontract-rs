@@ -7,12 +7,12 @@ pub mod estimate_gas;
 pub mod gas_price;
 pub mod send;
 
+use crate::secret::{Password, PrivateKey};
 use crate::transaction::build::BuildFuture;
 use crate::transaction::confirm::ConfirmParams;
 use crate::transaction::estimate_gas::EstimateGasFuture;
 pub use crate::transaction::gas_price::GasPrice;
 use crate::transaction::send::SendFuture;
-use ethsign::{Protected, SecretKey};
 use web3::api::Web3;
 use web3::types::{
     Address, Bytes, TransactionCondition, TransactionReceipt, TransactionRequest, H256, U256,
@@ -25,10 +25,10 @@ pub enum Account {
     /// Let the node sign for a transaction with an unlocked account.
     Local(Address, Option<TransactionCondition>),
     /// Do online signing with a locked account with a password.
-    Locked(Address, Protected, Option<TransactionCondition>),
+    Locked(Address, Password, Option<TransactionCondition>),
     /// Do offline signing with private key and optionally specify chain ID. If
     /// no chain ID is specified, then it will default to the network ID.
-    Offline(SecretKey, Option<u64>),
+    Offline(PrivateKey, Option<u64>),
 }
 
 impl Account {
@@ -37,7 +37,7 @@ impl Account {
         match self {
             Account::Local(address, _) => *address,
             Account::Locked(address, _, _) => *address,
-            Account::Offline(key, _) => key.public().address().into(),
+            Account::Offline(key, _) => key.public_address().into(),
         }
     }
 }

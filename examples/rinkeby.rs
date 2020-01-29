@@ -1,6 +1,6 @@
 use ethcontract::web3::api::Web3;
 use ethcontract::web3::transports::WebSocket;
-use ethcontract::{Account, SecretKey, H256};
+use ethcontract::{Account, PrivateKey};
 use std::env;
 
 ethcontract::contract!("examples/truffle/build/contracts/DeployedContract.json");
@@ -14,8 +14,7 @@ fn main() {
 async fn run() {
     let account = {
         let pk = env::var("PK").expect("PK is not set");
-        let raw_key: H256 = pk.parse().expect("invalid PK");
-        let key = SecretKey::from_raw(&raw_key[..]).expect("invalid PK");
+        let key: PrivateKey = pk.parse().expect("invalid PK");
         Account::Offline(key, Some(RINKEBY_CHAIN_ID))
     };
     let infura_url = {

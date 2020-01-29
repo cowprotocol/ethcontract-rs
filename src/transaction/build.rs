@@ -6,20 +6,19 @@
 
 use crate::errors::ExecutionError;
 use crate::future::{CompatCallFuture, MaybeReady};
+use crate::secret::{Password, PrivateKey};
 use crate::sign::TransactionData;
 use crate::transaction::estimate_gas::EstimateGasFuture;
 use crate::transaction::gas_price::{
     GasPrice, ResolveGasPriceFuture, ResolveTransactionRequestGasPriceFuture,
 };
 use crate::transaction::{Account, Transaction, TransactionBuilder};
-use ethsign::{Protected, SecretKey};
 use futures::compat::Future01CompatExt;
 use futures::future::{self, Join, TryJoin4};
 use futures::ready;
 use pin_project::{pin_project, project};
 use std::future::Future;
 use std::pin::Pin;
-use std::str;
 use std::task::{Context, Poll};
 use web3::api::Web3;
 use web3::helpers::CallFuture;
@@ -231,7 +230,7 @@ pub struct BuildTransactionSignedWithLockedAccountFuture<T: Transport> {
     /// The locked account to use for signing.
     from: Address,
     /// The password for unlocking the account.
-    password: Protected,
+    password: Password,
     /// The options for building the transaction request to be signed. Note that
     /// an `Option` is used here as the future must move the value.
     options: Option<TransactionRequestOptions>,
@@ -255,7 +254,7 @@ impl<T: Transport> BuildTransactionSignedWithLockedAccountFuture<T> {
     pub fn new(
         web3: Web3<T>,
         from: Address,
-        password: Protected,
+        password: Password,
         gas_price: GasPrice,
         options: TransactionRequestOptions,
     ) -> Self {
@@ -291,7 +290,7 @@ impl<T: Transport> Future for BuildTransactionSignedWithLockedAccountFuture<T> {
 
                     let options = this.options.take().expect("future called more than once");
                     let request = options.build_request(*this.from, gas_price);
-                    let password = str::from_utf8(this.password.as_ref())?;
+                    let password = &this.password;
 
                     let sign = this
                         .web3
@@ -325,7 +324,7 @@ type OfflineParamsFuture<T> = TryJoin4<
 #[pin_project]
 pub struct BuildOfflineSignedTransactionFuture<T: Transport> {
     /// The private key to use for signing.
-    key: SecretKey,
+    key: PrivateKey,
     /// The recepient address.
     to: Address,
     /// The ETH value to be sent with the transaction.
@@ -343,7 +342,7 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
     /// from a partial transaction object and account information.
     pub fn new(
         web3: &Web3<T>,
-        key: SecretKey,
+        key: PrivateKey,
         chain_id: Option<u64>,
         gas_price: GasPrice,
         options: TransactionOptions,
@@ -352,7 +351,7 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
         let value = options.value.unwrap_or_else(U256::zero);
 
         let params = {
-            let from = key.public().address().into();
+            let from = key.public_address().into();
             let transport = web3.transport();
             let eth = web3.eth();
 
@@ -409,7 +408,7 @@ impl<T: Transport> Future for BuildOfflineSignedTransactionFuture<T> {
                 data: &this.data,
             };
 
-            let raw = tx.sign(&this.key, Some(chain_id.as_u64()))?;
+            let raw = tx.sign(&this.key, Some(chain_id.as_u64()));
 
             Ok(raw)
         })
@@ -676,42 +675,12 @@ mod tests {
     }
 
     #[test]
-    fn tx_build_locked_invalid_utf8_password() {
-        let transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let from = addr!("0x9876543210987654321098765432109876543210");
-        let pw = b"\xff"; // 0xff is not a valid UTF-8 codepoint
-
-        let err = BuildTransactionSignedWithLockedAccountFuture::new(
-            web3,
-            from,
-            pw[..].into(),
-            GasPrice::Standard,
-            TransactionRequestOptions::default(),
-        )
-        .immediate()
-        .expect_err("unexpected success building tx");
-
-        transport.assert_no_more_requests();
-
-        assert!(
-            match err {
-                ExecutionError::PasswordUtf8(_) => true,
-                _ => false,
-            },
-            "expected invalid UTF-8 password error but got '{:?}'",
-            err
-        );
-    }
-
-    #[test]
     fn tx_build_offline() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
         let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
-        let from: Address = key.public().address().into();
+        let from: Address = key.public_address().into();
         let to = addr!("0x0000000000000000000000000000000000000000");
 
         let gas = uint!("0x9a5");

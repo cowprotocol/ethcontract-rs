@@ -1,10 +1,8 @@
 //! Module with common error types.
 
 use ethcontract_common::abi::{Error as AbiError, ErrorKind as AbiErrorKind, Function};
-use ethsign::Error as SignError;
 use jsonrpc_core::Error as JsonrpcError;
 use std::num::ParseIntError;
-use std::str::Utf8Error;
 use thiserror::Error;
 use web3::contract::Error as Web3ContractError;
 use web3::error::Error as Web3Error;
@@ -73,15 +71,6 @@ pub enum ExecutionError {
     /// signed transaction to a node without any local accounts.
     #[error("no local accounts")]
     NoLocalAccounts,
-
-    /// An error indicating that the password used in unlocking an account for
-    /// signing contained an invalid UTF-8 string.
-    #[error("invalid UTF-8 password: {0}")]
-    PasswordUtf8(#[from] Utf8Error),
-
-    /// An error occured while signing a transaction offline.
-    #[error("offline sign error: {0}")]
-    Sign(#[from] SignError),
 
     /// A contract call reverted.
     #[error("contract call reverted with message: {0:?}")]
