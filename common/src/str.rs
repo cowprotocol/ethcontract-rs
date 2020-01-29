@@ -44,8 +44,21 @@ impl StringReplaceExt for String {
             found = true
         }
 
+        // Make sure that the string is really still valid utf-8 which could
+        // have been violated by the unsafe block. This should always be the
+        // case because str::find is operating on UTF8, so the found positions
+        // should be at the start of UTF8 codepoints and not in the middle.
+        assert!(string_is_really_utf8(self));
+
         found
     }
+}
+
+fn string_is_really_utf8(string: &str) -> bool {
+    // Technically, strings are already assumed to be valid utf-8 so on that
+    // basis the compiler could optimize this out. That probably does not
+    // happen in practice.
+    std::str::from_utf8(string.as_bytes()).is_ok()
 }
 
 /// Extension trait for converting an `Address` into a hex string implementation.
