@@ -153,3 +153,31 @@ where
     }
     Ok(address_str[2..].parse()?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_address_missing_prefix() {
+        if parse_address("0000000000000000000000000000000000000000").is_ok() {
+            panic!("parsing address not starting with 0x should fail");
+        }
+    }
+
+    #[test]
+    fn parse_address_address_too_short() {
+        if parse_address("0x00000000000000").is_ok() {
+            panic!("parsing address not starting with 0x should fail");
+        }
+    }
+
+    #[test]
+    fn parse_address_ok() {
+        let expected = Address::zero();
+        assert_eq!(
+            parse_address("0x0000000000000000000000000000000000000000").unwrap(),
+            expected
+        );
+    }
+}
