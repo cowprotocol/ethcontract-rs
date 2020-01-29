@@ -1,5 +1,5 @@
 use crate::errors::{BytecodeError, LinkError};
-use crate::str::{AddressHexExt, StringReplaceExt};
+use crate::str::AddressHexExt;
 use hex;
 use serde::de::{Error as DeError, Visitor};
 use serde::{Deserialize, Deserializer};
@@ -72,10 +72,10 @@ impl Bytecode {
         //   `LinkedContract` contract for and example of how it looks like
         let placeholder = format!("__{:_<38}", name);
         let address = address.to_fixed_hex();
-        let matched = self.0.replace_all_in_place(&placeholder, &address);
-        if !matched {
+        if self.0.find(&placeholder).is_none() {
             return Err(LinkError::NotFound(name.to_string()));
         }
+        self.0 = self.0.replace(&placeholder, &address);
 
         Ok(())
     }
