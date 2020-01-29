@@ -37,7 +37,7 @@ impl Account {
         match self {
             Account::Local(address, _) => *address,
             Account::Locked(address, _, _) => *address,
-            Account::Offline(key, _) => key.public_address().into(),
+            Account::Offline(key, _) => key.public_address(),
         }
     }
 }

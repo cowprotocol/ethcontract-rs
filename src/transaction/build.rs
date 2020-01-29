@@ -351,7 +351,7 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
         let value = options.value.unwrap_or_else(U256::zero);
 
         let params = {
-            let from = key.public_address().into();
+            let from = key.public_address();
             let transport = web3.transport();
             let eth = web3.eth();
 
@@ -680,7 +680,7 @@ mod tests {
         let web3 = Web3::new(transport.clone());
 
         let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
-        let from: Address = key.public_address().into();
+        let from: Address = key.public_address();
         let to = addr!("0x0000000000000000000000000000000000000000");
 
         let gas = uint!("0x9a5");
