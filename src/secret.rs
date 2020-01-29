@@ -92,8 +92,7 @@ impl Debug for PrivateKey {
 ///
 /// For more information, consult the `zeroize` crate
 /// [`README`](https://github.com/iqlusioninc/crates/tree/develop/zeroize).
-#[derive(Clone, Copy, Eq, PartialEq)]
-#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Copy)]
 struct ZeroizeSecretKey(SecretKey);
 
 impl From<SecretKey> for ZeroizeSecretKey {
