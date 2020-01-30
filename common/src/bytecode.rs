@@ -266,7 +266,7 @@ mod tests {
         // name does not match
         match bytecode.link("name1", address) {
             Err(LinkError::NotFound(_)) => (),
-            _ => assert!(false, "should fail with not found error"),
+            _ => panic!("should fail with not found error"),
         }
     }
 }
