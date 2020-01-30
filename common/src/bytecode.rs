@@ -1,3 +1,7 @@
+//! This module implements `solc` and Truffle bytecode output parsing and
+//! linking. `Bytecode` is represented as a hex string with special placeholders
+//! for libraries that require linking.
+
 use crate::errors::{BytecodeError, LinkError};
 use hex;
 use serde::de::{Error as DeError, Visitor};
