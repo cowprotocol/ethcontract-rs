@@ -25,10 +25,7 @@ for interacting with contract functions in a type-safe way.
 
 ### Minimum Supported Rust Version
 
-The minimum supported Rust version is 1.39. This is required for `async`/`await`
-support which is used by one of the examples. Note that the core libraries
-probably work with some earlier versions of Rust but they are not officially
-supported or tested.
+The minimum supported Rust version is 1.40.
 
 ## Generator API
 
