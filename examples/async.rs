@@ -1,7 +1,7 @@
 use ethcontract::web3::api::Web3;
 use ethcontract::web3::transports::Http;
 use ethcontract::web3::types::TransactionRequest;
-use ethcontract::{Account, Address, SecretKey, H256};
+use ethcontract::{Account, Address, PrivateKey};
 use futures::compat::Future01CompatExt;
 
 ethcontract::contract!("examples/truffle/build/contracts/RustCoin.json");
@@ -45,13 +45,10 @@ async fn run() {
     print_balance_of(&instance, accounts[1]).await;
     print_balance_of(&instance, accounts[2]).await;
 
-    let key = SecretKey::from_raw(
-        &"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
-            .parse::<H256>()
-            .expect("invalid hash")[..],
-    )
-    .expect("parse key");
-    let x: Address = key.public().address().into();
+    let key: PrivateKey = "0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+        .parse()
+        .expect("parse key");
+    let x = key.public_address();
     println!("Created new account {:?}", x);
 
     // send some eth to x so that it can do transactions

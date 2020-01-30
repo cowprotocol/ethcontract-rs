@@ -1,10 +1,9 @@
 //! Module with common error types.
 
 use ethcontract_common::abi::{Error as AbiError, ErrorKind as AbiErrorKind, Function};
-use ethsign::Error as SignError;
 use jsonrpc_core::Error as JsonrpcError;
+use secp256k1::Error as Secp256k1Error;
 use std::num::ParseIntError;
-use std::str::Utf8Error;
 use thiserror::Error;
 use web3::contract::Error as Web3ContractError;
 use web3::error::Error as Web3Error;
@@ -73,15 +72,6 @@ pub enum ExecutionError {
     /// signed transaction to a node without any local accounts.
     #[error("no local accounts")]
     NoLocalAccounts,
-
-    /// An error indicating that the password used in unlocking an account for
-    /// signing contained an invalid UTF-8 string.
-    #[error("invalid UTF-8 password: {0}")]
-    PasswordUtf8(#[from] Utf8Error),
-
-    /// An error occured while signing a transaction offline.
-    #[error("offline sign error: {0}")]
-    Sign(#[from] SignError),
 
     /// A contract call reverted.
     #[error("contract call reverted with message: {0:?}")]
@@ -177,6 +167,27 @@ fn function_signature(function: &Function) -> String {
             .collect::<Vec<_>>()
             .join(","),
     )
+}
+
+/// An error indicating an invalid private key. Private keys for secp256k1 must
+/// be exactly 32 bytes and fall within the range `[1, n)` where `n` is the
+/// order of the generator point of the curve.
+#[derive(Debug, Error)]
+#[error("invalid private key")]
+pub struct InvalidPrivateKey;
+
+impl From<Secp256k1Error> for InvalidPrivateKey {
+    fn from(err: Secp256k1Error) -> Self {
+        match err {
+            Secp256k1Error::InvalidSecretKey => {}
+            _ => {
+                // NOTE: Assert that we never try to make this conversion with
+                //   errors not related to `SecretKey`.
+                debug_assert!(false, "invalid conversion to InvalidPrivateKey error");
+            }
+        }
+        InvalidPrivateKey
+    }
 }
 
 #[cfg(test)]
