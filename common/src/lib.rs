@@ -3,7 +3,6 @@
 
 pub mod bytecode;
 pub mod errors;
-mod str;
 pub mod truffle;
 
 pub use crate::bytecode::Bytecode;
