@@ -181,7 +181,7 @@ impl From<Secp256k1Error> for InvalidPrivateKey {
         match err {
             Secp256k1Error::InvalidSecretKey => {}
             _ => {
-                // NOTE: Assert that we never ty to make this conversion with
+                // NOTE: Assert that we never try to make this conversion with
                 //   errors not related to `SecretKey`.
                 debug_assert!(false, "invalid conversion to InvalidPrivateKey error");
             }

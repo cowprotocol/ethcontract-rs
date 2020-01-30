@@ -37,7 +37,7 @@ impl<'a> TransactionData<'a> {
         // NOTE: secp256k1 messages for singing must be exactly 32 bytes long
         //   and not be all `0`s. Because the message being signed here is a 32
         //   byte hash that is computed from non-`0` data (because of RLP
-        //   encoding prefixes) the change of the hash being `0` is
+        //   encoding prefixes) the chance of the hash being `0` is
         //   infinitesimally small, so it is OK to unwrap here.
         let message = Message::from_slice(&hash).expect("hash is an invalid secp256k1 message");
         let (recovery_id, sig) = Secp256k1::signing_only()
