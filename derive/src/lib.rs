@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+#![deny(missing_docs, unsafe_code)]
 
 //! Implementation of procedural macro for generating type-safe bindings to an
 //! ethereum smart contract.

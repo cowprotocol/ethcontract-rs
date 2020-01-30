@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+#![deny(missing_docs, unsafe_code)]
 
 //! Crate for common times shared between the `ethcontract` runtime crate as and
 //! the `ethcontract-derive` crate.

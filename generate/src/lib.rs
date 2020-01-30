@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+#![deny(missing_docs, unsafe_code)]
 
 //! Crate for generating type-safe bindings to Ethereum smart contracts. This
 //! crate is intended to be used either indirectly with the `ethcontract`
