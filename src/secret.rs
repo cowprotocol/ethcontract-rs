@@ -1,8 +1,9 @@
 //! This module implements secrets in the form of protected memory.
 
+use crate::errors::InvalidPrivateKey;
 use crate::hash;
 use secp256k1::key::ONE_KEY;
-use secp256k1::{Error as Secp256k1Error, PublicKey, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
@@ -19,19 +20,19 @@ pub struct PrivateKey(Zeroizing<ZeroizeSecretKey>);
 
 impl PrivateKey {
     /// Creates a new private key from raw bytes.
-    pub fn from_raw(raw: [u8; 32]) -> Result<Self, Secp256k1Error> {
+    pub fn from_raw(raw: [u8; 32]) -> Result<Self, InvalidPrivateKey> {
         PrivateKey::from_slice(&raw)
     }
 
     /// Creates a new private key from a slice of bytes.
-    pub fn from_slice<B: AsRef<[u8]>>(raw: B) -> Result<Self, Secp256k1Error> {
+    pub fn from_slice<B: AsRef<[u8]>>(raw: B) -> Result<Self, InvalidPrivateKey> {
         let secret_key = SecretKey::from_slice(raw.as_ref())?;
         Ok(PrivateKey(Zeroizing::new(secret_key.into())))
     }
 
     /// Creates a new private key from a hex string representation. Accepts hex
     /// string with or without leading `"0x"`.
-    pub fn from_hex_str<S: AsRef<str>>(s: S) -> Result<Self, Secp256k1Error> {
+    pub fn from_hex_str<S: AsRef<str>>(s: S) -> Result<Self, InvalidPrivateKey> {
         let hex_str = {
             let s = s.as_ref();
             if s.starts_with("0x") {
@@ -62,7 +63,7 @@ impl PrivateKey {
 }
 
 impl FromStr for PrivateKey {
-    type Err = Secp256k1Error;
+    type Err = InvalidPrivateKey;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         PrivateKey::from_hex_str(s)

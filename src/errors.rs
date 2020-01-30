@@ -2,6 +2,7 @@
 
 use ethcontract_common::abi::{Error as AbiError, ErrorKind as AbiErrorKind, Function};
 use jsonrpc_core::Error as JsonrpcError;
+use secp256k1::Error as Secp256k1Error;
 use std::num::ParseIntError;
 use thiserror::Error;
 use web3::contract::Error as Web3ContractError;
@@ -166,6 +167,27 @@ fn function_signature(function: &Function) -> String {
             .collect::<Vec<_>>()
             .join(","),
     )
+}
+
+/// An error indicating an invalid private key. Private keys for secp256k1 must
+/// be exactly 32 bytes and fall within the range `[1, n)` where `n` is the
+/// order of the base point of the curve.
+#[derive(Debug, Error)]
+#[error("invalid private key")]
+pub struct InvalidPrivateKey;
+
+impl From<Secp256k1Error> for InvalidPrivateKey {
+    fn from(err: Secp256k1Error) -> Self {
+        match err {
+            Secp256k1Error::InvalidSecretKey => {}
+            _ => {
+                // NOTE: Assert that we never ty to make this conversion with
+                //   errors not related to `SecretKey`.
+                debug_assert!(false, "invalid conversion to InvalidPrivateKey error");
+            }
+        }
+        InvalidPrivateKey
+    }
 }
 
 #[cfg(test)]
