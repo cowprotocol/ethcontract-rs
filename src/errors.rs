@@ -171,7 +171,7 @@ fn function_signature(function: &Function) -> String {
 
 /// An error indicating an invalid private key. Private keys for secp256k1 must
 /// be exactly 32 bytes and fall within the range `[1, n)` where `n` is the
-/// order of the base point of the curve.
+/// order of the generator point of the curve.
 #[derive(Debug, Error)]
 #[error("invalid private key")]
 pub struct InvalidPrivateKey;
