@@ -71,7 +71,7 @@ impl Bytecode {
         //   `LinkedContract` contract for and example of how it looks like
         let placeholder = format!("__{:_<38}", name);
         let address = to_fixed_hex(&address);
-        if self.0.find(&placeholder).is_none() {
+        if !self.0.contains(&placeholder) {
             return Err(LinkError::NotFound(name.to_string()));
         }
         self.0 = self.0.replace(&placeholder, &address);
@@ -212,7 +212,7 @@ mod tests {
     }
 
     #[test]
-    fn to_fixed_hex() {
+    fn to_fixed_hex_() {
         for (value, expected) in &[
             (
                 "0x0000000000000000000000000000000000000000",
@@ -228,16 +228,45 @@ mod tests {
             ),
         ] {
             let value: Address = value[2..].parse().unwrap();
-            assert_eq!(super::to_fixed_hex(&value), *expected);
+            assert_eq!(to_fixed_hex(&value), *expected);
         }
     }
 
     #[test]
-    fn string_replacement_replaces_multiple_occurrences() {
-        // This is important for Bytecode::link.
-        assert_eq!(
-            "ahellohellobhelloc".replace("hello", "world"),
-            "aworldworldbworldc"
-        );
+    fn bytecode_link_success() {
+        let address = Address::zero();
+        let address_encoded = [0u8; 20];
+        let name = "name";
+        let placeholder = format!("__{:_<38}", name);
+        let mut bytecode = Bytecode::from_hex_str(format!(
+            "0x61{}{}61{}",
+            placeholder, placeholder, placeholder
+        ))
+        .unwrap();
+        bytecode.link(name, address).unwrap();
+        let bytes = bytecode.to_bytes().unwrap();
+        let mut expected = Vec::<u8>::new();
+        expected.extend(&[0x61]);
+        expected.extend(&address_encoded);
+        expected.extend(&address_encoded);
+        expected.extend(&[0x61]);
+        expected.extend(&address_encoded);
+        assert_eq!(bytes.0, expected);
+    }
+
+    #[test]
+    fn bytecode_link_fail() {
+        let address = Address::zero();
+        let placeholder = format!("__{:_<38}", "name0");
+        let mut bytecode = Bytecode::from_hex_str(format!(
+            "0x61{}{}61{}",
+            placeholder, placeholder, placeholder
+        ))
+        .unwrap();
+        // name does not match
+        match bytecode.link("name1", address) {
+            Err(LinkError::NotFound(_)) => (),
+            _ => assert!(false, "should fail with not found error"),
+        }
     }
 }
