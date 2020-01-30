@@ -1,3 +1,5 @@
+//! Module with common error types.
+
 use serde_json::Error as JsonError;
 use std::io::Error as IoError;
 use thiserror::Error;

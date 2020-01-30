@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+#![deny(missing_docs, unsafe_code)]
 
 //! Generate bindings for Ethereum smart contracts. Internally, the generated
 //! types use `web3` crate to interact with the Ethereum network and uses a
