@@ -16,7 +16,7 @@ use zeroize::{DefaultIsZeroes, Zeroizing};
 /// Additionally, it implements `Drop` to zeroize the memory to make leaking
 /// passwords less likely.
 #[derive(Clone)]
-pub struct PrivateKey(Zeroizing<ZeroizeSecretKey>);
+pub struct PrivateKey(Zeroizing<ZeroizeableSecretKey>);
 
 impl PrivateKey {
     /// Creates a new private key from raw bytes.
@@ -94,21 +94,21 @@ impl Debug for PrivateKey {
 /// For more information, consult the `zeroize` crate
 /// [`README`](https://github.com/iqlusioninc/crates/tree/develop/zeroize).
 #[derive(Clone, Copy)]
-struct ZeroizeSecretKey(SecretKey);
+struct ZeroizeableSecretKey(SecretKey);
 
-impl From<SecretKey> for ZeroizeSecretKey {
+impl From<SecretKey> for ZeroizeableSecretKey {
     fn from(secret_key: SecretKey) -> Self {
-        ZeroizeSecretKey(secret_key)
+        ZeroizeableSecretKey(secret_key)
     }
 }
 
-impl Default for ZeroizeSecretKey {
+impl Default for ZeroizeableSecretKey {
     fn default() -> Self {
         ONE_KEY.into()
     }
 }
 
-impl DefaultIsZeroes for ZeroizeSecretKey {}
+impl DefaultIsZeroes for ZeroizeableSecretKey {}
 
 /// A password string.
 ///
