@@ -7,7 +7,7 @@ macro_rules! addr {
     ($value:expr) => {
         $value[2..]
             .parse::<web3::types::Address>()
-            .expect("valid address")
+            .expect("invalid address")
     };
 }
 
@@ -20,7 +20,7 @@ macro_rules! uint {
     ($value:expr) => {
         $value[2..]
             .parse::<web3::types::U256>()
-            .expect("valid address")
+            .expect("invalid address")
     };
 }
 
@@ -33,7 +33,7 @@ macro_rules! hash {
     ($value:expr) => {
         $value[2..]
             .parse::<web3::types::H256>()
-            .expect("valid hash")
+            .expect("invalid hash")
     };
 }
 
@@ -44,7 +44,8 @@ macro_rules! hash {
 /// If the hex string is invalid.
 macro_rules! bytes {
     ($value:expr) => {
-        serde_json::from_str::<web3::types::Bytes>(&format!("\"{}\"", $value)).expect("valid bytes")
+        serde_json::from_str::<web3::types::Bytes>(&format!("\"{}\"", $value))
+            .expect("invalid bytes")
     };
 }
 
@@ -55,6 +56,6 @@ macro_rules! bytes {
 /// If the private key is invalid.
 macro_rules! key {
     ($value:expr) => {
-        ethsign::SecretKey::from_raw(&hash!($value)[..]).expect("valid key")
+        $crate::secret::PrivateKey::from_slice(&hash!($value)[..]).expect("invalid key")
     };
 }

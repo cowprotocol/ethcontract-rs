@@ -1,6 +1,6 @@
 [package]
 name = "ethcontract"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
 edition = "2018"
 license = "MIT"
@@ -30,16 +30,17 @@ members = [
 ]
 
 [dependencies]
-ethcontract-common = { version = "0.2.0", path = "./common" }
-ethcontract-derive = { version = "0.2.0", path = "./derive", optional = true}
-ethsign = "0.7"
+ethcontract-common = { version = "0.3.0", path = "./common" }
+ethcontract-derive = { version = "0.3.0", path = "./derive", optional = true}
 futures = { version = "0.3", features = ["compat"] }
 futures-timer = "3.0"
 jsonrpc-core = "11.0"
 lazy_static = "1.4"
 pin-project = "0.4"
 rlp = "0.4"
+secp256k1 = { version = "0.17", features = ["recovery"] }
 serde_json = "1.0"
 thiserror = "1.0"
 tiny-keccak = { version = "2.0", features = ["keccak"] }
 web3 = "0.8"
+zeroize = "1.1"

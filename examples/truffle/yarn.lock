@@ -9,10 +9,10 @@
   dependencies:
     "@truffle/hdwallet-provider" "^1.0.27"
 
-"@openzeppelin/contracts@^2.4.0":
-  version "2.4.0"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-2.4.0.tgz#7270f79ed1463370fe6e664d36a779aa4d3ee896"
-  integrity sha512-xeKP59REgow5TPBJh3S9BRIm7DDG+Rz3Nt4ANWGUkjk4305DHpyUD5CyMJ6nd2JMmZuFyx4mjvvlCtSJLRnN6w==
+"@openzeppelin/contracts@^2.5.0":
+  version "2.5.0"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-2.5.0.tgz#e327a98ba1d26b7756ff62885a0aa0967a375449"
+  integrity sha512-t3jm8FrhL9tkkJTofkznTqo/XXdHi21w5yXwalEnaMOp22ZwZ0f/mmKdlgMMLPFa6bSVHbY88mKESwJT/7m5Lg==
 
 "@sindresorhus/is@^0.14.0":
   version "0.14.0"
@@ -26,10 +26,10 @@
   dependencies:
     defer-to-connect "^1.0.1"
 
-"@truffle/hdwallet-provider@^1.0.27", "@truffle/hdwallet-provider@^1.0.29":
-  version "1.0.29"
-  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-1.0.29.tgz#711bf29049750fe629edb8c304ee5c6b04919a92"
-  integrity sha512-GN/eUINLXHnsUPx3PJvGd6WKnAOXP0MYK/aVhlE7PekYapHjimg0EVo8HrnDSQw6LxYRFiXP3lhyEK6J9witbg==
+"@truffle/hdwallet-provider@^1.0.27", "@truffle/hdwallet-provider@^1.0.30":
+  version "1.0.30"
+  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-1.0.30.tgz#55f5f21d9fbc76b3597d25f709e9f00998a91738"
+  integrity sha512-i2xNocQ8Pw8g24Q2hGRy5VLzQsAA10EC63msBEP+ldc9xGLzAV86qOboEqjf/h1PZm0LtXzs8lRfW+iF5Xdc2A==
   dependencies:
     any-promise "^1.3.0"
     bindings "^1.5.0"
@@ -3844,10 +3844,10 @@ truffle-plugin-verify@^0.3.8:
     querystring "0.2.0"
     sol-merger "1.2.2"
 
-truffle@^5.1.10:
-  version "5.1.10"
-  resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.1.10.tgz#6866c6f7b88507415eb2d29a9c6c2ab5eba6df2a"
-  integrity sha512-7dkBjNwabpNUp2LTSsXWUk5TMOfomX9F0mPLDEZgAgmfH3qWG5rBEUn/jw5t0LQfVx8NCG+GIN9FxqiUIEWrYQ==
+truffle@^5.1.11:
+  version "5.1.11"
+  resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.1.11.tgz#227e84df0b821ca775b7bc26984080d3c0989147"
+  integrity sha512-BzF5FoNJf0PP+R2KuIsxNsfbPzJ7VUrzC9iv/rKzK0S+MmafhntJf90shL6XJBgb0kNX/jDp4x2blk77bt3WMQ==
   dependencies:
     app-module-path "^2.2.0"
     mocha "5.2.0"

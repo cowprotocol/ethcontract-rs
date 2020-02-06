@@ -1,9 +1,10 @@
+#![deny(missing_docs, unsafe_code)]
+
 //! Crate for common times shared between the `ethcontract` runtime crate as and
 //! the `ethcontract-derive` crate.
 
 pub mod bytecode;
 pub mod errors;
-mod str;
 pub mod truffle;
 
 pub use crate::bytecode::Bytecode;

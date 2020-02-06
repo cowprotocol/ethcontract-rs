@@ -4,6 +4,7 @@
 
 mod deploy;
 pub mod link;
+mod deployed;
 mod method;
 
 use crate::errors::{DeployError, LinkError};
@@ -16,13 +17,15 @@ use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes};
 use web3::Transport;
 
-pub use self::deploy::{Deploy, DeployBuilder, DeployFuture, DeployedFuture, FromNetwork};
+pub use self::deploy::{Deploy, DeployBuilder, DeployFuture};
+pub use self::deployed::{DeployedFuture, FromNetwork};
 pub use self::method::{
     CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture, ViewMethodBuilder,
 };
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
+#[derive(Debug, Clone)]
 pub struct Instance<T: Transport> {
     web3: Web3<T>,
     abi: Abi,

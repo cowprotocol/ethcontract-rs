@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+#![deny(missing_docs, unsafe_code)]
 
 //! Generate bindings for Ethereum smart contracts. Internally, the generated
 //! types use `web3` crate to interact with the Ethereum network and uses a
@@ -97,6 +97,7 @@ mod conv;
 pub mod errors;
 mod future;
 mod hash;
+pub mod secret;
 pub mod sign;
 pub mod transaction;
 pub mod transport;
@@ -109,7 +110,7 @@ pub use ethcontract_common as common;
 pub use ethcontract_common::truffle::Artifact;
 #[cfg(feature = "derive")]
 pub use ethcontract_derive::contract;
-pub use ethsign::{self, Protected, SecretKey};
+pub use secret::{Password, PrivateKey};
 pub use serde_json as json;
 pub use web3;
 use web3::api::Web3;
