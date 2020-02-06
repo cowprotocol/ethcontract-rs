@@ -25,6 +25,8 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
     }
 
     Ok(quote! {
+        #[allow(dead_code)]
+        #[allow(clippy::too_many_arguments, clippy::type_complexity)]
         impl #contract_name {
             #( #functions )*
         }
