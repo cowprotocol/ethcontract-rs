@@ -36,6 +36,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
     });
 
     quote! {
+        #[allow(dead_code)]
         impl #contract_name {
             /// Locates a deployed contract based on the current network ID
             /// reported by the `web3` provider.

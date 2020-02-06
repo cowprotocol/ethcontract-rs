@@ -399,7 +399,7 @@ mod tests {
         .gas(1.into())
         .gas_price(2.into())
         .value(28.into())
-        .block(BlockNumber::Number(100));
+        .block(BlockNumber::Number(100.into()));
 
         transport.add_response(json!(
             "0x000000000000000000000000000000000000000000000000000000000000002a"
