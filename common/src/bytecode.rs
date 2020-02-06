@@ -3,7 +3,6 @@
 //! for libraries that require linking.
 
 use crate::errors::{BytecodeError, LinkError};
-use hex;
 use serde::de::{Error as DeError, Visitor};
 use serde::{Deserialize, Deserializer};
 use std::collections::HashSet;
