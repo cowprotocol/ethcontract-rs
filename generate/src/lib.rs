@@ -174,9 +174,11 @@ mod tests {
 
     #[test]
     fn parse_address_ok() {
-        let expected = Address::zero();
+        let expected = Address::from([
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        ]);
         assert_eq!(
-            parse_address("0x0000000000000000000000000000000000000000").unwrap(),
+            parse_address("0x000102030405060708090a0b0c0d0e0f10111213").unwrap(),
             expected
         );
     }
