@@ -10,15 +10,24 @@ pub(crate) fn expand(cx: &Context, kind: &ParamType) -> Result<TokenStream> {
     match kind {
         ParamType::Address => Ok(quote! { #ethcontract::Address }),
         ParamType::Bytes => Ok(quote! { Vec<u8> }),
-        ParamType::Int(n) | ParamType::Uint(n) => match n / 8 {
-            // TODO(nlordell): for now, not all uint/int types implement the
-            //   `Tokenizable` trait, only `u64`, `U128`, and `U256` so we need
-            //   to map solidity int/uint types to those; eventually we should
-            //   add more implementations to the `web3` crate
-            1..=8 => Ok(quote! { u64 }),
-            9..=16 => Ok(quote! { #ethcontract::web3::types::U128 }),
+        ParamType::Int(n) => match n / 8 {
+            1 => Ok(quote! { i8 }),
+            2 => Ok(quote! { i16 }),
+            3..=4 => Ok(quote! { i32 }),
+            5..=8 => Ok(quote! { i64 }),
+            9..=16 => Ok(quote! { i128 }),
+            // NOTE: There is currently no 256-bit signed integer type.
             17..=32 => Ok(quote! { #ethcontract::U256 }),
             _ => Err(anyhow!("unsupported solidity type int{}", n)),
+        },
+        ParamType::Uint(n) => match n / 8 {
+            1 => Ok(quote! { u8 }),
+            2 => Ok(quote! { u16 }),
+            3..=4 => Ok(quote! { u32 }),
+            5..=8 => Ok(quote! { u64 }),
+            9..=16 => Ok(quote! { u128 }),
+            17..=32 => Ok(quote! { #ethcontract::U256 }),
+            _ => Err(anyhow!("unsupported solidity type uint{}", n)),
         },
         ParamType::Bool => Ok(quote! { bool }),
         ParamType::String => Ok(quote! { String }),
