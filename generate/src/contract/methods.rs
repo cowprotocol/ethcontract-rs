@@ -52,7 +52,7 @@ fn expand_function(cx: &Context, function: &Function) -> Result<TokenStream> {
     let doc = util::expand_doc(doc_str);
 
     let input = expand_inputs(cx, &function.inputs)?;
-    let outputs = expand_fn_outputs(cx, &function)?;
+    let outputs = expand_fn_outputs(cx, &function.outputs)?;
     let (method, result_type_name) = if function.constant {
         (quote! { view_method }, quote! { DynViewMethodBuilder })
     } else {
@@ -95,14 +95,17 @@ pub(crate) fn expand_inputs(cx: &Context, inputs: &[Param]) -> Result<TokenStrea
     Ok(quote! { #( , #params )* })
 }
 
-fn expand_input_name(index: usize, name: &str) -> TokenStream {
+fn input_name_to_ident(index: usize, name: &str) -> SynIdent {
     let name_str = match name {
         "" => format!("p{}", index),
         n => n.to_snake_case(),
     };
-    let name = syn::parse_str::<SynIdent>(&name_str)
-        .unwrap_or_else(|_| util::ident(&format!("{}_", name_str)));
+    // Parsing keywords like `self` can fail, in this case we add an underscore.
+    syn::parse_str::<SynIdent>(&name_str).unwrap_or_else(|_| util::ident(&format!("{}_", name_str)))
+}
 
+fn expand_input_name(index: usize, name: &str) -> TokenStream {
+    let name = input_name_to_ident(index, name);
     quote! { #name }
 }
 
@@ -114,17 +117,153 @@ pub(crate) fn expand_inputs_call_arg(inputs: &[Param]) -> TokenStream {
     quote! { ( #( #names ,)* ) }
 }
 
-fn expand_fn_outputs(cx: &Context, function: &Function) -> Result<TokenStream> {
-    match function.outputs.len() {
+fn expand_fn_outputs(cx: &Context, outputs: &[Param]) -> Result<TokenStream> {
+    match outputs.len() {
         0 => Ok(quote! { () }),
-        1 => types::expand(cx, &function.outputs[0].kind),
+        1 => types::expand(cx, &outputs[0].kind),
         _ => {
-            let types = function
-                .outputs
+            let types = outputs
                 .iter()
                 .map(|param| types::expand(cx, &param.kind))
                 .collect::<Result<Vec<_>>>()?;
             Ok(quote! { (#( #types ),*) })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethcontract_common::abi::ParamType;
+
+    #[test]
+    fn function_signature_empty() {
+        assert_eq!(
+            function_signature(&Function {
+                name: String::new(),
+                inputs: Vec::new(),
+                outputs: Vec::new(),
+                constant: false,
+            }),
+            "()"
+        );
+    }
+
+    #[test]
+    fn function_signature_normal() {
+        assert_eq!(
+            function_signature(&Function {
+                name: "name".to_string(),
+                inputs: vec![
+                    Param {
+                        name: "a".to_string(),
+                        kind: ParamType::Address,
+                    },
+                    Param {
+                        name: "b".to_string(),
+                        kind: ParamType::Bytes,
+                    },
+                ],
+                outputs: Vec::new(),
+                constant: false
+            }),
+            "name(address,bytes)"
+        );
+    }
+
+    #[test]
+    fn input_name_to_ident_empty() {
+        assert_eq!(input_name_to_ident(0, ""), util::ident("p0"));
+    }
+
+    #[test]
+    fn input_name_to_ident_keyword() {
+        assert_eq!(input_name_to_ident(0, "self"), util::ident("self_"));
+    }
+
+    #[test]
+    fn input_name_to_ident_snake_case() {
+        assert_eq!(
+            input_name_to_ident(0, "CamelCase1"),
+            util::ident("camel_case_1")
+        );
+    }
+
+    #[test]
+    fn expand_inputs_empty() {
+        assert_eq!(
+            expand_inputs(&Context::empty(), &[]).unwrap().to_string(),
+            ""
+        );
+    }
+
+    #[test]
+    fn expand_inputs_() {
+        assert_eq!(
+            expand_inputs(
+                &Context::empty(),
+                &[
+                    Param {
+                        name: "a".to_string(),
+                        kind: ParamType::Bool,
+                    },
+                    Param {
+                        name: "b".to_string(),
+                        kind: ParamType::Address,
+                    },
+                ],
+            )
+            .unwrap()
+            .to_string(),
+            ", a : bool , b : ethcontract :: Address"
+        );
+    }
+
+    #[test]
+    fn expand_fn_outputs_empty() {
+        assert_eq!(
+            expand_fn_outputs(&Context::empty(), &[],)
+                .unwrap()
+                .to_string(),
+            "( )"
+        );
+    }
+
+    #[test]
+    fn expand_fn_outputs_single() {
+        assert_eq!(
+            expand_fn_outputs(
+                &Context::empty(),
+                &[Param {
+                    name: "a".to_string(),
+                    kind: ParamType::Bool,
+                },],
+            )
+            .unwrap()
+            .to_string(),
+            "bool"
+        );
+    }
+
+    #[test]
+    fn expand_fn_outputs_muliple() {
+        assert_eq!(
+            expand_fn_outputs(
+                &Context::empty(),
+                &[
+                    Param {
+                        name: "a".to_string(),
+                        kind: ParamType::Bool,
+                    },
+                    Param {
+                        name: "b".to_string(),
+                        kind: ParamType::Address,
+                    },
+                ],
+            )
+            .unwrap()
+            .to_string(),
+            "( bool , ethcontract :: Address )"
+        );
     }
 }
