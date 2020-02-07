@@ -16,7 +16,7 @@
     "url": "git+https://github.com/gnosis/ethcontract-rs.git"
   },
   "author": "Nicholas Rodrigues Lordello <nlordell@gmail.com>",
-  "license": "MIT",
+  "license": "(MIT OR Apache-2.0)",
   "bugs": {
     "url": "https://github.com/gnosis/ethcontract-rs"
   },
