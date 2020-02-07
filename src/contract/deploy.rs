@@ -247,12 +247,6 @@ mod tests {
     }
 
     #[test]
-    fn deploy() {
-        // TODO(nlordell): implement this test - there is an open issue for this
-        //   on github
-    }
-
-    #[test]
     fn deploy_fails_on_empty_bytecode() {
         let transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
@@ -262,6 +256,65 @@ mod tests {
         let error = InstanceDeployBuilder::new(web3, linker, ()).err().unwrap();
 
         assert_eq!(error.to_string(), DeployError::EmptyBytecode.to_string());
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn deploy() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let mut artifact = Artifact::empty();
+        let bytecode = "0x00";
+        artifact.bytecode = Bytecode::from_hex_str(bytecode).unwrap();
+        let linker = Linker::new(artifact);
+
+        // eth_accounts
+        let account = addr!("0x9876543210987654321098765432109876543210");
+        transport.add_response(json!([account]));
+
+        // eth_sendTransaction
+        let transaction_hash =
+            hash!("0x4242424242424242424242424242424242424242424242424242424242424242");
+        transport.add_response(json!(transaction_hash));
+
+        // eth_blockNumber
+        transport.add_response(json!("0x0"));
+
+        // eth_getTransactionReceipt
+        let contract_address = addr!("0x9876543210987654321098765432109876543210");
+        let block_hash =
+            hash!("0x4242424242424242424242424242424242424242424242424242424242424242");
+        let mut logs_bloom = "0x".to_string();
+        for _ in 0..256 {
+            logs_bloom.push_str("00");
+        }
+        transport.add_response(json!({
+            "transactionHash": transaction_hash,
+            "transactionIndex":  "0x0",
+            "blockNumber": "0x0",
+            "blockHash": block_hash,
+            "cumulativeGasUsed": "0x0",
+            "gasUsed": "0x0",
+            "contractAddress": contract_address,
+            "logs": [],
+            "logsBloom": logs_bloom,
+            "status": "0x1",
+        }));
+
+        InstanceDeployBuilder::new(web3, linker, ())
+            .unwrap()
+            .deploy()
+            .immediate()
+            .unwrap();
+
+        transport.assert_request("eth_accounts", &[]);
+        transport.assert_request(
+            "eth_sendTransaction",
+            &[json!({"data": bytecode, "from": account})],
+        );
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(transaction_hash)]);
         transport.assert_no_more_requests();
     }
 }
