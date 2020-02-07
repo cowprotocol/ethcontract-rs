@@ -107,15 +107,20 @@ mod tests {
         let mut transport = TestTransport::new();
         let dyn_transport = DynTransport::new(transport.clone());
 
-        // assert that the underlying transport prepares the request.
+        // assert that the underlying transport prepares the request and returns
+        // the response.
+        transport.add_request_response("test".to_string(), vec![json!(28)], json!(true));
         let (id, call) = dyn_transport.prepare("test", vec![json!(28)]);
-        transport.assert_request("test", &[json!(28)]);
         transport.assert_no_more_requests();
 
-        // assert that the underlying transport returns the response.
-        transport.add_response(json!(true));
         let response = dyn_transport.send(id, call).wait().expect("success");
         assert_eq!(response, json!(true));
+
+    #[test]
+    #[should_panic]
+    fn dyn_transport_panics() {
+        let mut transport = TestTransport::new();
+        let dyn_transport = DynTransport::new(transport.clone());
 
         // assert that the transport layer gets propagated - it errors here since
         // we did not provide the test transport with a response
@@ -124,7 +129,5 @@ mod tests {
             .wait()
             .err()
             .expect("failed");
-        transport.assert_request("test", &[json!(42)]);
-        transport.assert_no_more_requests();
     }
 }
