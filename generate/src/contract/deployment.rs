@@ -139,6 +139,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
     };
 
     Ok(quote! {
+        #[allow(dead_code)]
         impl #contract_name {
             #doc
             pub fn builder<F, T>(
