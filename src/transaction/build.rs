@@ -326,7 +326,7 @@ pub struct BuildOfflineSignedTransactionFuture<T: Transport> {
     /// The private key to use for signing.
     key: PrivateKey,
     /// The recepient address.
-    to: Address,
+    to: Option<Address>,
     /// The ETH value to be sent with the transaction.
     value: U256,
     /// The ABI encoded call parameters,
@@ -347,7 +347,7 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
         gas_price: GasPrice,
         options: TransactionOptions,
     ) -> Self {
-        let to = options.to.unwrap_or_else(Address::zero);
+        let to = options.to;
         let value = options.value.unwrap_or_else(U256::zero);
 
         let params = {
@@ -361,7 +361,7 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
                     eth.clone(),
                     CallRequest {
                         from: Some(from),
-                        to,
+                        to: to.unwrap_or_else(Address::zero),
                         gas: None,
                         gas_price: None,
                         value: options.value,
