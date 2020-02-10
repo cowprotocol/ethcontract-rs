@@ -18,7 +18,7 @@ pub struct TransactionData<'a> {
     /// Gas provided by the transaction.
     pub gas: U256,
     /// Receiver of the transaction.
-    pub to: Address,
+    pub to: Option<Address>,
     /// Value of the transaction in wei.
     pub value: U256,
     /// Call data of the transaction, can be empty for simple value transfers.
@@ -54,7 +54,11 @@ impl<'a> TransactionData<'a> {
         s.append(&self.nonce);
         s.append(&self.gas_price);
         s.append(&self.gas);
-        s.append(&self.to);
+        if let Some(to) = self.to {
+            s.append(&to);
+        } else {
+            s.append(&"");
+        }
         s.append(&self.value);
         s.append(&self.data.0);
         if let Some(n) = chain_id {
@@ -84,7 +88,11 @@ impl<'a> TransactionData<'a> {
         s.append(&self.nonce);
         s.append(&self.gas_price);
         s.append(&self.gas);
-        s.append(&self.to);
+        if let Some(to) = self.to {
+            s.append(&to);
+        } else {
+            s.append(&"");
+        }
         s.append(&self.value);
         s.append(&self.data.0);
         s.append(&sig_v);
@@ -116,16 +124,57 @@ mod tests {
             nonce: 0.into(),
             gas: 2_000_000.into(),
             gas_price: 234_567_897_654_321u64.into(),
-            to: "F0109fC8DF283027b6285cc889F5aA624EaC1F55"
-                .parse()
-                .expect("valid address"),
+            to: Some(
+                "F0109fC8DF283027b6285cc889F5aA624EaC1F55"
+                    .parse()
+                    .expect("invalid address"),
+            ),
             value: 1_000_000_000.into(),
             data: &Bytes::default(),
         };
         let key = key!("0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318");
         let raw = tx.sign(&key, Some(1));
 
-        let expected: Bytes = serde_json::from_str(r#""0xf86a8086d55698372431831e848094f0109fc8df283027b6285cc889f5aa624eac1f55843b9aca008025a009ebb6ca057a0535d6186462bc0b465b561c94a295bdb0621fc19208ab149a9ca0440ffd775ce91a833ab410777204d5341a6f9fa91216a6f3ee2c051fea6a0428""#).expect("valid raw transaction");
+        let expected = bytes!("0xf86a8086d55698372431831e848094f0109fc8df283027b6285cc889f5aa624eac1f55843b9aca008025a009ebb6ca057a0535d6186462bc0b465b561c94a295bdb0621fc19208ab149a9ca0440ffd775ce91a833ab410777204d5341a6f9fa91216a6f3ee2c051fea6a0428");
+
+        assert_eq!(raw, expected);
+    }
+
+    #[test]
+    fn test_sign_deploy() {
+        // test vector generated with `web3 v1.2.1` with the following code:
+        // ```
+        // web3.eth.accounts.signTransaction({
+        //     nonce: 42,
+        //     gas: '2000000',
+        //     gasPrice: '6000000000',
+        //     value: '0',
+        //     data: '0x600080fd', // revert()
+        // }, '0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318')
+        // ```
+        // which produced the following output for chain ID 5777:
+        // ```
+        // {
+        //     messageHash: '0x0526a7987ac9f046668309e842c25a5388a853f09af138bc614160248d93b8ed',
+        //     v: '0x2d45',
+        //     r: '0x991b1f1c803676a8a7d9ef09ffd760c0cf94b4e3300670588b98acac01627299',
+        //     s: '0x7d06916a45758cdf569c2a8ac5078f58cd955e9b43c7eff8362c2de1c3554ac8',
+        //     rawTransaction: '0xf8572a850165a0bc00831e8480808084600080fd822d45a0991b1f1c803676a8a7d9ef09ffd760c0cf94b4e3300670588b98acac01627299a07d06916a45758cdf569c2a8ac5078f58cd955e9b43c7eff8362c2de1c3554ac8',
+        // }
+        // ```
+
+        let tx = TransactionData {
+            nonce: 42.into(),
+            gas: 21_000.into(),
+            gas_price: 6_000_000_000u64.into(),
+            to: None,
+            value: 1_337_000_000u64.into(),
+            data: &bytes!("0x600080fd"),
+        };
+        let key = key!("0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318");
+        let raw = tx.sign(&key, Some(5777));
+
+        let expected = bytes!("0xf8572a850165a0bc00831e8480808084600080fd822d45a0991b1f1c803676a8a7d9ef09ffd760c0cf94b4e3300670588b98acac01627299a07d06916a45758cdf569c2a8ac5078f58cd955e9b43c7eff8362c2de1c3554ac8");
 
         assert_eq!(raw, expected);
     }
