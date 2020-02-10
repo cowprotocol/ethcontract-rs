@@ -150,9 +150,10 @@ mod tests {
         //     gasPrice: '6000000000',
         //     value: '0',
         //     data: '0x600080fd', // revert()
+        //     chainId: 5777,
         // }, '0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318')
         // ```
-        // which produced the following output for chain ID 5777:
+        // which produced the following output:
         // ```
         // {
         //     messageHash: '0x0526a7987ac9f046668309e842c25a5388a853f09af138bc614160248d93b8ed',
