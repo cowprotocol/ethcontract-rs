@@ -346,7 +346,6 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
         gas_price: GasPrice,
         options: TransactionOptions,
     ) -> Self {
-        let to = options.to;
         let value = options.value.unwrap_or_else(U256::zero);
 
         let params = {
@@ -360,7 +359,7 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
                     eth.clone(),
                     EstimateGasRequest {
                         from: Some(from),
-                        to: to.unwrap_or_else(Address::zero),
+                        to: options.to,
                         gas: None,
                         gas_price: gas_price.value(),
                         value: options.value,
@@ -383,7 +382,7 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
 
         BuildOfflineSignedTransactionFuture {
             key,
-            to,
+            to: options.to,
             value,
             data,
             params,
