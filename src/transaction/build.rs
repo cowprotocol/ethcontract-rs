@@ -8,7 +8,7 @@ use crate::errors::ExecutionError;
 use crate::future::{CompatCallFuture, MaybeReady};
 use crate::secret::{Password, PrivateKey};
 use crate::sign::TransactionData;
-use crate::transaction::estimate_gas::EstimateGasFuture;
+use crate::transaction::estimate_gas::{EstimateGasFuture, EstimateGasRequest};
 use crate::transaction::gas_price::{
     GasPrice, ResolveGasPriceFuture, ResolveTransactionRequestGasPriceFuture,
 };
@@ -23,8 +23,7 @@ use std::task::{Context, Poll};
 use web3::api::Web3;
 use web3::helpers::CallFuture;
 use web3::types::{
-    Address, Bytes, CallRequest, RawTransaction, TransactionCondition, TransactionRequest, U256,
-    U64,
+    Address, Bytes, RawTransaction, TransactionCondition, TransactionRequest, U256, U64,
 };
 use web3::Transport;
 
@@ -347,7 +346,6 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
         gas_price: GasPrice,
         options: TransactionOptions,
     ) -> Self {
-        let to = options.to;
         let value = options.value.unwrap_or_else(U256::zero);
 
         let params = {
@@ -359,11 +357,11 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
                 options.gas,
                 EstimateGasFuture::from_request(
                     eth.clone(),
-                    CallRequest {
+                    EstimateGasRequest {
                         from: Some(from),
-                        to: to.unwrap_or_else(Address::zero),
+                        to: options.to,
                         gas: None,
-                        gas_price: None,
+                        gas_price: gas_price.value(),
                         value: options.value,
                         data: options.data.clone(),
                     }
@@ -384,7 +382,7 @@ impl<T: Transport> BuildOfflineSignedTransactionFuture<T> {
 
         BuildOfflineSignedTransactionFuture {
             key,
-            to,
+            to: options.to,
             value,
             data,
             params,

@@ -6,13 +6,44 @@ use crate::future::CompatCallFuture;
 use crate::transaction::TransactionBuilder;
 use futures::compat::Future01CompatExt;
 use pin_project::pin_project;
+use serde::Serialize;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use web3::api::{Eth, Namespace};
 use web3::helpers::{self, CallFuture};
-use web3::types::{Address, CallRequest, U256};
+use web3::types::{Address, Bytes, U256};
 use web3::Transport;
+
+/// Transaction parameters used for estimating gas.
+///
+/// Note that this is similar to `web3::types::CallRequest` with the notable
+/// exception that it allows for `to` to be `None` for estimating gas on
+/// contract deployments.
+#[derive(Clone, Debug, Serialize)]
+pub struct EstimateGasRequest {
+    /// The address of the sender
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from: Option<Address>,
+    /// The to address, use `None` for contract deployment.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to: Option<Address>,
+    /// The maximum gas supplied to the transaction when estimating gas or
+    /// `None` for unlimited.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gas: Option<U256>,
+    /// The gas price for the transaction or `None` for the node's median gas
+    /// price.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "gasPrice")]
+    pub gas_price: Option<U256>,
+    /// The transfered value in wei or `None` for no value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<U256>,
+    /// The data or `None` for empty data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Bytes>,
+}
 
 /// Future for estimating gas for a transaction.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -25,12 +56,12 @@ impl<T: Transport> EstimateGasFuture<T> {
         let eth = builder.web3.eth();
 
         let from = builder.from.map(|account| account.address());
-        let to = builder.to.unwrap_or_else(Address::zero);
-        let request = CallRequest {
+        let gas_price = builder.gas_price.and_then(|gas_price| gas_price.value());
+        let request = EstimateGasRequest {
             from,
-            to,
+            to: builder.to,
             gas: None,
-            gas_price: None,
+            gas_price,
             value: builder.value,
             data: builder.data,
         };
@@ -38,10 +69,8 @@ impl<T: Transport> EstimateGasFuture<T> {
         EstimateGasFuture::from_request(eth, request)
     }
 
-    /// Create an estimate gas future from a `web3` `CallRequest`.
-    pub(crate) fn from_request(eth: Eth<T>, request: CallRequest) -> Self {
-        // NOTE(nlordell): work around issue tomusdrw/rust-web3#290; while this
-        //   bas been fixed in master, it has not been released yet
+    /// Create an estimate gas future from a `web3` `EstimateGasRequest`.
+    pub(crate) fn from_request(eth: Eth<T>, request: EstimateGasRequest) -> Self {
         EstimateGasFuture(
             CallFuture::new(
                 eth.transport()
