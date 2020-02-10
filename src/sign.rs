@@ -165,10 +165,10 @@ mod tests {
 
         let tx = TransactionData {
             nonce: 42.into(),
-            gas: 21_000.into(),
+            gas: 2_000_000.into(),
             gas_price: 6_000_000_000u64.into(),
             to: None,
-            value: 1_337_000_000u64.into(),
+            value: 0.into(),
             data: &bytes!("0x600080fd"),
         };
         let key = key!("0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318");
