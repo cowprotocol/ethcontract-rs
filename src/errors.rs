@@ -1,7 +1,10 @@
 //! Module with common error types.
 
+mod ganache;
+mod parity;
+pub(crate) mod revert;
+
 use ethcontract_common::abi::{Error as AbiError, ErrorKind as AbiErrorKind, Function};
-use jsonrpc_core::Error as JsonrpcError;
 use secp256k1::Error as Secp256k1Error;
 use std::num::ParseIntError;
 use thiserror::Error;
@@ -86,22 +89,22 @@ pub enum ExecutionError {
     ConfirmTimeout,
 
     /// Transaction failure (e.g. out of gas or revert).
-    #[error("transaction failed: {0}")]
+    #[error("transaction failed: {0:?}")]
     Failure(H256),
 }
 
 impl From<Web3Error> for ExecutionError {
     fn from(err: Web3Error) -> Self {
-        match err {
-            Web3Error::Rpc(ref err) if get_error_param(err, "error") == Some("revert") => {
-                let reason = get_error_param(err, "reason").map(|reason| reason.to_owned());
-                ExecutionError::Revert(reason)
+        if let Web3Error::Rpc(jsonrpc_err) = &err {
+            if let Some(err) = ganache::get_encoded_error(&jsonrpc_err) {
+                return err;
             }
-            Web3Error::Rpc(ref err) if get_error_param(err, "error") == Some("invalid opcode") => {
-                ExecutionError::InvalidOpcode
+            if let Some(err) = parity::get_encoded_error(&jsonrpc_err) {
+                return err;
             }
-            err => ExecutionError::Web3(err),
         }
+
+        ExecutionError::Web3(err)
     }
 }
 
@@ -109,26 +112,6 @@ impl From<AbiError> for ExecutionError {
     fn from(err: AbiError) -> Self {
         ExecutionError::AbiDecode(err.into())
     }
-}
-
-/// Gets an error parameters from a JSON RPC error.
-///
-/// These parameters are the fields inside the transaction object (by tx hash)
-/// inside the error data object. Note that we don't need to know the fake tx
-/// hash for getting the error params as there should only be one.
-fn get_error_param<'a>(err: &'a JsonrpcError, name: &str) -> Option<&'a str> {
-    fn is_hash_str(s: &str) -> bool {
-        s.len() == 66 && s[2..].parse::<H256>().is_ok()
-    }
-
-    err.data
-        .as_ref()?
-        .as_object()?
-        .iter()
-        .filter_map(|(k, v)| if is_hash_str(k) { Some(v) } else { None })
-        .next()?
-        .get(name)?
-        .as_str()
 }
 
 /// Error that can occur while executing a contract call or transaction.
@@ -193,34 +176,15 @@ impl From<Secp256k1Error> for InvalidPrivateKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use jsonrpc_core::ErrorCode;
-    use serde_json::{json, Value};
-
-    fn ganache_rpc_error(data: Value) -> Web3Error {
-        Web3Error::Rpc(JsonrpcError {
-            code: ErrorCode::from(-32000),
-            message: "error".to_owned(),
-            data: Some(data),
-        })
-    }
 
     #[test]
-    fn execution_error_from_ganache_revert_with_message() {
-        let web3_err = ganache_rpc_error(json!({
-            "0x991fef26454cd1b52e37041295833c24b883e03a2c654fd03bb67e66955e540b": {
-               "error": "revert",
-               "program_counter": 42,
-               "return": "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000076d65737361676500000000000000000000000000000000000000000000000000",
-               "reason": "message",
-            },
-            "stack": "RuntimeError: VM Exception while processing transaction: revert contract reverted as requested ...",
-            "name": "RuntimeError",
-        }));
+    fn from_ganache_encoded_error() {
+        let web3_err = Web3Error::Rpc(ganache::rpc_error("invalid opcode", None));
         let err = ExecutionError::from(web3_err);
 
         assert!(
             match err {
-                ExecutionError::Revert(Some(ref reason)) if reason == "message" => true,
+                ExecutionError::InvalidOpcode => true,
                 _ => false,
             },
             "bad error conversion {:?}",
@@ -229,39 +193,8 @@ mod tests {
     }
 
     #[test]
-    fn execution_error_from_ganache_revert() {
-        let web3_err = ganache_rpc_error(json!({
-            "0x991fef26454cd1b52e37041295833c24b883e03a2c654fd03bb67e66955e540b": {
-               "error": "revert",
-               "program_counter": 42,
-               "return": "0x",
-            },
-            "stack": "RuntimeError: VM Exception while processing transaction: revert ...",
-            "name": "RuntimeError",
-        }));
-        let err = ExecutionError::from(web3_err);
-
-        assert!(
-            match err {
-                ExecutionError::Revert(None) => true,
-                _ => false,
-            },
-            "bad error conversion {:?}",
-            err
-        );
-    }
-
-    #[test]
-    fn execution_error_from_ganache_invalid_opcode() {
-        let web3_err = ganache_rpc_error(json!({
-            "0x991fef26454cd1b52e37041295833c24b883e03a2c654fd03bb67e66955e540b": {
-               "error": "invalid opcode",
-               "program_counter": 42,
-               "return": "0x",
-            },
-            "stack": "RuntimeError: VM Exception while processing transaction: invalid opcode...",
-            "name": "RuntimeError",
-        }));
+    fn from_parity_encoded_error() {
+        let web3_err = Web3Error::Rpc(parity::rpc_error("Bad instruction fd"));
         let err = ExecutionError::from(web3_err);
 
         assert!(
