@@ -1,14 +1,72 @@
-//! Implementation of a transport for testing purposes. This is largely based on
-//! the `rust-web3` `TestTransport` type with some modifications.
+//! Implementation of a transport for testing purposes.
 
 use jsonrpc_core::{Call, Value};
 use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::clone::Clone;
+use std::fmt::Debug;
 use std::rc::Rc;
 use web3::error::Error;
-use web3::futures::future::{self, FutureResult};
-use web3::helpers;
+use web3::futures::future::FutureResult;
 use web3::{RequestId, Transport};
+
+mockall::mock! {
+    pub Transport {
+        fn execute(&self, method: &str, params: Vec<Value>) -> FutureResult<Value, Error>;
+    }
+}
+
+// `Debug` is needed so that `TestTransport` can derive `Debug`.
+impl Debug for MockTransport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MockTransport")
+    }
+}
+
+/// Implements `Transport` forwarding calls to `execute` to a mockable struct.
+///
+/// `MockTransport` itself does not implement `Transport` because we only use
+/// `execute` because it is the most convenient function to mock.
+#[derive(Debug, Clone)]
+pub struct TestTransport_ {
+    mock_transport: Rc<RefCell<MockTransport>>,
+}
+
+impl TestTransport_ {
+    pub fn new() -> TestTransport_ {
+        TestTransport_ {
+            mock_transport: Rc::new(RefCell::new(MockTransport::new())),
+        }
+    }
+
+    /// Access the underlying struct on which `expect_execute` can be called.
+    ///
+    /// Note that no instance of the `RefMut` can be alive when the transport
+    /// gets called because it represents a mutable reference.
+    pub fn mock(&self) -> std::cell::RefMut<MockTransport> {
+        self.mock_transport.as_ref().borrow_mut()
+    }
+}
+
+impl Transport for TestTransport_ {
+    type Out = FutureResult<Value, Error>;
+
+    fn prepare(&self, _method: &str, _params: Vec<Value>) -> (RequestId, Call) {
+        unimplemented!();
+    }
+
+    fn send(&self, _id: RequestId, _request: Call) -> Self::Out {
+        unimplemented!();
+    }
+
+    fn execute(&self, method: &str, params: Vec<Value>) -> Self::Out {
+        self.mock_transport.borrow().execute(method, params)
+    }
+}
+
+// ----------------------------------------------------
+
+use std::collections::VecDeque;
+use web3::helpers;
 
 /// Type alias for request method and value pairs
 type Requests = Vec<(String, Vec<Value>)>;
@@ -32,10 +90,10 @@ impl Transport for TestTransport {
 
     fn send(&self, id: RequestId, request: Call) -> Self::Out {
         match self.responses.borrow_mut().pop_front() {
-            Some(response) => future::ok(response),
+            Some(response) => web3::futures::future::ok(response),
             None => {
                 println!("Unexpected request (id: {:?}): {:?}", id, request);
-                future::err(Error::Unreachable)
+                web3::futures::future::err(Error::Unreachable)
             }
         }
     }

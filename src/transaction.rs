@@ -319,6 +319,35 @@ mod tests {
     }
 
     #[test]
+    fn tx_builder_estimate_gas_() {
+        let transport = TestTransport_::new();
+        let web3 = Web3::new(transport.clone());
+
+        let to = addr!("0x0123456789012345678901234567890123456789");
+
+        transport
+            .mock()
+            .expect_execute()
+            .with(
+                eq("eth_estimateGas"),
+                eq(vec![json!({
+                    "to": to,
+                    "value": "0x2a",
+                })]),
+            )
+            .times(1)
+            .return_const(web3::futures::future::ok(json!("0x42")));
+
+        let estimate_gas = TransactionBuilder::new(web3)
+            .to(to)
+            .value(42.into())
+            .estimate_gas();
+
+        let estimate_gas = estimate_gas.immediate().expect("success");
+        assert_eq!(estimate_gas, 0x42.into());
+    }
+
+    #[test]
     fn tx_send_local() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
