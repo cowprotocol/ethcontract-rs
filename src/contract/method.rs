@@ -276,6 +276,20 @@ impl<T: Transport, R: Detokenize> CallFuture<T, R> {
     }
 }
 
+impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
+    type Output = Result<R, MethodError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        let mut this = self.project();
+        this.call.as_mut().poll(cx).map(|result| {
+            result
+                .map_err(ExecutionError::from)
+                .and_then(|bytes| decode_geth_call_result(&this.function, bytes.0))
+                .map_err(|err| MethodError::new(&this.function, err))
+        })
+    }
+}
+
 /// Decodes the raw bytes result from an `eth_call` request to check for reverts
 /// and encoded revert messages.
 ///
@@ -300,20 +314,6 @@ fn decode_geth_call_result<R: Detokenize>(
         // just a plain ol' regular result, try and decode it
         let result = R::from_tokens(function.decode_output(&bytes)?)?;
         Ok(result)
-    }
-}
-
-impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
-    type Output = Result<R, MethodError>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let mut this = self.project();
-        this.call.as_mut().poll(cx).map(|result| {
-            result
-                .map_err(ExecutionError::from)
-                .and_then(|bytes| decode_geth_call_result(&this.function, bytes.0))
-                .map_err(|err| MethodError::new(&this.function, err))
-        })
     }
 }
 

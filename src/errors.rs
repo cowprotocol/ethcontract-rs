@@ -2,7 +2,7 @@
 
 mod ganache;
 mod parity;
-pub mod revert;
+pub(crate) mod revert;
 
 use ethcontract_common::abi::{Error as AbiError, ErrorKind as AbiErrorKind, Function};
 use secp256k1::Error as Secp256k1Error;
