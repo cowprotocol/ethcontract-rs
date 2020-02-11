@@ -89,7 +89,7 @@ pub enum ExecutionError {
     ConfirmTimeout,
 
     /// Transaction failure (e.g. out of gas or revert).
-    #[error("transaction failed: {0}")]
+    #[error("transaction failed: {0:?}")]
     Failure(H256),
 }
 
