@@ -2,14 +2,12 @@
 //! intended to be used directly but to be used by a contract `Instance` with
 //! [Instance::method](ethcontract::contract::Instance::method).
 
-use crate::errors::{ExecutionError, MethodError};
+use crate::errors::{revert, ExecutionError, MethodError};
 use crate::future::CompatCallFuture;
-use crate::hash;
 use crate::transaction::send::SendFuture;
 use crate::transaction::{Account, GasPrice, TransactionBuilder};
-use ethcontract_common::abi::{self, Function, ParamType};
+use ethcontract_common::abi::Function;
 use futures::compat::Future01CompatExt;
-use lazy_static::lazy_static;
 use pin_project::pin_project;
 use std::future::Future;
 use std::marker::PhantomData;
@@ -278,11 +276,6 @@ impl<T: Transport, R: Detokenize> CallFuture<T, R> {
     }
 }
 
-lazy_static! {
-    /// The ABI function selector for identifying encoded revert messages.
-    static ref ERROR_SELECTOR: [u8; 4] = hash::function_selector("Error(string)");
-}
-
 /// Decodes the raw bytes result from an `eth_call` request to check for reverts
 /// and encoded revert messages.
 ///
@@ -295,22 +288,14 @@ fn decode_geth_call_result<R: Detokenize>(
     function: &Function,
     bytes: Vec<u8>,
 ) -> Result<R, ExecutionError> {
-    if bytes.is_empty() {
+    if let Some(reason) = revert::decode_reason(&bytes) {
+        // This is an encoded revert message from Geth nodes.
+        Err(ExecutionError::Revert(Some(reason)))
+    } else if bytes.is_empty() {
         // Geth does this on `revert()` without a message and `invalid()`,
         // just treat them all as `invalid()` as generally contracts revert
         // with messages.
         Err(ExecutionError::InvalidOpcode)
-    } else if (bytes.len() + 28) % 32 == 0 && bytes[0..4] == ERROR_SELECTOR[..] {
-        // check to make sure that the length is of the form `4 + (n * 32)`
-        // bytes and it starts with `keccak256("Error(string)")` which means
-        // it is an encoded revert message from Geth nodes.
-        let message = abi::decode(&[ParamType::String], &bytes[4..])?
-            .pop()
-            .expect("decoded single parameter will yield single token")
-            .to_string()
-            .expect("decoded string parameter will always be a string");
-
-        Err(ExecutionError::Revert(Some(message)))
     } else {
         // just a plain ol' regular result, try and decode it
         let result = R::from_tokens(function.decode_output(&bytes)?)?;
@@ -336,7 +321,7 @@ impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
 mod tests {
     use super::*;
     use crate::test::prelude::*;
-    use ethcontract_common::abi::Param;
+    use ethcontract_common::abi::{Param, ParamType};
 
     fn test_abi_function() -> (Function, Bytes) {
         let function = Function {
@@ -487,9 +472,7 @@ mod tests {
             web3, function, address, data,
         ));
 
-        transport.add_response(json!(
-            "0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000076d65737361676500000000000000000000000000000000000000000000000000"
-        )); // call response
+        transport.add_response(json!(revert::encode_reason_hex("message"))); // call response
         let result = tx.call().immediate();
         assert!(
             match &result {
