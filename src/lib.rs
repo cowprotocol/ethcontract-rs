@@ -104,7 +104,7 @@ pub mod transport;
 
 pub use crate::contract::Instance;
 use crate::contract::{DeployBuilder, MethodBuilder, ViewMethodBuilder};
-pub use crate::transaction::Account;
+pub use crate::transaction::{Account, GasPrice};
 pub use crate::transport::DynTransport;
 pub use ethcontract_common as common;
 pub use ethcontract_common::truffle::Artifact;
@@ -115,7 +115,7 @@ pub use secret::{Password, PrivateKey};
 pub use serde_json as json;
 pub use web3;
 use web3::api::Web3;
-pub use web3::types::{Address, BlockNumber, TransactionCondition, H256, U256};
+pub use web3::types::{Address, BlockNumber, TransactionCondition, H160, H256, U256};
 
 /// Type alias for a `Web3` provider with an underlying `DynTransport`.
 pub type DynWeb3 = Web3<DynTransport>;
