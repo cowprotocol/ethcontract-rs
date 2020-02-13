@@ -19,6 +19,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
     quote! {
         #doc
         #[allow(non_camel_case_types)]
+        #[derive(Clone)]
         pub struct #contract_name {
             instance: #ethcontract::DynInstance,
         }
@@ -80,6 +81,14 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             /// by this contract.
             pub fn defaults_mut(&mut self) -> &mut #ethcontract::contract::MethodDefaults {
                 &mut self.instance.defaults
+            }
+        }
+
+        impl std::fmt::Debug for #contract_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.debug_tuple(stringify!(#contract_name))
+                    .field(&self.address())
+                    .finish()
             }
         }
     }
