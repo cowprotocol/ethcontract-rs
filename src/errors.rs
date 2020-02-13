@@ -3,12 +3,13 @@
 mod ganache;
 mod parity;
 pub(crate) mod revert;
+mod web3contract;
 
+pub use self::web3contract::Web3ContractError;
 use ethcontract_common::abi::{Error as AbiError, ErrorKind as AbiErrorKind, Function};
 use secp256k1::Error as Secp256k1Error;
 use std::num::ParseIntError;
 use thiserror::Error;
-use web3::contract::Error as Web3ContractError;
 use web3::error::Error as Web3Error;
 use web3::types::H256;
 
@@ -37,7 +38,7 @@ pub enum DeployError {
 
     /// An error occured encoding deployment parameters with the contract ABI.
     #[error("error ABI ecoding deployment parameters: {0}")]
-    Abi(#[from] AbiError),
+    Abi(AbiErrorKind),
 
     /// Error executing contract deployment transaction.
     #[error("error executing contract deployment transaction: {0}")]
@@ -49,9 +50,15 @@ pub enum DeployError {
     Pending(H256),
 }
 
+impl From<AbiError> for DeployError {
+    fn from(err: AbiError) -> Self {
+        err.0.into()
+    }
+}
+
 impl From<AbiErrorKind> for DeployError {
     fn from(err: AbiErrorKind) -> Self {
-        DeployError::Abi(err.into())
+        DeployError::Abi(err)
     }
 }
 
@@ -105,6 +112,12 @@ impl From<Web3Error> for ExecutionError {
         }
 
         ExecutionError::Web3(err)
+    }
+}
+
+impl From<web3::contract::Error> for ExecutionError {
+    fn from(err: web3::contract::Error) -> Self {
+        ExecutionError::AbiDecode(err.into())
     }
 }
 
@@ -220,5 +233,15 @@ mod tests {
             let signature = function_signature(&function);
             assert_eq!(signature, *expected);
         }
+    }
+
+    #[test]
+    fn all_errors_are_send_and_sync() {
+        fn assert_send_and_sync<T: Send + Sync>() {}
+
+        assert_send_and_sync::<DeployError>();
+        assert_send_and_sync::<ExecutionError>();
+        assert_send_and_sync::<MethodError>();
+        assert_send_and_sync::<InvalidPrivateKey>();
     }
 }
