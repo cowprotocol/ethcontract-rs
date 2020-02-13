@@ -189,6 +189,7 @@ impl From<Secp256k1Error> for InvalidPrivateKey {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error;
 
     #[test]
     fn from_ganache_encoded_error() {
@@ -236,12 +237,12 @@ mod tests {
     }
 
     #[test]
-    fn all_errors_are_send_and_sync() {
-        fn assert_send_and_sync<T: Send + Sync>() {}
+    fn all_errors_are_boxable_errors() {
+        fn assert_boxable_error<T: Error + Send + Sync + 'static>() {}
 
-        assert_send_and_sync::<DeployError>();
-        assert_send_and_sync::<ExecutionError>();
-        assert_send_and_sync::<MethodError>();
-        assert_send_and_sync::<InvalidPrivateKey>();
+        assert_boxable_error::<DeployError>();
+        assert_boxable_error::<ExecutionError>();
+        assert_boxable_error::<MethodError>();
+        assert_boxable_error::<InvalidPrivateKey>();
     }
 }
