@@ -9,8 +9,8 @@ while [[ $# -gt 0 ]]; do
 	case $1 in
 		--token) token="$2"; shift;;
 		--tag) tag="$2"; shift;;
-		--dry-run) options+="--dry-run ";;
-		-v|-vv|--verbose) options+="--verbose ";;
+		--dry-run) options+="$1 ";;
+		-v|-vv|--verbose) options+="$1 ";;
 		-h|--help) cat << EOF
 ci/deploy.sh
 Deploy the workspace to crates.io
@@ -19,17 +19,19 @@ USAGE:
     $0 [OPTIONS]
 
 OPTIONS:
-        --token <TOKEN>             Token to use when uploading
-    -t, --tag <TAG>                 The current tag being deployed
-        --dry-run                   Perform all checks without uploading
-    -v, --verbose                   Use verbose output (-vv very verbose/build.rs output)
-    -h, --help                      Prints this help information
+        --token <TOKEN>     Token to use when uploading
+    -t, --tag <TAG>         The current tag being deployed
+        --dry-run           Perform all checks without uploading
+    -v, --verbose           Use verbose output (-vv very verbose output)
+    -h, --help              Prints this help information
 EOF
+			exit
 			;;
-		*) cat << EOF
-ERROR: Invalid argument '$1'.
+		*) >&2 cat << EOF
+ERROR: Invalid option '$1'.
        For more information try '$0 --help'
 EOF
+			exit 1
 			;;
 	esac
 	shift
@@ -38,7 +40,7 @@ done
 function check_manifest_version {
 	version=$(cat $1 | grep '^version' | sed -n 's/version = "\(.*\)"/v\1/p')
 	if [[ ! $version = $tag ]]; then
-		echo "$1 is at $version but expected $tag"
+		>&2 echo "ERROR: $1 is at $version but expected $tag"
 		exit 1
 	fi
 }
