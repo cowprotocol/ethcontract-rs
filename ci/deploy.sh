@@ -27,7 +27,7 @@ OPTIONS:
 EOF
 			exit
 			;;
-		*) cat << EOF
+		*) >&2 cat << EOF
 ERROR: Invalid option '$1'.
        For more information try '$0 --help'
 EOF
@@ -40,7 +40,7 @@ done
 function check_manifest_version {
 	version=$(cat $1 | grep '^version' | sed -n 's/version = "\(.*\)"/v\1/p')
 	if [[ ! $version = $tag ]]; then
-		echo "$1 is at $version but expected $tag"
+		>&2 echo "ERROR: $1 is at $version but expected $tag"
 		exit 1
 	fi
 }
