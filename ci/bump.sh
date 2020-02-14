@@ -65,11 +65,11 @@ function msg {
 msg "Updating Cargo manifests with new version '$version':"
 for manifest in Cargo.toml */Cargo.toml examples/*/Cargo.toml; do
 	msg "  - $manifest"
-	sed -iEe 's/^((ethcontract-[a-z]+ = \{ )?version = )"[0-9\.]+"/\1"'"$version"'"' **/Cargo.toml
+	sed -i -E -e 's/^((ethcontract-[a-z]+ = \{ )?version) = "[0-9\.]+"/\1 = "'"$version"'"/g' "$manifest"
 done
 
 msg "Updating npm packages with new version '$version':"
 for package in examples/*/package.json; do
 	msg "  - $package"
-	sed -iEe 's/^(  "version": )"[0-9\.]+"/\1"'"$version"'"' examples/truffle/package.json
+	sed -i -E -e 's/^(  "version":) "[0-9\.]+"/\1 "'"$version"'"/g' "$package"
 done
