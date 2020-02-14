@@ -8,6 +8,7 @@
 
 use jsonrpc_core::Call;
 use serde_json::Value;
+use std::any::Any;
 use std::fmt::Debug;
 use std::sync::Arc;
 use web3::error::Error as Web3Error;
@@ -64,9 +65,16 @@ impl DynTransport {
         F: Future<Item = Value, Error = Web3Error> + Send + 'static,
         T: Transport<Out = F> + 'static,
     {
-        DynTransport {
-            inner: Arc::new(inner),
-        }
+        let inner_ref: &dyn Any = &inner;
+        let inner_arc = match inner_ref.downcast_ref::<DynTransport>() {
+            // NOTE: If a `DynTransport` is being created from another
+            //   `DynTransport`, then just clone its inner transport instead of
+            //   re-wrapping it.
+            Some(dyn_transport) => dyn_transport.inner.clone(),
+            None => Arc::new(inner),
+        };
+
+        DynTransport { inner: inner_arc }
     }
 }
 
@@ -126,5 +134,20 @@ mod tests {
             .expect("failed");
         transport.assert_request("test", &[json!(42)]);
         transport.assert_no_more_requests();
+    }
+
+    #[test]
+    #[allow(clippy::redundant_clone)]
+    fn dyn_transport_does_not_double_wrap() {
+        let transport = TestTransport::new();
+        let dyn_transport = DynTransport::new(transport);
+        assert_eq!(Arc::strong_count(&dyn_transport.inner), 1);
+
+        let dyn_dyn_transport = DynTransport::new(dyn_transport.clone());
+        // NOTE: We expect the newly created `dyn_dyn_transport` to have two
+        //   references to its inner transport, one held by itself, and the
+        //   other by `dyn_transport`. If the `dyn_transport` was being
+        //   re-wrapped in an `Arc`, then the count would only be 1.
+        assert_eq!(Arc::strong_count(&dyn_dyn_transport.inner), 2);
     }
 }
