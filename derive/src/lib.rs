@@ -25,10 +25,22 @@ use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, T
 /// ethcontract::contract!("build/contracts/MyContract.json");
 /// ```
 ///
+/// Alternatively, an etherscan URL can be specified. In this case the ABI will
+/// be retrieved and used to generate type-safe contract bindings:
+///
+/// ```ignore
+/// ethcontract::contract!("etherscan:0x0001020304050607080910111213141516171819");
+/// // or
+/// ethcontract::contract!("https://etherscan.io/address/0x0001020304050607080910111213141516171819");
+/// ```
+///
 /// Currently the proc macro accepts additional parameters to configure some
 /// aspects of the code generation. Specifically it accepts:
 /// - `crate`: The name of the `ethcontract` crate. This is useful if the crate
 ///   was renamed in the `Cargo.toml` for whatever reason.
+/// - `contract`: Override the contract name that is used for the generated
+///   type. This is required when using sources that do not provide the contract
+///   name in the artifact JSON such as Etherscan.
 /// - `deployments`: A list of additional addresses of deployed contract for
 ///   specified network IDs. This mapping allows `MyContract::deployed` to work
 ///   for networks that are not included in the Truffle artifact's `networks`
@@ -42,6 +54,7 @@ use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, T
 /// ethcontract::contract!(
 ///     "build/contracts/MyContract.json",
 ///     crate = ethcontract_rename,
+///     contract = MyContractInstance,
 ///     deployments {
 ///         4 => "0x000102030405060708090a0b0c0d0e0f10111213"
 ///         5777 => "0x0123456789012345678901234567890123456789"
@@ -62,8 +75,7 @@ pub fn contract(input: TokenStream) -> TokenStream {
 }
 
 fn expand(args: ContractArgs) -> Result<TokenStream2, Box<dyn Error>> {
-    let tokens = args.into_builder()?.generate()?.into_tokens();
-    Ok(tokens)
+    Ok(args.into_builder()?.generate()?.into_tokens())
 }
 
 /// Contract procedural macro arguments.

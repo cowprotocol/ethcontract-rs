@@ -89,13 +89,26 @@ yarn start
 
 There is a provided example that runs with Rinkeby and Infura. Running this
 example is a little more involved to run because it requires a private key with
-funds on Rinkeby (for gas) as well as a Infura project ID in order to connect to
-a node. Parameters are provided to the Rinkeby example by environment variables:
+funds on Rinkeby (for gas) as well as an Infura project ID in order to connect
+to a node. Parameters are provided to the Rinkeby example by environment
+variables:
 
 ```sh
 export PK="private key"
 export INFURA_PROJECT_ID="Infura project ID"
 cargo run --example rinkeby
+```
+
+### Etherscan Example
+
+This example generates contract bindings from a verfied contract on Etherscan
+and then queries some contract state with Infura. Running this example requires
+an Infura project ID in order to connect to a node. Parameters are provided to
+the example by environment variables:
+
+```sh
+export INFURA_PROJECT_ID="Infura project ID"
+cargo run --example etherscan
 ```
 
 ## Sample Contracts Documentation

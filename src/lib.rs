@@ -84,7 +84,8 @@
 //! ```
 //!
 //! See [`contract!`](ethcontract::contract) proc macro documentation for more
-//! information on usage and parameters.
+//! information on usage and parameters as well on how to use contract ABI
+//! directly from Etherscan.
 
 #[cfg(test)]
 #[allow(missing_docs)]
