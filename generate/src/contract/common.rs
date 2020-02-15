@@ -5,7 +5,7 @@ use quote::quote;
 
 pub(crate) fn expand(cx: &Context) -> TokenStream {
     let ethcontract = &cx.runtime_crate;
-    let artifact_path = &cx.artifact_path;
+    let artifact_json = &cx.artifact_json;
     let contract_name = &cx.contract_name;
 
     let doc_str = cx
@@ -26,15 +26,15 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
 
         #[allow(dead_code)]
         impl #contract_name {
-            /// Retrieves the truffle artifact used to generate the type safe API
-            /// for this contract.
+            /// Retrieves the truffle artifact used to generate the type safe
+            /// API for this contract.
             pub fn artifact() -> &'static #ethcontract::Artifact {
                 use #ethcontract::private::lazy_static;
                 use #ethcontract::Artifact;
 
                 lazy_static! {
                     pub static ref ARTIFACT: Artifact = {
-                        Artifact::from_json(include_str!(#artifact_path))
+                        Artifact::from_json(#artifact_json)
                             .expect("valid artifact JSON")
                     };
                 }

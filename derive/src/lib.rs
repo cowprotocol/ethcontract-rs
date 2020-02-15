@@ -10,8 +10,9 @@ mod spanned;
 use crate::spanned::{ParseInner, Spanned};
 use ethcontract_generate::{parse_address, Address, Builder};
 use proc_macro::TokenStream;
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 use std::collections::HashSet;
+use std::error::Error;
 use syn::ext::IdentExt;
 use syn::parse::{Error as ParseError, Parse, ParseStream, Result as ParseResult};
 use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, Token};
@@ -55,12 +56,14 @@ pub fn contract(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as Spanned<ContractArgs>);
 
     let span = args.span();
-    args.into_inner()
-        .into_builder()
-        .generate()
-        .map(|bindings| bindings.into_tokens())
+    expand(args.into_inner())
         .unwrap_or_else(|e| SynError::new(span, e.to_string()).to_compile_error())
         .into()
+}
+
+fn expand(args: ContractArgs) -> Result<TokenStream2, Box<dyn Error>> {
+    let tokens = args.into_builder()?.generate()?.into_tokens();
+    Ok(tokens)
 }
 
 /// Contract procedural macro arguments.
@@ -71,11 +74,12 @@ struct ContractArgs {
 }
 
 impl ContractArgs {
-    fn into_builder(self) -> Builder {
-        let mut builder = Builder::new(&self.artifact_path);
+    fn into_builder(self) -> Result<Builder, Box<dyn Error>> {
+        let mut builder = Builder::from_source_url(&self.artifact_path)?;
         for parameter in self.parameters.into_iter() {
             builder = match parameter {
                 Parameter::Crate(name) => builder.with_runtime_crate_name(name),
+                Parameter::Contract(name) => builder.with_contract_name_override(Some(name)),
                 Parameter::Deployments(deployments) => {
                     deployments.into_iter().fold(builder, |builder, d| {
                         builder.add_deployment(d.network_id, d.address)
@@ -83,7 +87,8 @@ impl ContractArgs {
                 }
             };
         }
-        builder
+
+        Ok(builder)
     }
 }
 
@@ -121,6 +126,7 @@ impl ParseInner for ContractArgs {
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 enum Parameter {
     Crate(String),
+    Contract(String),
     Deployments(Vec<Deployment>),
 }
 
@@ -133,6 +139,12 @@ impl Parse for Parameter {
                 let name = input.call(Ident::parse_any)?.to_string();
 
                 Parameter::Crate(name)
+            }
+            "contract" => {
+                input.parse::<Token![=]>()?;
+                let name = input.parse::<Ident>()?.to_string();
+
+                Parameter::Contract(name)
             }
             "deployments" => {
                 let content;
@@ -242,6 +254,7 @@ mod tests {
         let args = contract_args!(
             "artifact.json",
             crate = foobar,
+            contract = Contract,
             deployments {
                 1 => "0x000102030405060708090a0b0c0d0e0f10111213",
                 4 => "0x0123456789012345678901234567890123456789",
@@ -253,6 +266,7 @@ mod tests {
                 artifact_path: "artifact.json".into(),
                 parameters: vec![
                     Parameter::Crate("foobar".into()),
+                    Parameter::Contract("Contract".into()),
                     Parameter::Deployments(vec![
                         deployment(1, "0x000102030405060708090a0b0c0d0e0f10111213"),
                         deployment(4, "0x0123456789012345678901234567890123456789"),
