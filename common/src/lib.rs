@@ -5,6 +5,7 @@
 
 pub mod bytecode;
 pub mod errors;
+pub mod hash;
 pub mod truffle;
 
 pub use crate::bytecode::Bytecode;

@@ -36,9 +36,9 @@ mod tests {
         // test vector retrieved from
         // https://web3js.readthedocs.io/en/v1.2.4/web3-utils.html#sha3
         assert_eq!(
-            keccak256([0xea]),
-            hash!("0x2f20677459120677484f7104c76deb6846a2c071f9b3152c103bb12cd54d1a4a")
-                .to_fixed_bytes(),
+            &keccak256([0xea]),
+            b"\x2f\x20\x67\x74\x59\x12\x06\x77\x48\x4f\x71\x04\xc7\x6d\xeb\x68\
+              \x46\xa2\xc0\x71\xf9\xb3\x15\x2c\x10\x3b\xb1\x2c\xd5\x4d\x1a\x4a"
         );
     }
 

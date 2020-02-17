@@ -96,7 +96,6 @@ pub mod contract;
 mod conv;
 pub mod errors;
 mod future;
-mod hash;
 pub mod secret;
 pub mod sign;
 pub mod transaction;
