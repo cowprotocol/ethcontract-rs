@@ -7,6 +7,7 @@ mod web3contract;
 
 pub use self::web3contract::Web3ContractError;
 use ethcontract_common::abi::{Error as AbiError, ErrorKind as AbiErrorKind, Function};
+use ethcontract_common::FunctionExt;
 use secp256k1::Error as Secp256k1Error;
 use std::num::ParseIntError;
 use thiserror::Error;
@@ -143,26 +144,13 @@ impl MethodError {
     /// Create a new `MethodError` from an ABI function specification and an
     /// inner `ExecutionError`.
     pub fn new<I: Into<ExecutionError>>(function: &Function, inner: I) -> Self {
-        MethodError::from_parts(function_signature(function), inner.into())
+        MethodError::from_parts(function.signature(), inner.into())
     }
 
     /// Create a `MethodError` from its signature and inner `ExecutionError`.
     pub fn from_parts(signature: String, inner: ExecutionError) -> Self {
         MethodError { signature, inner }
     }
-}
-
-fn function_signature(function: &Function) -> String {
-    format!(
-        "{}({})",
-        function.name,
-        function
-            .inputs
-            .iter()
-            .map(|input| input.kind.to_string())
-            .collect::<Vec<_>>()
-            .join(","),
-    )
 }
 
 /// An error indicating an invalid private key. Private keys for secp256k1 must
@@ -219,21 +207,6 @@ mod tests {
             "bad error conversion {:?}",
             err
         );
-    }
-
-    #[test]
-    fn format_function_signature() {
-        for (f, expected) in &[
-            (r#"{"name":"foo","inputs":[],"outputs":[]}"#, "foo()"),
-            (
-                r#"{"name":"bar","inputs":[{"name":"a","type":"uint256"},{"name":"b","type":"bool"}],"outputs":[]}"#,
-                "bar(uint256,bool)",
-            ),
-        ] {
-            let function: Function = serde_json::from_str(f).expect("invalid function JSON");
-            let signature = function_signature(&function);
-            assert_eq!(signature, *expected);
-        }
     }
 
     #[test]

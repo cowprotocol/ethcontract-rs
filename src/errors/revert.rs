@@ -1,7 +1,7 @@
 //! Module implements decoding ABI encoded revert reasons.
 
-use crate::hash;
 use ethcontract_common::abi::{self, ParamType};
+use ethcontract_common::hash;
 use lazy_static::lazy_static;
 
 lazy_static! {
