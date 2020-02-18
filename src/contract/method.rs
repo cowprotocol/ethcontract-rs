@@ -2,6 +2,7 @@
 //! intended to be used directly but to be used by a contract `Instance` with
 //! [Instance::method](ethcontract::contract::Instance::method).
 
+use crate::abicompat::AbiCompat;
 use crate::errors::{revert, ExecutionError, MethodError};
 use crate::future::CompatCallFuture;
 use crate::transaction::send::SendFuture;
@@ -312,7 +313,11 @@ fn decode_geth_call_result<R: Detokenize>(
         Err(ExecutionError::InvalidOpcode)
     } else {
         // just a plain ol' regular result, try and decode it
-        let result = R::from_tokens(function.decode_output(&bytes)?)?;
+        let tokens = match function.decode_output(&bytes)?.compat() {
+            Some(tokens) => tokens,
+            None => return Err(ExecutionError::UnsupportedToken),
+        };
+        let result = R::from_tokens(tokens)?;
         Ok(result)
     }
 }

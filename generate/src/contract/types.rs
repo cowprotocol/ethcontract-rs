@@ -47,5 +47,12 @@ pub(crate) fn expand(cx: &Context, kind: &ParamType) -> Result<TokenStream> {
             let size = Literal::usize_unsuffixed(*n);
             Ok(quote! { [#inner; #size] })
         }
+        ParamType::Tuple(ts) => {
+            let inner = ts
+                .iter()
+                .map(|t| expand(cx, t))
+                .collect::<Result<Vec<_>>>()?;
+            Ok(quote! { ( #( #inner ,)* ) })
+        }
     }
 }
