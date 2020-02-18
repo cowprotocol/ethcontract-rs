@@ -4,7 +4,7 @@ pub use crate::test::transport::MockTransport;
 pub use crate::test::transport::TestTransport;
 pub use crate::test::transport::TestTransport_;
 use futures::future::FutureExt;
-pub use mockall::predicate::*;
+pub use mockall::{predicate::*, Sequence};
 pub use serde_json::json;
 use std::future::Future;
 pub use web3::api::Web3;

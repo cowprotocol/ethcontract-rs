@@ -499,4 +499,73 @@ mod tests {
         transport.assert_request("eth_getTransactionReceipt", &[json!(tx_hash)]);
         transport.assert_no_more_requests();
     }
+
+    #[test]
+    fn tx_failure_() {
+        let transport = TestTransport_::new();
+        let web3 = Web3::new(transport.clone());
+
+        let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
+        let chain_id = 77777;
+        let tx_hash = H256::repeat_byte(0xff);
+
+        let builder = TransactionBuilder::new(web3)
+            .from(Account::Offline(key, Some(chain_id)))
+            .to(Address::zero())
+            .gas(0x1337.into())
+            .gas_price(0x00ba_b10c.into())
+            .nonce(0x42.into());
+
+        let tx_raw = builder
+            .clone()
+            .build()
+            .immediate()
+            .expect("failed to sign transaction")
+            .raw()
+            .expect("offline transactions always build into raw transactions");
+
+        let mut seq = Sequence::new();
+        transport
+            .mock()
+            .expect_execute()
+            .with(eq("eth_sendRawTransaction"), eq(vec![json!(tx_raw)]))
+            .return_const(web3::futures::future::ok(json!(tx_hash)))
+            .times(1)
+            .in_sequence(&mut seq);
+        transport
+            .mock()
+            .expect_execute()
+            .with(eq("eth_blockNumber"), eq(vec![]))
+            .return_const(web3::futures::future::ok(json!("0x1")))
+            .times(1)
+            .in_sequence(&mut seq);
+        transport
+            .mock()
+            .expect_execute()
+            .with(eq("eth_getTransactionReceipt"), eq(vec![json!(tx_hash)]))
+            .return_const(web3::futures::future::ok(json!({
+                "transactionHash": tx_hash,
+                "transactionIndex": "0x1",
+                "blockNumber": "0x1",
+                "blockHash": H256::repeat_byte(1),
+                "cumulativeGasUsed": "0x1337",
+                "gasUsed": "0x1337",
+                "logsBloom": H2048::zero(),
+                "logs": [],
+            })))
+            .times(1)
+            .in_sequence(&mut seq);
+
+        let result = builder.send().immediate();
+
+        assert!(
+            match &result {
+                Err(ExecutionError::Failure(ref hash)) if *hash == tx_hash => true,
+                _ => false,
+            },
+            "expected transaction failure with hash {} but got {:?}",
+            tx_hash,
+            result
+        );
+    }
 }
