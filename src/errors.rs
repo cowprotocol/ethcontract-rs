@@ -6,8 +6,7 @@ pub(crate) mod revert;
 mod web3contract;
 
 pub use self::web3contract::Web3ContractError;
-use ethcontract_common::abi::{Error as AbiError, ErrorKind as AbiErrorKind, Function};
-use ethcontract_common::FunctionExt;
+use ethcontract_common::abi::{Error as AbiError, Function};
 use secp256k1::Error as Secp256k1Error;
 use std::num::ParseIntError;
 use thiserror::Error;
@@ -39,7 +38,7 @@ pub enum DeployError {
 
     /// An error occured encoding deployment parameters with the contract ABI.
     #[error("error ABI ecoding deployment parameters: {0}")]
-    Abi(AbiErrorKind),
+    Abi(#[from] AbiError),
 
     /// Error executing contract deployment transaction.
     #[error("error executing contract deployment transaction: {0}")]
@@ -49,18 +48,6 @@ pub enum DeployError {
     /// address cannot be determined.
     #[error("contract deployment transaction pending: {0}")]
     Pending(H256),
-}
-
-impl From<AbiError> for DeployError {
-    fn from(err: AbiError) -> Self {
-        err.0.into()
-    }
-}
-
-impl From<AbiErrorKind> for DeployError {
-    fn from(err: AbiErrorKind) -> Self {
-        DeployError::Abi(err)
-    }
 }
 
 /// Error that can occur while executing a contract call or transaction.
@@ -99,6 +86,13 @@ pub enum ExecutionError {
     /// Transaction failure (e.g. out of gas or revert).
     #[error("transaction failed: {0:?}")]
     Failure(H256),
+
+    /// A call returned an unsupported token. This happens when using the
+    /// experimental `ABIEncoderV2` option.
+    ///
+    /// This is intended to be implemented in future version of `ethcontract`.
+    #[error("unsupported ABI token")]
+    UnsupportedToken,
 }
 
 impl From<Web3Error> for ExecutionError {

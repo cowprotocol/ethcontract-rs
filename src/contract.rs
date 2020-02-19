@@ -6,6 +6,7 @@ mod deploy;
 mod deployed;
 mod method;
 
+use crate::abicompat::AbiCompat;
 use crate::errors::{DeployError, LinkError};
 use ethcontract_common::abi::Result as AbiResult;
 use ethcontract_common::truffle::Network;
@@ -116,7 +117,7 @@ impl<T: Transport> Instance<T> {
         P: Tokenize,
     {
         let function = self.abi.function(name.as_ref())?;
-        let data = function.encode_input(&params.into_tokens())?;
+        let data = function.encode_input(&params.into_tokens().compat())?;
 
         // take ownership here as it greatly simplifies dealing with futures
         // lifetime as it would require the contract Instance to live until

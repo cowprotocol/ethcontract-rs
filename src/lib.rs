@@ -92,6 +92,7 @@
 #[path = "test/macros.rs"]
 mod test_macros;
 
+mod abicompat;
 pub mod contract;
 mod conv;
 pub mod errors;

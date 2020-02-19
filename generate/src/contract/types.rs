@@ -47,5 +47,6 @@ pub(crate) fn expand(cx: &Context, kind: &ParamType) -> Result<TokenStream> {
             let size = Literal::usize_unsuffixed(*n);
             Ok(quote! { [#inner; #size] })
         }
+        ParamType::Tuple(_) => Err(anyhow!("ABIEncoderV2 is currently not supported")),
     }
 }
