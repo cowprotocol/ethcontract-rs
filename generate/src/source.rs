@@ -135,9 +135,14 @@ fn get_etherscan_contract(address: Address) -> Result<String> {
     //   same bytecode is unreliable as the libraries have already linked and
     //   probably don't reference anything when deploying on other networks.
 
+    let api_key = env::var("ETHERSCAN_API_KEY")
+        .map(|key| format!("&apikey={}", key))
+        .unwrap_or_default();
+
     let abi_url = format!(
-        "http://api.etherscan.io/api?module=contract&action=getabi&address={:?}&format=raw",
-        address,
+        "http://api.etherscan.io/api\
+         ?module=contract&action=getabi&address={:?}&format=raw{}",
+        address, api_key,
     );
     let abi = util::http_get(&abi_url).context("failed to retrieve ABI from Etherscan.io")?;
 
