@@ -2,8 +2,8 @@
 //! Hopefully we can move this functionailly upstream to the `web3` crate as
 //! part of the missing `accounts` namespace.
 
-use crate::hash;
 use crate::secret::PrivateKey;
+use ethcontract_common::hash;
 use rlp::RlpStream;
 use secp256k1::recovery::RecoveryId;
 use secp256k1::{Message, Secp256k1};

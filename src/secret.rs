@@ -1,7 +1,7 @@
 //! This module implements secrets in the form of protected memory.
 
 use crate::errors::InvalidPrivateKey;
-use crate::hash;
+use ethcontract_common::hash;
 use secp256k1::key::ONE_KEY;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use std::fmt::{self, Debug, Formatter};

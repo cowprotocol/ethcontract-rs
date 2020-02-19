@@ -1,10 +1,11 @@
 //! Implementation for creating instances for deployed contracts and deploying
 //! new contracts.
 
+use crate::abicompat::AbiCompat;
 use crate::errors::{DeployError, ExecutionError};
 use crate::transaction::send::SendFuture;
 use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
-use ethcontract_common::abi::ErrorKind as AbiErrorKind;
+use ethcontract_common::abi::Error as AbiError;
 use ethcontract_common::{Abi, Bytecode};
 use futures::ready;
 use pin_project::pin_project;
@@ -75,9 +76,9 @@ where
         }
 
         let code = bytecode.to_bytes()?;
-        let params = params.into_tokens();
+        let params = params.into_tokens().compat();
         let data = match (I::abi(&context).constructor(), params.is_empty()) {
-            (None, false) => return Err(AbiErrorKind::InvalidData.into()),
+            (None, false) => return Err(AbiError::InvalidData.into()),
             (None, true) => code,
             (Some(ctor), _) => Bytes(ctor.encode_input(code.0, &params)?),
         };
