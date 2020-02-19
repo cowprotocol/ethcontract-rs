@@ -35,7 +35,6 @@ pub fn f64_to_u256(value: f64) -> U256 {
         } else if exponent >= 256 {
             U256::MAX
         } else {
-            println!("{:b}", mantissa);
             U256::from(mantissa) << U256::from(exponent - 52)
         }
     } else {
