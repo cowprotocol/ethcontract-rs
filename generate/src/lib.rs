@@ -5,24 +5,29 @@
 //! crate's `contract` procedural macro or directly from a build script.
 
 mod contract;
+mod source;
 mod util;
 
-use anyhow::{anyhow, Result};
+pub use crate::source::Source;
+pub use crate::util::parse_address;
+use anyhow::Result;
 pub use ethcontract_common::Address;
 use proc_macro2::TokenStream;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Internal global arguments passed to the generators for each individual
 /// component that control expansion.
 pub(crate) struct Args {
-    /// The path to the truffle artifact for the contract whose bindings are
-    /// being generated.
-    artifact_path: PathBuf,
+    /// The source of the truffle artifact JSON for the contract whose bindings
+    /// are being generated.
+    artifact_source: Source,
     /// The runtime crate name to use.
     runtime_crate_name: String,
+    /// Override the contract name to use for the generated type.
+    contract_name_override: Option<String>,
     /// Manually specified deployed contract addresses.
     deployments: HashMap<u32, Address>,
 }
@@ -30,13 +35,11 @@ pub(crate) struct Args {
 impl Args {
     /// Creates a new builder given the path to a contract's truffle artifact
     /// JSON file.
-    pub fn new<P>(artifact_path: P) -> Self
-    where
-        P: AsRef<Path>,
-    {
+    pub fn new(source: Source) -> Self {
         Args {
-            artifact_path: artifact_path.as_ref().to_owned(),
+            artifact_source: source,
             runtime_crate_name: "ethcontract".to_owned(),
+            contract_name_override: None,
             deployments: HashMap::new(),
         }
     }
@@ -56,8 +59,22 @@ impl Builder {
     where
         P: AsRef<Path>,
     {
+        Builder::with_source(Source::local(artifact_path))
+    }
+
+    /// Creates a new builder from a source URL.
+    pub fn from_source_url<S>(source_url: S) -> Result<Self>
+    where
+        S: AsRef<str>,
+    {
+        let source = Source::parse(source_url)?;
+        Ok(Builder::with_source(source))
+    }
+
+    /// Creates a new builder with the given artifact JSON source.
+    pub fn with_source(source: Source) -> Self {
         Builder {
-            args: Args::new(artifact_path),
+            args: Args::new(source),
         }
     }
 
@@ -68,6 +85,17 @@ impl Builder {
         S: Into<String>,
     {
         self.args.runtime_crate_name = name.into();
+        self
+    }
+
+    /// Sets the optional contract name override. This setting is needed when
+    /// using a artifact JSON source that does not provide a contract name such
+    /// as Etherscan.
+    pub fn with_contract_name_override<S>(mut self, name: Option<S>) -> Self
+    where
+        S: Into<String>,
+    {
+        self.args.contract_name_override = name.map(S::into);
         self
     }
 
@@ -139,47 +167,5 @@ impl ContractBindings {
     /// to be used within a procedural macro.
     pub fn into_tokens(self) -> TokenStream {
         self.tokens
-    }
-}
-
-/// Parses the given address string
-pub fn parse_address<S>(address_str: S) -> Result<Address>
-where
-    S: AsRef<str>,
-{
-    let address_str = address_str.as_ref();
-    if !address_str.starts_with("0x") {
-        return Err(anyhow!("address must start with '0x'"));
-    }
-    Ok(address_str[2..].parse()?)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_address_missing_prefix() {
-        if parse_address("0000000000000000000000000000000000000000").is_ok() {
-            panic!("parsing address not starting with 0x should fail");
-        }
-    }
-
-    #[test]
-    fn parse_address_address_too_short() {
-        if parse_address("0x00000000000000").is_ok() {
-            panic!("parsing address not starting with 0x should fail");
-        }
-    }
-
-    #[test]
-    fn parse_address_ok() {
-        let expected = Address::from([
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-        ]);
-        assert_eq!(
-            parse_address("0x000102030405060708090a0b0c0d0e0f10111213").unwrap(),
-            expected
-        );
     }
 }

@@ -11,6 +11,7 @@ use web3::types::Address;
 
 /// Represents a truffle artifact.
 #[derive(Clone, Debug, Deserialize)]
+#[serde(default = "Artifact::empty")]
 pub struct Artifact {
     /// The contract name
     #[serde(rename = "contractName")]
@@ -90,6 +91,12 @@ pub struct DocEntry {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
-    fn parse() {}
+    fn parse_empty() {
+        if let Err(err) = Artifact::from_json("{}") {
+            panic!("error parsing empty artifact: {:?}", err);
+        }
+    }
 }

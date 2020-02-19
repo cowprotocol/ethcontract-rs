@@ -11,21 +11,16 @@ mod types;
 
 use crate::util;
 use crate::Args;
-use anyhow::{Context as _, Result};
+use anyhow::{anyhow, Context as _, Result};
 use ethcontract_common::{Address, Artifact};
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
-use std::env;
-use std::fs;
-use std::path::PathBuf;
 
 /// Internal shared context for generating smart contract bindings.
 pub(crate) struct Context {
-    /// The full path to the artifact JSON file.
-    full_path: PathBuf,
-    /// The artifact path as string literal.
-    artifact_path: Literal,
+    /// The artifact JSON as string literal.
+    artifact_json: Literal,
     /// The parsed artifact.
     artifact: Artifact,
     /// The identifier for the runtime crate. Usually this is `ethcontract` but
@@ -41,26 +36,44 @@ pub(crate) struct Context {
 impl Context {
     /// Create a context from the code generation arguments.
     fn from_args(args: Args) -> Result<Self> {
-        let full_path = fs::canonicalize(&args.artifact_path).with_context(|| {
-            format!(
-                "unable to open file from working dir {} with path {}",
-                env::current_dir()
-                    .map(|path| path.display().to_string())
-                    .unwrap_or_else(|err| format!("??? ({})", err)),
-                args.artifact_path.display(),
-            )
-        })?;
-        let artifact_path = Literal::string(&full_path.to_string_lossy());
+        let (artifact_json, artifact) = {
+            let artifact_json = args
+                .artifact_source
+                .artifact_json()
+                .context("failed to get artifact JSON")?;
 
-        let artifact = Artifact::load(&full_path)
-            .with_context(|| format!("failed to parse JSON from file {}", full_path.display()))?;
+            let artifact = Artifact::from_json(&artifact_json)
+                .with_context(|| format!("invalid artifact JSON '{}'", artifact_json))
+                .with_context(|| {
+                    format!(
+                        "failed to parse artifact from source {:?}",
+                        args.artifact_source,
+                    )
+                })?;
+
+            (Literal::string(&artifact_json), artifact)
+        };
 
         let runtime_crate = util::ident(&args.runtime_crate_name);
-        let contract_name = util::ident(&artifact.contract_name);
+        let contract_name = {
+            let name = if let Some(name) = args.contract_name_override.as_ref() {
+                name
+            } else if !artifact.contract_name.is_empty() {
+                &artifact.contract_name
+            } else {
+                return Err(anyhow!(
+                    "contract artifact is missing a name, this can happen when \
+                     using a source that does not provide a contract name such \
+                     as Etherscan; in this case the contract must be manually \
+                     specified"
+                ));
+            };
+
+            util::ident(name)
+        };
 
         Ok(Context {
-            full_path,
-            artifact_path,
+            artifact_json,
             artifact,
             runtime_crate,
             contract_name,
@@ -71,8 +84,7 @@ impl Context {
     #[cfg(test)]
     fn empty() -> Self {
         Context {
-            full_path: "/Contract.json".into(),
-            artifact_path: Literal::string("Contract.json"),
+            artifact_json: Literal::string("{}"),
             artifact: Artifact::empty(),
             runtime_crate: util::ident("ethcontract"),
             contract_name: util::ident("Contract"),
@@ -83,12 +95,8 @@ impl Context {
 
 pub(crate) fn expand(args: Args) -> Result<TokenStream> {
     let cx = Context::from_args(args)?;
-    let contract = expand_contract(&cx).with_context(|| {
-        format!(
-            "error expanding contract from JSON {}",
-            cx.full_path.display()
-        )
-    })?;
+    let contract = expand_contract(&cx)
+        .with_context(|| format!("error expanding contract from JSON '{}'", cx.artifact_json))?;
 
     Ok(contract)
 }
