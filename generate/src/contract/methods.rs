@@ -36,7 +36,7 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
 fn expand_function(cx: &Context, function: &Function) -> Result<TokenStream> {
     let ethcontract = &cx.runtime_crate;
 
-    let name = util::ident(&function.name.to_snake_case());
+    let name = util::safe_ident(&function.name.to_snake_case());
     let name_str = Literal::string(&function.name);
 
     let signature = function_signature(&function);
@@ -100,8 +100,7 @@ fn input_name_to_ident(index: usize, name: &str) -> SynIdent {
         "" => format!("p{}", index),
         n => n.to_snake_case(),
     };
-    // Parsing keywords like `self` can fail, in this case we add an underscore.
-    syn::parse_str::<SynIdent>(&name_str).unwrap_or_else(|_| util::ident(&format!("{}_", name_str)))
+    util::safe_ident(&name_str)
 }
 
 fn expand_input_name(index: usize, name: &str) -> TokenStream {
