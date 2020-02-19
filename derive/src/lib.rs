@@ -34,6 +34,10 @@ use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, T
 /// ethcontract::contract!("https://etherscan.io/address/0x0001020304050607080910111213141516171819");
 /// ```
 ///
+/// Note that Etherscan rate-limits requests to their API, to avoid this an
+/// `ETHERSCAN_API_KEY` environment variable can be set. If it is, it will use
+/// that API key when retrieving the contract ABI.
+///
 /// Currently the proc macro accepts additional parameters to configure some
 /// aspects of the code generation. Specifically it accepts:
 /// - `crate`: The name of the `ethcontract` crate. This is useful if the crate
