@@ -3,47 +3,64 @@
 use jsonrpc_core::{Call, Value};
 use std::cell::RefCell;
 use std::clone::Clone;
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::rc::Rc;
 use web3::error::Error;
 use web3::futures::future::FutureResult;
 use web3::{RequestId, Transport};
 
-mockall::mock! {
-    pub Transport {
-        fn execute(&self, method: &str, params: Vec<Value>) -> FutureResult<Value, Error>;
-    }
+// ----------------------------------------------------
+
+/// Request
+#[derive(Debug)]
+pub struct Request {
+    pub method: String,
+    pub params: Vec<Value>,
 }
 
-// `Debug` is needed so that `TestTransport` can derive `Debug`.
-impl Debug for MockTransport {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "MockTransport")
-    }
+/// RequestResponse
+#[derive(Debug)]
+pub struct RequestResponse {
+    request: Request,
+    response: Result<Value, Error>,
 }
 
-/// Implements `Transport` forwarding calls to `execute` to a mockable struct.
-///
-/// `MockTransport` itself does not implement `Transport` because we only use
-/// `execute` because it is the most convenient function to mock.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TestTransport_ {
-    mock_transport: Rc<RefCell<MockTransport>>,
+    request_responses: Rc<RefCell<VecDeque<RequestResponse>>>,
 }
 
 impl TestTransport_ {
-    pub fn new() -> TestTransport_ {
-        TestTransport_ {
-            mock_transport: Rc::new(RefCell::new(MockTransport::new())),
-        }
+    pub fn new() -> Self {
+        Default::default()
     }
 
-    /// Access the underlying struct on which `expect_execute` can be called.
-    ///
-    /// Note that no instance of the `RefMut` can be alive when the transport
-    /// gets called because it represents a mutable reference.
-    pub fn mock(&self) -> std::cell::RefMut<MockTransport> {
-        self.mock_transport.as_ref().borrow_mut()
+    pub fn expect_request(
+        &mut self,
+        method: impl Into<String>,
+        params: impl AsRef<[Value]>,
+        response: Result<Value, Error>,
+    ) {
+        self.request_responses
+            .borrow_mut()
+            .push_back(RequestResponse {
+                request: Request {
+                    method: method.into(),
+                    params: params.as_ref().into(),
+                },
+                response,
+            });
+    }
+
+    pub fn assert_no_missing_requests(&self) {
+        if let Some(request_response) = self.request_responses.borrow().front() {
+            panic!(
+                "transport dropped without observing all expected requests: \
+                 first missing request is {}",
+                request_response.request.method
+            );
+        }
     }
 }
 
@@ -59,13 +76,25 @@ impl Transport for TestTransport_ {
     }
 
     fn execute(&self, method: &str, params: Vec<Value>) -> Self::Out {
-        self.mock_transport.borrow().execute(method, params)
+        let RequestResponse { request, response } = self
+            .request_responses
+            .borrow_mut()
+            .pop_front()
+            .ok_or_else(|| {
+                format!(
+                    "unexpected request with method {} and params {:?}",
+                    method, params
+                )
+            })
+            .unwrap();
+        assert_eq!(request.method, method);
+        assert_eq!(request.params, params);
+        web3::futures::future::result(response)
     }
 }
 
 // ----------------------------------------------------
 
-use std::collections::VecDeque;
 use web3::helpers;
 
 /// Type alias for request method and value pairs

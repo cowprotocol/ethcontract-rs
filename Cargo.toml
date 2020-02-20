@@ -46,6 +46,3 @@ serde_json = "1.0"
 thiserror = "1.0"
 web3 = "0.10"
 zeroize = "1.1"
-
-[dev-dependencies]
-mockall = "0.6"

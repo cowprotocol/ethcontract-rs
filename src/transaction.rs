@@ -320,23 +320,19 @@ mod tests {
 
     #[test]
     fn tx_builder_estimate_gas_() {
-        let transport = TestTransport_::new();
+        let mut transport = TestTransport_::new();
         let web3 = Web3::new(transport.clone());
 
         let to = addr!("0x0123456789012345678901234567890123456789");
 
-        transport
-            .mock()
-            .expect_execute()
-            .with(
-                eq("eth_estimateGas"),
-                eq(vec![json!({
-                    "to": to,
-                    "value": "0x2a",
-                })]),
-            )
-            .times(1)
-            .return_const(web3::futures::future::ok(json!("0x42")));
+        transport.expect_request(
+            "eth_estimateGas",
+            [json!({
+                "to": to,
+                "value": "0x2a",
+            })],
+            Ok(json!("0x42")),
+        );
 
         let estimate_gas = TransactionBuilder::new(web3)
             .to(to)
@@ -502,7 +498,7 @@ mod tests {
 
     #[test]
     fn tx_failure_() {
-        let transport = TestTransport_::new();
+        let mut transport = TestTransport_::new();
         let web3 = Web3::new(transport.clone());
 
         let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
@@ -515,7 +511,6 @@ mod tests {
             .gas(0x1337.into())
             .gas_price(0x00ba_b10c.into())
             .nonce(0x42.into());
-
         let tx_raw = builder
             .clone()
             .build()
@@ -524,26 +519,16 @@ mod tests {
             .raw()
             .expect("offline transactions always build into raw transactions");
 
-        let mut seq = Sequence::new();
-        transport
-            .mock()
-            .expect_execute()
-            .with(eq("eth_sendRawTransaction"), eq(vec![json!(tx_raw)]))
-            .return_const(web3::futures::future::ok(json!(tx_hash)))
-            .times(1)
-            .in_sequence(&mut seq);
-        transport
-            .mock()
-            .expect_execute()
-            .with(eq("eth_blockNumber"), eq(vec![]))
-            .return_const(web3::futures::future::ok(json!("0x1")))
-            .times(1)
-            .in_sequence(&mut seq);
-        transport
-            .mock()
-            .expect_execute()
-            .with(eq("eth_getTransactionReceipt"), eq(vec![json!(tx_hash)]))
-            .return_const(web3::futures::future::ok(json!({
+        transport.expect_request(
+            "eth_sendRawTransaction",
+            [json!(tx_raw)],
+            Ok(json!(tx_hash)),
+        );
+        transport.expect_request("eth_blockNumber", [], Ok(json!("0x1")));
+        transport.expect_request(
+            "eth_getTransactionReceipt",
+            [json!(tx_hash)],
+            Ok(json!({
                 "transactionHash": tx_hash,
                 "transactionIndex": "0x1",
                 "blockNumber": "0x1",
@@ -552,12 +537,10 @@ mod tests {
                 "gasUsed": "0x1337",
                 "logsBloom": H2048::zero(),
                 "logs": [],
-            })))
-            .times(1)
-            .in_sequence(&mut seq);
+            })),
+        );
 
         let result = builder.send().immediate();
-
         assert!(
             match &result {
                 Err(ExecutionError::Failure(ref hash)) if *hash == tx_hash => true,
@@ -567,5 +550,6 @@ mod tests {
             tx_hash,
             result
         );
+        transport.assert_no_missing_requests();
     }
 }
