@@ -137,6 +137,23 @@ mod tests {
     }
 
     #[test]
+    fn dyn_transport_() {
+        let mut transport = TestTransport_::new();
+        let dyn_transport = DynTransport::new(transport.clone());
+
+        let method = "test";
+        let params = vec![json!(28)];
+        let response = Ok(json!(true));
+
+        // Assert that the underlying transport executes the request and returns
+        // the response.
+        transport.expect_request(method, &params, response.clone());
+        let response_ = dyn_transport.execute(method, params).wait();
+        assert_eq!(response, response_);
+        transport.assert_no_missing_requests();
+    }
+
+    #[test]
     #[allow(clippy::redundant_clone)]
     fn dyn_transport_does_not_double_wrap() {
         let transport = TestTransport::new();

@@ -47,7 +47,7 @@ impl TestTransport_ {
             .push_back(RequestResponse {
                 request: Request {
                     method: method.into(),
-                    params: params.as_ref().into(),
+                    params: params.as_ref().to_vec(),
                 },
                 response,
             });
