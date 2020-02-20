@@ -234,7 +234,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         Err(err) => return Poll::Ready(Err(err.into())),
                     };
 
-                    if block_num == *target_block_num {
+                    if block_num >= *target_block_num {
                         ConfirmState::Checking(future::try_join(
                             MaybeReady::ready(Ok(block_num)),
                             web3.eth().transaction_receipt(*tx).compat(),
@@ -454,6 +454,36 @@ mod tests {
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn confirmations_with_polling_and_skipped_blocks() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let hash = H256::repeat_byte(0xff);
+
+        // transaction pending
+        transport.add_response(json!("0x1"));
+        transport.add_response(json!(null));
+        // filter created not supported
+        transport.add_response(json!({ "error": "eth_newBlockFilter not supported" }));
+        // poll block number which skipped 2
+        transport.add_response(json!("0x4"));
+        // check transaction was mined (`eth_blockNumber` request is reused)
+        transport.add_response(generate_tx_receipt(hash, 2));
+
+        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(1))
+            .immediate()
+            .expect("transaction confirmation failed");
+
+        assert_eq!(confirm.transaction_hash, hash);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_request("eth_newBlockFilter", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
         transport.assert_no_more_requests();
