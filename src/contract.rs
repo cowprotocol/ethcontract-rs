@@ -8,13 +8,14 @@ mod method;
 
 use crate::abicompat::AbiCompat;
 use crate::errors::{DeployError, LinkError};
+use crate::log::LogStream;
 use ethcontract_common::abi::Result as AbiResult;
 use ethcontract_common::truffle::Network;
 use ethcontract_common::{Abi, Artifact, Bytecode};
 use std::collections::HashMap;
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
-use web3::types::{Address, Bytes};
+use web3::types::{Address, Bytes, FilterBuilder};
 use web3::Transport;
 
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture};
@@ -141,6 +142,29 @@ impl<T: Transport> Instance<T> {
         R: Detokenize,
     {
         Ok(self.method(name, params)?.view())
+    }
+
+    /// Returns a log stream for the specified event that emits a new log for
+    /// every new event emitted after the stream was created.
+    pub fn event<S>(&self, name: S) -> AbiResult<LogStream<T>>
+    where
+        S: AsRef<str>,
+    {
+        let event = self.abi.event(name.as_ref())?;
+        if event.anonymous {
+            todo!("anonymous events are currently not supported");
+        }
+
+        let filter = FilterBuilder::default()
+            .address(vec![self.address])
+            .topics(Some(vec![event.signature()]), None, None, None)
+            .build();
+
+        Ok(LogStream::new(
+            self.web3(),
+            filter,
+            std::time::Duration::from_secs(7),
+        ))
     }
 }
 
