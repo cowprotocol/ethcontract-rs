@@ -31,6 +31,7 @@ jobs:
         - tail -f /dev/null | yarn --cwd examples/truffle start > /dev/null &
         - cargo run --example async
         - cargo run --example deployments
+        - cargo run --example events
         - cargo run --example etherscan
         - cargo run --package examples-generate
         - cargo run --example linked
