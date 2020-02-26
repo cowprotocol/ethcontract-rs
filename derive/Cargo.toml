@@ -17,7 +17,7 @@ proc-macro = true
 [dependencies]
 ethcontract-generate = { version = "0.4.2", path = "../generate" }
 proc-macro2 = "1.0"
-syn = "1.0"
+syn = "1.0.12"
 
 [dev-dependencies]
 quote = "1.0"
