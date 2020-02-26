@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/gnosis/ethcontract-rs.svg?branch=master)](https://travis-ci.org/gnosis/ethcontract-rs)
+
 # `ethcontract-rs`
 
 Crate used for generating code for Ethereum smart contracts. It provides a
