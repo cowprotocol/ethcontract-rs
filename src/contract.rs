@@ -163,7 +163,7 @@ impl<T: Transport> Instance<T> {
         Ok(LogStream::new(
             self.web3(),
             filter,
-            std::time::Duration::from_secs(7),
+            std::time::Duration::from_secs(1),
         ))
     }
 }
