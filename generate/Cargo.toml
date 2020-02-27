@@ -18,5 +18,5 @@ ethcontract-common = { version = "0.4.2", path = "../common" }
 Inflector = "0.11"
 proc-macro2 = "1.0"
 quote = "1.0"
-syn = "1.0"
+syn = "1.0.12"
 url = "2.1"
