@@ -62,7 +62,7 @@ yarn start
 ```
 
 - The `async` example deploys an ERC20 token and interacts with the contract
-  with various accounts. First start the local development server:
+  with various accounts.
   ```sh
   cargo run --example async
   ```
@@ -75,6 +75,12 @@ yarn start
   a separte testnet deployment wants to be used).
   ```sh
   cargo run --example deployments
+  ```
+
+- The `events` example illustrates how to listen to logs emitted by smart
+  contract events.
+  ```sh
+  cargo run --example events
   ```
 
 - The `generator` example (actually a separate crate to be able to have a build
