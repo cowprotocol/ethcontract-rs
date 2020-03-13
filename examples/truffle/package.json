@@ -25,7 +25,7 @@
     "@gnosis.pm/util-contracts": "^2.0.6",
     "@openzeppelin/contracts": "^2.5.0",
     "@truffle/hdwallet-provider": "^1.0.32",
-    "truffle": "^5.1.16",
+    "truffle": "^5.1.17",
     "truffle-plugin-verify": "^0.3.9"
   }
 }
