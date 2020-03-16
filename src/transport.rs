@@ -55,7 +55,7 @@ where
 /// This type wraps any `Transport` type and implements `Transport` itself.
 #[derive(Debug)]
 pub struct DynTransport {
-    inner: Arc<dyn TransportBoxed + 'static>,
+    inner: Arc<dyn TransportBoxed + Sync + Send + 'static>,
 }
 
 impl DynTransport {
@@ -63,7 +63,7 @@ impl DynTransport {
     pub fn new<F, T>(inner: T) -> Self
     where
         F: Future<Item = Value, Error = Web3Error> + Send + 'static,
-        T: Transport<Out = F> + 'static,
+        T: Transport<Out = F> + Sync + Send + 'static,
     {
         let inner_ref: &dyn Any = &inner;
         let inner_arc = match inner_ref.downcast_ref::<DynTransport>() {
@@ -149,5 +149,16 @@ mod tests {
         //   other by `dyn_transport`. If the `dyn_transport` was being
         //   re-wrapped in an `Arc`, then the count would only be 1.
         assert_eq!(Arc::strong_count(&dyn_dyn_transport.inner), 2);
+    }
+
+    #[test]
+    fn dyn_transport_is_threadsafe() {
+        let transport = TestTransport::new();
+        let dyn_transport = DynTransport::new(transport);
+        std::thread::spawn(move || {
+            // Try to use the transport in the thread which would fail to
+            // if it wasn't safe.
+            let _ = dyn_transport.prepare("test", vec![json!(28)]);
+        });
     }
 }
