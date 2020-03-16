@@ -50,8 +50,8 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                 F: #ethcontract::web3::futures::Future<
                     Item = #ethcontract::json::Value,
                     Error = #ethcontract::web3::Error
-                > + Send + 'static,
-                T: #ethcontract::web3::Transport<Out = F> + 'static,
+                > + Send + Sync + 'static,
+                T: #ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
                 use #ethcontract::contract::DeployedFuture;
                 use #ethcontract::transport::DynTransport;
@@ -147,7 +147,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             ) -> #ethcontract::DynDeployBuilder<Self>
             where
                 F: #ethcontract::web3::futures::Future<Item = #ethcontract::json::Value, Error = #ethcontract::web3::Error> + Send + 'static,
-                T: #ethcontract::web3::Transport<Out = F> + 'static,
+                T: #ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
                 use #ethcontract::DynTransport;
                 use #ethcontract::contract::DeployBuilder;
