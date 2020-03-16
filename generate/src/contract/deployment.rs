@@ -50,7 +50,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                 F: #ethcontract::web3::futures::Future<
                     Item = #ethcontract::json::Value,
                     Error = #ethcontract::web3::Error
-                > + Send + Sync + 'static,
+                > + Send + 'static,
                 T: #ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
                 use #ethcontract::contract::DeployedFuture;
