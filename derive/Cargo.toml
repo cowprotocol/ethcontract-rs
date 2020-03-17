@@ -1,6 +1,6 @@
 [package]
 name = "ethcontract-derive"
-version = "0.4.2"
+version = "0.5.0"
 authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -15,7 +15,7 @@ Proc macro for generating type-safe bindings to Ethereum smart contracts.
 proc-macro = true
 
 [dependencies]
-ethcontract-generate = { version = "0.4.2", path = "../generate" }
+ethcontract-generate = { version = "0.5.0", path = "../generate" }
 proc-macro2 = "1.0"
 syn = "1.0.12"
 
