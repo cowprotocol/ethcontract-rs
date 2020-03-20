@@ -7,7 +7,7 @@ use web3::types::U256;
 
 /// Compute the two's complement of a U256.
 fn twos_complement(u: U256) -> U256 {
-    let (twos_complement, _) = (u ^ U256::max_value()).overflowing_add(U256::one());
+    let (twos_complement, _) = (!u).overflowing_add(U256::one());
     twos_complement
 }
 
@@ -25,7 +25,8 @@ enum Sign {
 }
 
 impl I256 {
-    /// Creates an I256 from a sign and an absolute value.
+    /// Creates an I256 from a sign and an absolute value. Returns the value and
+    /// a bool that is true if the conversion caused an overflow.
     fn overflowing_from_sign_and_abs(sign: Sign, abs: U256) -> (Self, bool) {
         let value = I256(match sign {
             Sign::Positive => abs,
