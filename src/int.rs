@@ -68,6 +68,13 @@ impl I256 {
         }
     }
 
+    /// Coerces an unsigned integer into a signed one. If the unsigned integer
+    /// is greater than the greater than or equal to `1 << 255`, then the result
+    /// will overflow into a negative value.
+    pub fn from_raw(raw: U256) -> Self {
+        I256(raw)
+    }
+
     /// Returns the signed integer as a unsigned integer. If the value of `self`
     /// negative, then the two's complement of its absolute value will be
     /// returned.
@@ -80,8 +87,18 @@ impl I256 {
         self.0.low_u32() as _
     }
 
+    /// Conversion to u32
+    pub fn low_u32(&self) -> u32 {
+        self.0.low_u32()
+    }
+
     /// Conversion to i64
     pub fn low_i64(&self) -> i64 {
+        self.0.low_u64() as _
+    }
+
+    /// Conversion to u64
+    pub fn low_u64(&self) -> u64 {
         self.0.low_u64() as _
     }
 
@@ -90,12 +107,36 @@ impl I256 {
         self.0.low_u128() as _
     }
 
-    /// Conversion to ui2 with overflow checking
+    /// Conversion to u128
+    pub fn low_u128(&self) -> u128 {
+        self.0.low_u128() as _
+    }
+
+    /// Conversion to i128
+    pub fn low_isize(&self) -> isize {
+        self.0.low_u64() as _
+    }
+
+    /// Conversion to usize
+    pub fn low_usize(&self) -> usize {
+        self.0.low_u64() as _
+    }
+
+    /// Conversion to i32 with overflow checking
     ///
     /// # Panics
     ///
     /// Panics if the number is outside the range [`i32::MIN`, `i32::MAX`].
     pub fn as_i32(&self) -> i32 {
+        (*self).try_into().unwrap()
+    }
+
+    /// Conversion to u32 with overflow checking
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number is outside the range [`0`, `u32::MAX`].
+    pub fn as_u32(&self) -> u32 {
         (*self).try_into().unwrap()
     }
 
@@ -108,6 +149,15 @@ impl I256 {
         (*self).try_into().unwrap()
     }
 
+    /// Conversion to u64 with overflow checking
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number is outside the range [`0`, `u64::MAX`].
+    pub fn as_u64(&self) -> u64 {
+        (*self).try_into().unwrap()
+    }
+
     /// Conversion to i128 with overflow checking
     ///
     /// # Panics
@@ -117,12 +167,30 @@ impl I256 {
         (*self).try_into().unwrap()
     }
 
-    /// Conversion to usize with overflow checking
+    /// Conversion to u128 with overflow checking
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number is outside the range [`0`, `u128::MAX`].
+    pub fn as_u128(&self) -> u128 {
+        (*self).try_into().unwrap()
+    }
+
+    /// Conversion to isize with overflow checking
     ///
     /// # Panics
     ///
     /// Panics if the number is outside the range [`isize::MIN`, `isize::MAX`].
     pub fn as_isize(&self) -> usize {
+        (*self).try_into().unwrap()
+    }
+
+    /// Conversion to usize with overflow checking
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number is outside the range [`0`, `usize::MAX`].
+    pub fn as_usize(&self) -> usize {
         (*self).try_into().unwrap()
     }
 
@@ -165,37 +233,38 @@ impl I256 {
         Ok(result)
     }
 }
-macro_rules! impl_std_int_from_and_into {
+macro_rules! impl_from {
     ($( $t:ty ),*) => {
         $(
             impl From<$t> for I256 {
                 fn from(value: $t) -> Self {
                     #[allow(unused_comparisons)]
                     I256(if value < 0 {
-                        twos_complement(U256::from(0 - value))
+                        let abs = (u128::max_value() ^ (value as u128)).wrapping_add(1);
+                        twos_complement(U256::from(abs))
                     } else {
                         U256::from(value)
                     })
                 }
             }
 
-            impl TryInto<$t> for I256 {
+            impl TryFrom<I256> for $t {
                 type Error = TryFromBigIntError;
 
-                fn try_into(self) -> Result<$t, Self::Error> {
-                    if self < I256::from(<$t>::min_value()) ||
-                        self > I256::from(<$t>::max_value()) {
+                fn try_from(value: I256) -> Result<Self, Self::Error> {
+                    if value < I256::from(Self::min_value()) ||
+                        value > I256::from(Self::max_value()) {
                         return Err(TryFromBigIntError);
                     }
 
-                    Ok(self.0.low_u128() as _)
+                    Ok(value.0.low_u128() as _)
                 }
             }
         )*
     };
 }
 
-impl_std_int_from_and_into!(u8, u32, u64, u128, usize, i8, i32, i64, i128, isize);
+impl_from!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize);
 
 impl TryFrom<U256> for I256 {
     type Error = TryFromBigIntError;
@@ -209,12 +278,12 @@ impl TryFrom<U256> for I256 {
     }
 }
 
-impl TryInto<U256> for I256 {
+impl TryFrom<I256> for U256 {
     type Error = TryFromBigIntError;
 
-    fn try_into(self) -> Result<U256, Self::Error> {
-        match self.sign() {
-            Sign::Positive => Ok(self.0),
+    fn try_from(value: I256) -> Result<Self, Self::Error> {
+        match value.sign() {
+            Sign::Positive => Ok(value.0),
             Sign::Negative => Err(TryFromBigIntError),
         }
     }
@@ -274,7 +343,7 @@ impl fmt::UpperHex for I256 {
 
 impl cmp::PartialOrd for I256 {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        // TODO: Once subtraction is implemented:
+        // TODO(nlordell): Once subtraction is implemented:
         // self.saturating_sub(*other).signum64().partial_cmp(&0)
 
         use cmp::Ordering::*;
@@ -298,6 +367,64 @@ mod tests {
 
     lazy_static! {
         static ref MIN_ABS: U256 = U256::from(1) << 255;
+    }
+
+    #[test]
+    #[allow(clippy::cognitive_complexity)]
+    fn std_num_conversion() {
+        let small_positive = I256::from(42);
+        let small_negative = I256::from(-42);
+        let large_positive =
+            I256::from_dec_str("314159265358979323846264338327950288419716").unwrap();
+        let large_negative =
+            I256::from_dec_str("-314159265358979323846264338327950288419716").unwrap();
+        let large_unsigned =
+            U256::from_dec_str("314159265358979323846264338327950288419716").unwrap();
+
+        macro_rules! assert_from {
+            ($signed:ty, $unsigned:ty) => {
+                assert_eq!(I256::from(-42 as $signed).to_string(), "-42");
+                assert_eq!(I256::from(42 as $signed).to_string(), "42");
+                assert_eq!(
+                    I256::from(<$signed>::max_value()).to_string(),
+                    <$signed>::max_value().to_string(),
+                );
+                assert_eq!(
+                    I256::from(<$signed>::min_value()).to_string(),
+                    <$signed>::min_value().to_string(),
+                );
+
+                assert_eq!(I256::from(42 as $unsigned).to_string(), "42");
+                assert_eq!(
+                    I256::from(<$unsigned>::max_value()).to_string(),
+                    <$unsigned>::max_value().to_string(),
+                );
+
+                assert!(matches!(<$signed>::try_from(small_positive), Ok(42)));
+                assert!(matches!(<$signed>::try_from(small_negative), Ok(-42)));
+                assert!(matches!(<$signed>::try_from(large_positive), Err(_)));
+                assert!(matches!(<$signed>::try_from(large_negative), Err(_)));
+
+                assert!(matches!(<$unsigned>::try_from(small_positive), Ok(42)));
+                assert!(matches!(<$unsigned>::try_from(small_negative), Err(_)));
+                assert!(matches!(<$unsigned>::try_from(large_positive), Err(_)));
+                assert!(matches!(<$unsigned>::try_from(large_negative), Err(_)));
+            };
+        }
+
+        assert_eq!(I256::from(0).to_string(), "0");
+
+        assert_from!(i8, u8);
+        assert_from!(i16, u16);
+        assert_from!(i32, u32);
+        assert_from!(i64, u64);
+        assert_from!(i128, u128);
+
+        assert_eq!(I256::try_from(large_unsigned).unwrap(), large_positive);
+        assert_eq!(U256::try_from(large_positive).unwrap(), large_unsigned);
+        assert!(I256::try_from(U256::MAX).is_err());
+        assert!(U256::try_from(small_negative).is_err());
+        assert!(U256::try_from(large_negative).is_err());
     }
 
     #[test]
@@ -362,6 +489,7 @@ mod tests {
     fn formatting() {
         let unsigned = U256::from_dec_str("314159265358979323846264338327950288419716").unwrap();
 
+        // TODO(nlordell): Simplify once negation is implemented.
         let positive = I256::checked_from_sign_and_abs(Sign::Positive, unsigned).unwrap();
         let negative = I256::checked_from_sign_and_abs(Sign::Negative, unsigned).unwrap();
 
