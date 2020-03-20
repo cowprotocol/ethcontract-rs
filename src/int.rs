@@ -413,6 +413,64 @@ impl I256 {
         let (result, _) = self.overflowing_neg();
         result
     }
+
+    /// Return the least number of bits needed to represent the number.
+    pub fn bits(&self) -> u32 {
+        let sign = self.signum64();
+        let unsigned = self.abs_unsigned();
+        let unsigned_bits = unsigned.bits();
+
+        // NOTE: We need to deal with the very special case where the number is
+        //   written as `0b11..1100..00`, in that case the number of bits
+        //   required to represent the number is equal to the number of bits
+        //   required for its two's complement. In the general case, an extra
+        //   bit is needed to represent the sign.
+        let bits = if sign == -1 && unsigned.leading_zeros() + unsigned.trailing_zeros() == 255 {
+            unsigned_bits
+        } else {
+            unsigned_bits + (sign as usize)
+        };
+
+        bits as _
+    }
+
+    /// Return if specific bit is set.
+    ///
+    /// # Panics
+    ///
+    /// Panics if index exceeds the bit width of the number.
+    pub fn bit(&self, index: usize) -> bool {
+        self.0.bit(index)
+    }
+
+    /// Returns the number of leading zeros in the binary representation of self.
+    pub fn leading_zeros(&self) -> u32 {
+        self.0.leading_zeros()
+    }
+
+    /// Returns the number of leading zeros in the binary representation of self.
+    pub fn trailing_zeros(&self) -> u32 {
+        self.0.trailing_zeros()
+    }
+
+    /// Return specific byte.
+    ///
+    /// # Panics
+    ///
+    /// Panics if index exceeds the byte width of the number.
+    pub fn byte(&self, index: usize) -> u8 {
+        self.0.byte(index)
+    }
+
+    /// Write to the slice in big-endian format.
+    pub fn to_big_endian(&self, bytes: &mut [u8]) {
+        self.0.to_big_endian(bytes)
+    }
+
+    /// Write to the slice in little-endian format.
+    pub fn to_little_endian(&self, bytes: &mut [u8]) {
+        self.0.to_little_endian(bytes)
+    }
 }
 
 macro_rules! impl_from {
@@ -557,6 +615,93 @@ impl ops::Not for I256 {
         I256(!self.0)
     }
 }
+
+impl ops::BitAnd for I256 {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        I256(self.0 & rhs.0)
+    }
+}
+
+impl ops::BitAndAssign for I256 {
+    fn bitand_assign(&mut self, rhs: Self) {
+        *self = *self & rhs;
+    }
+}
+
+impl ops::BitOr for I256 {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        I256(self.0 | rhs.0)
+    }
+}
+
+impl ops::BitOrAssign for I256 {
+    fn bitor_assign(&mut self, rhs: Self) {
+        *self = *self | rhs;
+    }
+}
+
+impl ops::BitXor for I256 {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        I256(self.0 ^ rhs.0)
+    }
+}
+
+impl ops::BitXorAssign for I256 {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        *self = *self ^ rhs;
+    }
+}
+
+macro_rules! impl_shift {
+    ($( $t:ty $( [ $convert:ident ] )? ),*) => {
+        $(
+            impl_shift!(__impl $t $([$convert])*);
+        )*
+    };
+    (__impl $t:ty) => {
+        impl_shift!(__impl $t [ from ]);
+    };
+    (__impl $t:ty [ $convert:ident ]) => {
+        impl ops::Shl<$t> for I256 {
+            type Output = Self;
+
+            fn shl(self, rhs: $t) -> Self::Output {
+                // NOTE: We are OK with wrapping behaviour here, that is how
+                //   Rust behaves with the primitive integer types.
+                I256(self.0 << I256::$convert(rhs).0)
+            }
+        }
+
+        impl ops::ShlAssign<$t> for I256 {
+            fn shl_assign(&mut self, rhs: $t) {
+                *self = *self << rhs;
+            }
+        }
+
+        impl ops::Shr<$t> for I256 {
+            type Output = Self;
+
+            fn shr(self, rhs: $t) -> Self::Output {
+                I256(self.0 >> I256::$convert(rhs).0)
+            }
+        }
+
+        impl ops::ShrAssign<$t> for I256 {
+            fn shr_assign(&mut self, rhs: $t) {
+                *self = *self >> rhs;
+            }
+        }
+    };
+}
+
+impl_shift!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize);
+impl_shift!(I256, U256[from_raw]);
 
 #[cfg(test)]
 mod tests {
@@ -802,5 +947,25 @@ mod tests {
         assert_eq!(-I256::zero(), I256::zero());
         assert_eq!(-(-I256::MAX), I256::MAX);
         assert_eq!(I256::MIN.checked_neg(), None);
+    }
+
+    #[test]
+    fn bits() {
+        assert_eq!(I256::from(0b1000).bits(), 5);
+        assert_eq!(I256::from(-0b1000).bits(), 4);
+
+        assert_eq!(I256::from(i64::MAX).bits(), 64);
+        assert_eq!(I256::from(i64::MIN).bits(), 64);
+
+        assert_eq!(I256::MAX.bits(), 256);
+        assert_eq!(I256::MIN.bits(), 256);
+
+        assert_eq!(I256::zero().bits(), 0);
+    }
+
+    #[test]
+    fn bit_shift() {
+        assert_eq!(I256::one() << 255, I256::MIN);
+        assert_eq!(I256::MIN >> 255, I256::one());
     }
 }
