@@ -568,6 +568,15 @@ mod tests {
     }
 
     #[test]
+    fn identities() {
+        assert_eq!(I256::zero().to_string(), "0");
+        assert_eq!(I256::one().to_string(), "1");
+        assert_eq!(I256::minus_one().to_string(), "-1");
+        assert_eq!(I256::max_value().to_string(), "57896044618658097711785492504343953926634992332820282019728792003956564819967");
+        assert_eq!(I256::min_value().to_string(), "-57896044618658097711785492504343953926634992332820282019728792003956564819968");
+    }
+
+    #[test]
     #[allow(clippy::cognitive_complexity)]
     fn std_num_conversion() {
         let small_positive = I256::from(42);
