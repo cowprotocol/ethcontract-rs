@@ -1,7 +1,10 @@
 //! This module contains an 256-bit signed integer implementation.
 
-use crate::errors::ParseI256Error;
+use crate::errors::{ParseI256Error, TryFromBigIntError};
+use std::cmp;
+use std::convert::{TryFrom, TryInto};
 use std::fmt;
+use std::i128;
 use std::str::{self, FromStr};
 use web3::types::U256;
 
@@ -12,7 +15,7 @@ fn twos_complement(u: U256) -> U256 {
 }
 
 /// Little-endian 256-bit signed integer.
-#[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Default, Eq, Hash, Ord, PartialEq)]
 pub struct I256(U256);
 
 /// Enum to represent the sign of a 256-bit signed integer.
@@ -65,6 +68,64 @@ impl I256 {
         }
     }
 
+    /// Returns the signed integer as a unsigned integer. If the value of `self`
+    /// negative, then the two's complement of its absolute value will be
+    /// returned.
+    pub fn into_raw(self) -> U256 {
+        self.0
+    }
+
+    /// Conversion to i32
+    pub fn low_i32(&self) -> i32 {
+        self.0.low_u32() as _
+    }
+
+    /// Conversion to i64
+    pub fn low_i64(&self) -> i64 {
+        self.0.low_u64() as _
+    }
+
+    /// Conversion to i128
+    pub fn low_i128(&self) -> i128 {
+        self.0.low_u128() as _
+    }
+
+    /// Conversion to ui2 with overflow checking
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number is outside the range [`i32::MIN`, `i32::MAX`].
+    pub fn as_i32(&self) -> i32 {
+        (*self).try_into().unwrap()
+    }
+
+    /// Conversion to i64 with overflow checking
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number is outside the range [`i64::MIN`, `i64::MAX`].
+    pub fn as_i64(&self) -> i64 {
+        (*self).try_into().unwrap()
+    }
+
+    /// Conversion to i128 with overflow checking
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number is outside the range [`i128::MIN`, `i128::MAX`].
+    pub fn as_i128(&self) -> i128 {
+        (*self).try_into().unwrap()
+    }
+
+    /// Conversion to usize with overflow checking
+    ///
+    /// # Panics
+    ///
+    /// Panics if the number is outside the range [`isize::MIN`, `isize::MAX`].
+    pub fn as_isize(&self) -> usize {
+        (*self).try_into().unwrap()
+    }
+
     /// Convert from a decimal string.
     pub fn from_dec_str(value: &str) -> Result<Self, ParseI256Error> {
         let (sign, value) = match value.as_bytes().get(0) {
@@ -102,6 +163,60 @@ impl I256 {
             I256::checked_from_sign_and_abs(sign, abs).ok_or(ParseI256Error::IntegerOverflow)?;
 
         Ok(result)
+    }
+}
+macro_rules! impl_std_int_from_and_into {
+    ($( $t:ty ),*) => {
+        $(
+            impl From<$t> for I256 {
+                fn from(value: $t) -> Self {
+                    #[allow(unused_comparisons)]
+                    I256(if value < 0 {
+                        twos_complement(U256::from(0 - value))
+                    } else {
+                        U256::from(value)
+                    })
+                }
+            }
+
+            impl TryInto<$t> for I256 {
+                type Error = TryFromBigIntError;
+
+                fn try_into(self) -> Result<$t, Self::Error> {
+                    if self < I256::from(<$t>::min_value()) ||
+                        self > I256::from(<$t>::max_value()) {
+                        return Err(TryFromBigIntError);
+                    }
+
+                    Ok(self.0.low_u128() as _)
+                }
+            }
+        )*
+    };
+}
+
+impl_std_int_from_and_into!(u8, u32, u64, u128, usize, i8, i32, i64, i128, isize);
+
+impl TryFrom<U256> for I256 {
+    type Error = TryFromBigIntError;
+
+    fn try_from(from: U256) -> Result<Self, Self::Error> {
+        let value = I256(from);
+        match value.sign() {
+            Sign::Positive => Ok(value),
+            Sign::Negative => Err(TryFromBigIntError),
+        }
+    }
+}
+
+impl TryInto<U256> for I256 {
+    type Error = TryFromBigIntError;
+
+    fn try_into(self) -> Result<U256, Self::Error> {
+        match self.sign() {
+            Sign::Positive => Ok(self.0),
+            Sign::Negative => Err(TryFromBigIntError),
+        }
     }
 }
 
@@ -154,6 +269,25 @@ impl fmt::UpperHex for I256 {
         let mut buffer = format!("{:x}", abs);
         buffer.make_ascii_uppercase();
         write!(f, "{}", buffer)
+    }
+}
+
+impl cmp::PartialOrd for I256 {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        // TODO: Once subtraction is implemented:
+        // self.saturating_sub(*other).signum64().partial_cmp(&0)
+
+        use cmp::Ordering::*;
+        use Sign::*;
+
+        let ord = match (self.into_sign_and_abs(), other.into_sign_and_abs()) {
+            ((Positive, _), (Negative, _)) => Greater,
+            ((Negative, _), (Positive, _)) => Less,
+            ((Positive, this), (Positive, other)) => this.cmp(&other),
+            ((Negative, this), (Negative, other)) => other.cmp(&this),
+        };
+
+        Some(ord)
     }
 }
 

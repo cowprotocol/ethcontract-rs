@@ -168,6 +168,12 @@ impl From<Secp256k1Error> for InvalidPrivateKey {
     }
 }
 
+/// The error type that is returned when conversion to or from a 256-bit integer
+/// fails.
+#[derive(Clone, Copy, Debug, Error)]
+#[error("output of range integer conversion attempted")]
+pub struct TryFromBigIntError;
+
 /// The error type that is returned when parsing a 256-bit signed integer.
 #[derive(Clone, Copy, Debug, Error)]
 pub enum ParseI256Error {
