@@ -35,10 +35,6 @@ fn handle_overflow<T>((result, overflow): (T, bool)) -> T {
     result
 }
 
-/// Little-endian 256-bit signed integer.
-#[derive(Clone, Copy, Default, Eq, Hash, Ord, PartialEq)]
-pub struct I256(U256);
-
 /// Enum to represent the sign of a 256-bit signed integer.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Sign {
@@ -47,6 +43,21 @@ enum Sign {
     /// Less than zero.
     Negative,
 }
+
+impl Sign {
+    /// Computes the `Sign` given a signum.
+    fn from_signum64(sign: i64) -> Self {
+        match sign {
+            0 | 1 => Sign::Positive,
+            -1 => Sign::Negative,
+            _ => unreachable!(),
+        }
+    }
+}
+
+/// Little-endian 256-bit signed integer.
+#[derive(Clone, Copy, Default, Eq, Hash, Ord, PartialEq)]
+pub struct I256(U256);
 
 impl I256 {
     /// Maximum value.
@@ -494,6 +505,149 @@ impl I256 {
         self.0.to_little_endian(bytes)
     }
 
+    /// Calculates `self` + `rhs`
+    ///
+    /// Returns a tuple of the addition along with a boolean indicating whether
+    /// an arithmetic overflow would occur. If an overflow would have occurred
+    /// then the wrapped value is returned.
+    pub fn overflowing_add(self, rhs: Self) -> (Self, bool) {
+        let (unsigned, _) = self.0.overflowing_add(rhs.0);
+        let result = I256(unsigned);
+
+        // NOTE: Overflow is determined by checking the sign of the operands and
+        //   the result.
+        let overflow = match (self.sign(), rhs.sign(), result.sign()) {
+            (Sign::Positive, Sign::Positive, Sign::Negative) => true,
+            (Sign::Negative, Sign::Negative, Sign::Positive) => true,
+            _ => false,
+        };
+
+        (result, overflow)
+    }
+
+    /// Checked addition. Returns None if overflow occurred.
+    pub fn checked_add(self, other: Self) -> Option<Self> {
+        let (result, overflow) = self.overflowing_add(other);
+        if overflow {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    /// Addition which saturates at the maximum value (Self::max_value()).
+    pub fn saturating_add(self, other: Self) -> Self {
+        let (result, overflow) = self.overflowing_add(other);
+        if overflow {
+            if result.is_negative() {
+                I256::MAX
+            } else {
+                I256::MIN
+            }
+        } else {
+            result
+        }
+    }
+
+    /// Wrapping addition.
+    pub fn wrapping_add(self, other: Self) -> Self {
+        let (result, _) = self.overflowing_add(other);
+        result
+    }
+
+    /// Calculates `self` - `rhs`
+    ///
+    /// Returns a tuple of the subtraction along with a boolean indicating
+    /// whether an arithmetic overflow would occur. If an overflow would have
+    /// occurred then the wrapped value is returned.
+    pub fn overflowing_sub(self, rhs: Self) -> (Self, bool) {
+        // NOTE: We can't just compute the `self + (-rhs)` because `-rhs` does
+        //   not always exist, specifically this would be a problem in case
+        //   `rhs == I256::MIN`
+
+        let (unsigned, _) = self.0.overflowing_sub(rhs.0);
+        let result = I256(unsigned);
+
+        // NOTE: Overflow is determined by checking the sign of the operands and
+        //   the result.
+        let overflow = match (self.sign(), rhs.sign(), result.sign()) {
+            (Sign::Positive, Sign::Negative, Sign::Negative) => true,
+            (Sign::Negative, Sign::Positive, Sign::Positive) => true,
+            _ => false,
+        };
+
+        (result, overflow)
+    }
+
+    /// Checked subtraction. Returns None if overflow occurred.
+    pub fn checked_sub(self, other: Self) -> Option<Self> {
+        let (result, overflow) = self.overflowing_sub(other);
+        if overflow {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    /// Subtraction which saturates at zero.
+    pub fn saturating_sub(self, other: Self) -> Self {
+        let (result, overflow) = self.overflowing_sub(other);
+        if overflow {
+            if result.is_negative() {
+                I256::MAX
+            } else {
+                I256::MIN
+            }
+        } else {
+            result
+        }
+    }
+
+    /// Wrapping subtraction.
+    pub fn wrapping_sub(self, other: Self) -> Self {
+        let (result, _) = self.overflowing_sub(other);
+        result
+    }
+
+    /// Calculates `self` * `rhs`
+    ///
+    /// Returns a tuple of the multiplication along with a boolean indicating
+    /// whether an arithmetic overflow would occur. If an overflow would have
+    /// occurred then the wrapped value is returned.
+    pub fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
+        let sign = Sign::from_signum64(self.signum64() * rhs.signum64());
+        let (unsigned, overflow_mul) = self.abs_unsigned().overflowing_mul(rhs.abs_unsigned());
+        let (result, overflow_conv) = I256::overflowing_from_sign_and_abs(sign, unsigned);
+
+        (result, overflow_mul || overflow_conv)
+    }
+
+    /// Checked multiplication. Returns None if overflow occurred.
+    pub fn checked_mul(self, other: Self) -> Option<Self> {
+        let (result, overflow) = self.overflowing_mul(other);
+        if overflow {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    /// Multiplication which saturates at the maximum value..
+    pub fn saturating_mul(self, rhs: Self) -> Self {
+        self.checked_mul(rhs).unwrap_or_else(|| {
+            match Sign::from_signum64(self.signum64() * rhs.signum64()) {
+                Sign::Positive => I256::MAX,
+                Sign::Negative => I256::MIN,
+            }
+        })
+    }
+
+    /// Wrapping multiplication.
+    pub fn wrapping_mul(self, rhs: Self) -> Self {
+        let (result, _) = self.overflowing_mul(rhs);
+        result
+    }
+
     /// Returns the sign of `self` to the exponent `exp`.
     ///
     /// Note that this method does not actually try to compute the `self` to the
@@ -802,6 +956,48 @@ macro_rules! impl_shift {
 impl_shift!(i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize);
 impl_shift!(I256, U256[from_raw]);
 
+impl ops::Add for I256 {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        handle_overflow(self.overflowing_add(rhs))
+    }
+}
+
+impl ops::AddAssign for I256 {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs
+    }
+}
+
+impl ops::Sub for I256 {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        handle_overflow(self.overflowing_sub(rhs))
+    }
+}
+
+impl ops::SubAssign for I256 {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+    }
+}
+
+impl ops::Mul for I256 {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        handle_overflow(self.overflowing_mul(rhs))
+    }
+}
+
+impl ops::MulAssign for I256 {
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = *self * rhs;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1069,7 +1265,75 @@ mod tests {
     }
 
     #[test]
-    fn pow() {
+    fn addition() {
+        assert_eq!(I256::MIN.overflowing_add(I256::MIN), (I256::zero(), true));
+        assert_eq!(I256::MAX.overflowing_add(I256::MAX), (I256::from(-2), true));
+
+        assert_eq!(
+            I256::MIN.overflowing_add(I256::minus_one()),
+            (I256::MAX, true)
+        );
+        assert_eq!(I256::MAX.overflowing_add(I256::one()), (I256::MIN, true));
+
+        assert_eq!(I256::MAX + I256::MIN, I256::minus_one());
+        assert_eq!(I256::from(2) + I256::from(40), I256::from(42));
+
+        assert_eq!(I256::zero() + I256::zero(), I256::zero());
+
+        assert_eq!(I256::MAX.saturating_add(I256::MAX), I256::MAX);
+        assert_eq!(I256::MIN.saturating_add(I256::minus_one()), I256::MIN);
+    }
+
+    #[test]
+    #[allow(clippy::eq_op)]
+    fn subtraction() {
+        assert_eq!(I256::MIN.overflowing_sub(I256::MAX), (I256::one(), true));
+        assert_eq!(
+            I256::MAX.overflowing_sub(I256::MIN),
+            (I256::minus_one(), true)
+        );
+
+        assert_eq!(I256::MIN.overflowing_sub(I256::one()), (I256::MAX, true));
+        assert_eq!(
+            I256::MAX.overflowing_sub(I256::minus_one()),
+            (I256::MIN, true)
+        );
+
+        assert_eq!(I256::zero().overflowing_sub(I256::MIN), (I256::MIN, true));
+
+        assert_eq!(I256::MAX - I256::MAX, I256::zero());
+        assert_eq!(I256::from(2) - I256::from(44), I256::from(-42));
+
+        assert_eq!(I256::zero() - I256::zero(), I256::zero());
+
+        assert_eq!(I256::MAX.saturating_sub(I256::MIN), I256::MAX);
+        assert_eq!(I256::MIN.saturating_sub(I256::one()), I256::MIN);
+    }
+
+    #[test]
+    fn multiplication() {
+        assert_eq!(I256::MIN.overflowing_mul(I256::MAX), (I256::MIN, true));
+        assert_eq!(I256::MAX.overflowing_mul(I256::MIN), (I256::MIN, true));
+
+        assert_eq!(I256::MIN * I256::one(), I256::MIN);
+        assert_eq!(I256::from(2) * I256::from(-21), I256::from(-42));
+
+        assert_eq!(I256::MAX.saturating_mul(I256::MAX), I256::MAX);
+        assert_eq!(I256::MAX.saturating_mul(I256::from(2)), I256::MAX);
+        assert_eq!(I256::MIN.saturating_mul(I256::from(-2)), I256::MAX);
+
+        assert_eq!(I256::MIN.saturating_mul(I256::MAX), I256::MIN);
+        assert_eq!(I256::MIN.saturating_mul(I256::from(2)), I256::MIN);
+        assert_eq!(I256::MAX.saturating_mul(I256::from(-2)), I256::MIN);
+
+        assert_eq!(I256::zero() * I256::zero(), I256::zero());
+        assert_eq!(I256::one() * I256::zero(), I256::zero());
+        assert_eq!(I256::MAX * I256::zero(), I256::zero());
+        assert_eq!(I256::MIN * I256::zero(), I256::zero());
+    }
+
+    #[test]
+    fn exponentiation() {
         assert_eq!(I256::from(1000).saturating_pow(1000), I256::MAX);
         assert_eq!(I256::from(-1000).saturating_pow(1001), I256::MIN);
 
