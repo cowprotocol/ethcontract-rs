@@ -1,12 +1,15 @@
 //! This module contains an 256-bit signed integer implementation.
 
 use crate::errors::{ParseI256Error, TryFromBigIntError};
+use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
+use std::iter;
 use std::ops;
-use std::str::{self, FromStr};
+use std::str;
 use std::{i128, i64, u64};
+use web3::contract::{self, tokens};
 use web3::types::U256;
 
 /// Compute the two's complement of a U256.
@@ -56,7 +59,8 @@ impl Sign {
 }
 
 /// Little-endian 256-bit signed integer.
-#[derive(Clone, Copy, Default, Eq, Hash, Ord, PartialEq)]
+#[derive(Clone, Copy, Default, Deserialize, Eq, Hash, Ord, PartialEq, Serialize)]
+#[serde(transparent)]
 pub struct I256(U256);
 
 impl I256 {
@@ -780,7 +784,7 @@ impl TryFrom<I256> for U256 {
     }
 }
 
-impl FromStr for I256 {
+impl str::FromStr for I256 {
     type Err = ParseI256Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
@@ -996,10 +1000,44 @@ impl ops::MulAssign for I256 {
     }
 }
 
+impl iter::Sum for I256 {
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = Self>,
+    {
+        iter.fold(I256::zero(), |acc, x| acc + x)
+    }
+}
+
+impl iter::Product for I256 {
+    fn product<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = Self>,
+    {
+        iter.fold(I256::one(), |acc, x| acc * x)
+    }
+}
+
+impl tokens::Tokenizable for I256 {
+    fn from_token(token: ethabi_9_0::Token) -> Result<Self, contract::Error> {
+        // NOTE: U256 accepts both `Int` and `Uint` kind tokens. In fact, all
+        //   integer types are expected to accept both.
+        Ok(I256(U256::from_token(token)?))
+    }
+
+    fn into_token(self) -> ethabi_9_0::Token {
+        ethabi_9_0::Token::Int(self.0)
+    }
+}
+
+impl tokens::TokenizableItem for I256 {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use lazy_static::lazy_static;
+    use serde_json::json;
+    use web3::contract::tokens::Tokenizable;
 
     lazy_static! {
         static ref MIN_ABS: U256 = U256::from(1) << 255;
@@ -1340,5 +1378,32 @@ mod tests {
 
         assert_eq!(I256::zero().pow(42), I256::zero());
         assert_eq!(I256::exp10(18).to_string(), "1000000000000000000");
+    }
+
+    #[test]
+    fn iterators() {
+        assert_eq!((1..=5).map(I256::from).sum::<I256>(), I256::from(15));
+        assert_eq!((1..=5).map(I256::from).product::<I256>(), I256::from(120));
+    }
+
+    #[test]
+    fn tokenization() {
+        assert_eq!(json!(I256::from(42)), json!("0x2a"));
+        assert_eq!(json!(I256::minus_one()), json!(U256::MAX));
+
+        assert_eq!(I256::from(42).into_token(), 42i32.into_token());
+        assert_eq!(
+            I256::minus_one().into_token(),
+            ethabi_9_0::Token::Int(U256::MAX),
+        );
+
+        assert_eq!(
+            I256::from_token(42i32.into_token()).unwrap(),
+            I256::from(42),
+        );
+        assert_eq!(
+            I256::from_token(U256::MAX.into_token()).unwrap(),
+            I256::minus_one(),
+        );
     }
 }
