@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
+use std::iter;
 use std::ops;
 use std::str;
 use std::{i128, i64, u64};
@@ -999,6 +1000,24 @@ impl ops::MulAssign for I256 {
     }
 }
 
+impl iter::Sum for I256 {
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = Self>,
+    {
+        iter.fold(I256::zero(), |acc, x| acc + x)
+    }
+}
+
+impl iter::Product for I256 {
+    fn product<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = Self>,
+    {
+        iter.fold(I256::one(), |acc, x| acc * x)
+    }
+}
+
 impl tokens::Tokenizable for I256 {
     fn from_token(token: ethabi_9_0::Token) -> Result<Self, contract::Error> {
         // NOTE: U256 accepts both `Int` and `Uint` kind tokens. In fact, all
@@ -1359,6 +1378,12 @@ mod tests {
 
         assert_eq!(I256::zero().pow(42), I256::zero());
         assert_eq!(I256::exp10(18).to_string(), "1000000000000000000");
+    }
+
+    #[test]
+    fn iterators() {
+        assert_eq!((1..=5).map(I256::from).sum::<I256>(), I256::from(15));
+        assert_eq!((1..=5).map(I256::from).product::<I256>(), I256::from(120));
     }
 
     #[test]
