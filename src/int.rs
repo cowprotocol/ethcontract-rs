@@ -493,6 +493,73 @@ impl I256 {
     pub fn to_little_endian(&self, bytes: &mut [u8]) {
         self.0.to_little_endian(bytes)
     }
+
+    /// Create 10**n as this type.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the result overflows the type.
+    pub fn exp10(n: usize) -> Self {
+        U256::exp10(n).try_into().expect("overflow")
+    }
+
+    /// Raise self to the power of `exp`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the result overflows the type in debug mode.
+    pub fn pow(self, exp: u32) -> Self {
+        handle_overflow(self.overflowing_pow(exp))
+    }
+
+    /// Raises self to the power of `exp`.
+    ///
+    /// Returns a tuple of the exponentiation along with a bool indicating
+    /// whether an overflow happened.
+    pub fn overflowing_pow(self, exp: u32) -> (Self, bool) {
+        let sign = match self.signum64().pow(exp & 1) {
+            0 | 1 => Sign::Positive,
+            -1 => Sign::Negative,
+            _ => unreachable!(),
+        };
+
+        let (unsigned, overflow_pow) = self.abs_unsigned().overflowing_pow(exp.into());
+        let (result, overflow_conv) = I256::overflowing_from_sign_and_abs(sign, unsigned);
+
+        (result, overflow_pow || overflow_conv)
+    }
+
+    /// Raises self to the power of `exp`. Returns None if overflow occurred.
+    pub fn checked_pow(self, exp: u32) -> Option<Self> {
+        let (result, overflow) = self.overflowing_pow(exp);
+        if overflow {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    /// Raises self to the power of `exp`, saturating at the numeric bounds
+    /// instead of overflowing.
+    pub fn saturating_pow(self, exp: u32) -> Self {
+        let (result, overflow) = self.overflowing_pow(exp);
+        if overflow {
+            return match self.signum64().pow(exp & 1) {
+                1 => I256::MAX,
+                -1 => I256::MIN,
+                _ => unreachable!(),
+            };
+        }
+
+        result
+    }
+
+    /// Wrapping powolute value. Computes `self.pow()`, wrapping around at the
+    /// boundary of the type.
+    pub fn wrapping_pow(self, exp: u32) -> Self {
+        let (result, _) = self.overflowing_pow(exp);
+        result
+    }
 }
 
 macro_rules! impl_from {
@@ -989,5 +1056,17 @@ mod tests {
     fn bit_shift() {
         assert_eq!(I256::one() << 255, I256::MIN);
         assert_eq!(I256::MIN >> 255, I256::one());
+    }
+
+    #[test]
+    fn pow() {
+        assert_eq!(I256::from(1000).saturating_pow(1000), I256::MAX);
+        assert_eq!(I256::from(-1000).saturating_pow(1001), I256::MIN);
+
+        assert_eq!(I256::from(2).pow(64), I256::from(1u128 << 64));
+        assert_eq!(I256::from(-2).pow(63), I256::from(i64::MIN));
+
+        assert_eq!(I256::zero().pow(42), I256::zero());
+        assert_eq!(I256::exp10(18).to_string(), "1000000000000000000");
     }
 }
