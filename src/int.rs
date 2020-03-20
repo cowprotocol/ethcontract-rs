@@ -56,18 +56,12 @@ impl I256 {
         (sign, abs)
     }
 
-    /// Returns an `i64` representing the sign of the number.
-    fn signum64(self) -> i64 {
-        let most_significant_word = (self.0).0[3] as i64;
-        most_significant_word.signum()
-    }
-
     /// Returns the sign of self.
     fn sign(self) -> Sign {
-        match self.signum64() {
-            1 | 0 => Sign::Positive,
-            -1 => Sign::Negative,
-            _ => unreachable!(),
+        let most_significant_word = (self.0).0[3];
+        match most_significant_word & (1 << 63) {
+            0 => Sign::Positive,
+            _ => Sign::Negative,
         }
     }
 
