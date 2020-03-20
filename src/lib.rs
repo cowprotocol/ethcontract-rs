@@ -98,6 +98,7 @@ pub mod contract;
 mod conv;
 pub mod errors;
 mod future;
+mod int;
 pub mod log;
 pub mod secret;
 pub mod sign;
@@ -106,6 +107,7 @@ pub mod transport;
 
 pub use crate::contract::Instance;
 use crate::contract::{DeployBuilder, MethodBuilder, ViewMethodBuilder};
+pub use crate::int::I256;
 pub use crate::transaction::{Account, GasPrice};
 pub use crate::transport::DynTransport;
 pub use ethcontract_common as common;
