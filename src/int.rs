@@ -4,14 +4,35 @@ use crate::errors::{ParseI256Error, TryFromBigIntError};
 use std::cmp;
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
-use std::i128;
+use std::ops;
 use std::str::{self, FromStr};
+use std::{i128, i64, u64};
 use web3::types::U256;
 
 /// Compute the two's complement of a U256.
 fn twos_complement(u: U256) -> U256 {
     let (twos_complement, _) = (!u).overflowing_add(U256::one());
     twos_complement
+}
+
+/// Overflow handling that depends on whether or not the binary is built in
+/// debug mode.
+///
+/// # Panics
+///
+/// This function will panic on overflows in debug mode, and simply ignore the
+/// overflow in non-debug mode.
+#[inline(always)]
+fn handle_overflow<T>((result, overflow): (T, bool)) -> T {
+    #[cfg(debug_assertions)]
+    {
+        if overflow {
+            panic!("overflow");
+        }
+    }
+
+    let _ = overflow;
+    result
 }
 
 /// Little-endian 256-bit signed integer.
@@ -28,6 +49,37 @@ enum Sign {
 }
 
 impl I256 {
+    /// Maximum value.
+    pub const MAX: I256 = I256(U256([u64::MAX, u64::MAX, u64::MAX, i64::MAX as _]));
+
+    /// Minimum value.
+    pub const MIN: I256 = I256(U256([0, 0, 0, i64::MIN as _]));
+
+    /// Zero (additive identity) of this type.
+    pub const fn zero() -> Self {
+        I256(U256([0, 0, 0, 0]))
+    }
+
+    /// One (multiplicative identity) of this type.
+    pub const fn one() -> Self {
+        I256(U256([1, 0, 0, 0]))
+    }
+
+    /// Minus one (multiplicative inverse) of this type.
+    pub const fn minus_one() -> Self {
+        I256(U256([u64::MAX, u64::MAX, u64::MAX, u64::MAX]))
+    }
+
+    /// The maximum value which can be inhabited by this type.
+    pub const fn max_value() -> Self {
+        I256::MAX
+    }
+
+    /// The minimum value which can be inhabited by this type.
+    pub const fn min_value() -> Self {
+        I256::MIN
+    }
+
     /// Creates an I256 from a sign and an absolute value. Returns the value and
     /// a bool that is true if the conversion caused an overflow.
     fn overflowing_from_sign_and_abs(sign: Sign, abs: U256) -> (Self, bool) {
@@ -232,7 +284,137 @@ impl I256 {
 
         Ok(result)
     }
+
+    /// Returns the sign of the number.
+    pub fn signum(self) -> Self {
+        self.signum64().into()
+    }
+
+    /// Returns an `i64` representing the sign of the number.
+    fn signum64(self) -> i64 {
+        match self.sign() {
+            Sign::Positive => {
+                if self.is_zero() {
+                    0
+                } else {
+                    1
+                }
+            }
+            Sign::Negative => -1,
+        }
+    }
+
+    /// Returns `true` if `self` is positive and `false` if the number is zero
+    /// or negative.
+    pub fn is_positive(self) -> bool {
+        self.signum64().is_positive()
+    }
+
+    /// Returns `true` if `self` is negative and `false` if the number is zero
+    /// or negative.
+    pub fn is_negative(self) -> bool {
+        self.signum64().is_negative()
+    }
+
+    /// Returns `true` if `self` is negative and `false` if the number is zero
+    /// or positive.
+    pub fn is_zero(self) -> bool {
+        self.0.is_zero()
+    }
+
+    /// Gets the absolute value.
+    ///
+    /// # Panics
+    ///
+    /// In debug mode, will panic if it overflows.
+    pub fn abs(self) -> Self {
+        handle_overflow(self.overflowing_abs())
+    }
+
+    /// Computes the absolute value of self.
+    ///
+    /// Returns a tuple of the absolute version of self along with a boolean
+    /// indicating whether an overflow happened. If self is the minimum value
+    /// (e.g., `I256::MIN` for values of type `I256`), then the minimum value
+    /// will be returned again and true will be returned for an overflow
+    /// happening.
+    pub fn overflowing_abs(self) -> (Self, bool) {
+        if self == I256::MIN {
+            (self, true)
+        } else {
+            (I256(self.abs_unsigned()), false)
+        }
+    }
+
+    /// Checked absolute value. Computes `self.abs()`, returning `None` if
+    /// `self == MIN`.
+    pub fn checked_abs(self) -> Option<Self> {
+        let (result, overflow) = self.overflowing_abs();
+        if overflow {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    /// Saturating absolute value. Computes `self.abs()`, returning `MAX` if
+    /// `self == MIN` instead of overflowing.
+    pub fn saturating_abs(self) -> Self {
+        self.checked_abs().unwrap_or(I256::MAX)
+    }
+
+    /// Wrapping absolute value. Computes `self.abs()`, wrapping around at the
+    /// boundary of the type.
+    pub fn wrapping_abs(self) -> Self {
+        let (result, _) = self.overflowing_abs();
+        result
+    }
+
+    /// Gets the absolute value as an unsigned integer.
+    fn abs_unsigned(self) -> U256 {
+        let (_, abs) = self.into_sign_and_abs();
+        abs
+    }
+
+    /// Negates self, overflowing if this is equal to the minimum value.
+    ///
+    /// Returns a tuple of the negated version of `self` along with a boolean
+    /// indicating whether an overflow happened. If `self` is the minimum value,
+    /// then the minimum value will be returned again and `true` will be
+    /// returned for an overflow happening.
+    pub fn overflowing_neg(self) -> (Self, bool) {
+        if self == I256::MIN {
+            (self, true)
+        } else {
+            (I256(twos_complement(self.0)), false)
+        }
+    }
+
+    /// Checked negation. Computes `self.neg()`, returning `None` if
+    /// `self == MIN`.
+    pub fn checked_neg(self) -> Option<Self> {
+        let (result, overflow) = self.overflowing_neg();
+        if overflow {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    /// Saturating negation. Computes `self.neg()`, returning `MAX` if
+    /// `self == MIN` instead of overflowing.
+    pub fn saturating_neg(self) -> Self {
+        self.checked_neg().unwrap_or(I256::MAX)
+    }
+
+    /// Wrapping negation. Computes `self.neg()`, returning `MIN` if
+    /// `self == MIN` instead of overflowing.
+    pub fn wrapping_neg(self) -> Self {
+        let (result, _) = self.overflowing_neg();
+        result
+    }
 }
+
 macro_rules! impl_from {
     ($( $t:ty ),*) => {
         $(
@@ -357,6 +539,22 @@ impl cmp::PartialOrd for I256 {
         };
 
         Some(ord)
+    }
+}
+
+impl ops::Neg for I256 {
+    type Output = I256;
+
+    fn neg(self) -> Self::Output {
+        handle_overflow(self.overflowing_neg())
+    }
+}
+
+impl ops::Not for I256 {
+    type Output = I256;
+
+    fn not(self) -> Self::Output {
+        I256(!self.0)
     }
 }
 
@@ -488,10 +686,8 @@ mod tests {
     #[test]
     fn formatting() {
         let unsigned = U256::from_dec_str("314159265358979323846264338327950288419716").unwrap();
-
-        // TODO(nlordell): Simplify once negation is implemented.
-        let positive = I256::checked_from_sign_and_abs(Sign::Positive, unsigned).unwrap();
-        let negative = I256::checked_from_sign_and_abs(Sign::Negative, unsigned).unwrap();
+        let positive = I256::try_from(unsigned).unwrap();
+        let negative = -positive;
 
         assert_eq!(format!("{}", positive), format!("{}", unsigned));
         assert_eq!(format!("{}", negative), format!("-{}", unsigned));
@@ -519,5 +715,77 @@ mod tests {
             format!("{:+X}", negative),
             format!("-{:x}", unsigned).to_uppercase()
         );
+    }
+
+    #[test]
+    fn signs() {
+        assert_eq!(I256::MAX.signum(), I256::one());
+        assert!(I256::MAX.is_positive());
+        assert!(!I256::MAX.is_negative());
+        assert!(!I256::MAX.is_zero());
+
+        assert_eq!(I256::one().signum(), I256::one());
+        assert!(I256::one().is_positive());
+        assert!(!I256::one().is_negative());
+        assert!(!I256::one().is_zero());
+
+        assert_eq!(I256::MIN.signum(), I256::minus_one());
+        assert!(!I256::MIN.is_positive());
+        assert!(I256::MIN.is_negative());
+        assert!(!I256::MIN.is_zero());
+
+        assert_eq!(I256::minus_one().signum(), I256::minus_one());
+        assert!(!I256::minus_one().is_positive());
+        assert!(I256::minus_one().is_negative());
+        assert!(!I256::minus_one().is_zero());
+
+        assert_eq!(I256::zero().signum(), I256::zero());
+        assert!(!I256::zero().is_positive());
+        assert!(!I256::zero().is_negative());
+        assert!(I256::zero().is_zero());
+
+        assert_eq!(
+            I256::from_dec_str("314159265358979323846264338327950288419716")
+                .unwrap()
+                .signum(),
+            I256::one(),
+        );
+        assert_eq!(
+            I256::from_dec_str("-314159265358979323846264338327950288419716")
+                .unwrap()
+                .signum(),
+            I256::minus_one(),
+        );
+    }
+
+    #[test]
+    fn abs() {
+        let positive = I256::from_dec_str("314159265358979323846264338327950288419716")
+            .unwrap()
+            .signum();
+        let negative = -positive;
+
+        assert_eq!(positive.abs(), positive);
+        assert_eq!(negative.abs(), positive);
+
+        assert_eq!(I256::zero().abs(), I256::zero());
+        assert_eq!(I256::MAX.abs(), I256::MAX);
+        assert_eq!((-I256::MAX).abs(), I256::MAX);
+        assert_eq!(I256::MIN.checked_abs(), None);
+    }
+
+    #[test]
+    fn neg() {
+        let positive = I256::from_dec_str("314159265358979323846264338327950288419716")
+            .unwrap()
+            .signum();
+        let negative = -positive;
+
+        assert_eq!(-positive, negative);
+        assert_eq!(-negative, positive);
+
+        assert_eq!(-I256::zero(), I256::zero());
+        assert_eq!(-(-I256::MAX), I256::MAX);
+        assert_eq!(I256::MIN.checked_neg(), None);
     }
 }
