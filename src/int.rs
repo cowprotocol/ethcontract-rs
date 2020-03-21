@@ -539,10 +539,9 @@ impl I256 {
     pub fn saturating_add(self, other: Self) -> Self {
         let (result, overflow) = self.overflowing_add(other);
         if overflow {
-            if result.is_negative() {
-                I256::MAX
-            } else {
-                I256::MIN
+            match result.sign() {
+                Sign::Positive => I256::MIN,
+                Sign::Negative => I256::MAX,
             }
         } else {
             result
@@ -593,10 +592,9 @@ impl I256 {
     pub fn saturating_sub(self, other: Self) -> Self {
         let (result, overflow) = self.overflowing_sub(other);
         if overflow {
-            if result.is_negative() {
-                I256::MAX
-            } else {
-                I256::MIN
+            match result.sign() {
+                Sign::Positive => I256::MIN,
+                Sign::Negative => I256::MAX,
             }
         } else {
             result
@@ -709,13 +707,13 @@ impl I256 {
     pub fn saturating_pow(self, exp: u32) -> Self {
         let (result, overflow) = self.overflowing_pow(exp);
         if overflow {
-            return match self.pow_sign(exp) {
+            match self.pow_sign(exp) {
                 Sign::Positive => I256::MAX,
                 Sign::Negative => I256::MIN,
-            };
+            }
+        } else {
+            result
         }
-
-        result
     }
 
     /// Wrapping powolute value. Computes `self.pow()`, wrapping around at the
