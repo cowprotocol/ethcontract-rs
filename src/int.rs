@@ -416,19 +416,29 @@ impl I256 {
 
     /// Return the least number of bits needed to represent the number.
     pub fn bits(&self) -> u32 {
-        let sign = self.signum64();
         let unsigned = self.abs_unsigned();
         let unsigned_bits = unsigned.bits();
 
-        // NOTE: We need to deal with the very special case where the number is
-        //   written as `0b11..1100..00`, in that case the number of bits
-        //   required to represent the number is equal to the number of bits
-        //   required for its two's complement. In the general case, an extra
-        //   bit is needed to represent the sign.
-        let bits = if sign == -1 && unsigned.leading_zeros() + unsigned.trailing_zeros() == 255 {
+        // NOTE: We need to deal with two special cases:
+        //   - the number is 0
+        //   - the number is a negative power of `2`. These numbers are written
+        //     as `0b11..1100..00`.
+        //   In the case of a negative power of two, the number of bits required
+        //   to represent the negative signed value is equal to the number of
+        //   bits required to represent its absolute value as an unsigned
+        //   integer. This is best illustrated by an example: the number of bits
+        //   required to represent `-128` is `8` since it is equal to `i8::MIN`
+        //   and, therefore, obviously fits in `8` bits. This is equal to the
+        //   number of bits required to represent `128` as an unsigned integer
+        //   (which fits in a `u8`).  However, the number of bits required to
+        //   represent `128` as a signed integer is `9`, as it is greater than
+        //   `i8::MAX`.  In the general case, an extra bit is needed to
+        //   represent the sign.
+        let bits = if self.count_zeros() == self.trailing_zeros() {
+            // `self` is zero or a negative power of two
             unsigned_bits
         } else {
-            unsigned_bits + (sign as usize)
+            unsigned_bits + 1
         };
 
         bits as _
@@ -443,12 +453,24 @@ impl I256 {
         self.0.bit(index)
     }
 
-    /// Returns the number of leading zeros in the binary representation of self.
+    /// Returns the number of ones in the binary representation of `self`.
+    pub fn count_ones(&self) -> u32 {
+        (self.0).0.iter().map(|word| word.count_ones()).sum()
+    }
+
+    /// Returns the number of zeros in the binary representation of `self`.
+    pub fn count_zeros(&self) -> u32 {
+        (self.0).0.iter().map(|word| word.count_zeros()).sum()
+    }
+
+    /// Returns the number of leading zeros in the binary representation of
+    /// `self`.
     pub fn leading_zeros(&self) -> u32 {
         self.0.leading_zeros()
     }
 
-    /// Returns the number of leading zeros in the binary representation of self.
+    /// Returns the number of leading zeros in the binary representation of
+    /// `self`.
     pub fn trailing_zeros(&self) -> u32 {
         self.0.trailing_zeros()
     }
