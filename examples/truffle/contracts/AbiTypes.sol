@@ -3,15 +3,7 @@ pragma solidity ^0.5.0;
 /**
  * @dev Contract to illustract support for various Solidity types.
  */
-contract DeployedContract {
-  function getAddress() public view returns (address) {
-    return address(this);
-  } 
-
-  function getBytes() public view returns (bytes memory) {
-    return abi.encodePacked(this.getU32());
-  }
-
+contract AbiTypes {
   function getU8() public view returns (uint8) {
     return uint8(this.getU256() & 0xff);
   }
@@ -54,9 +46,18 @@ contract DeployedContract {
     return this.getU256() & 0x1 != 0;
   }
 
+  function getBytes() public view returns (bytes memory) {
+    return abi.encodePacked(this.getU32());
+  }
+  function getFixedBytes() public view returns (bytes6) {
+    return bytes6(uint48(this.getU64() & 0xffffffffffff));
+  }
+  function getAddress() public view returns (address) {
+    return address(uint160(this.getU256()));
+  }
   function getString() public view returns (string memory) {
     bytes16 alphabet = "0123456789abcdef";
-    uint32 value = this.getU32();
+    uint64 value = this.getU64();
     bytes memory buf = new bytes(16);
     for (uint256 i = 16; i > 0; i--) {
       buf[i-1] = byte(alphabet[value & 0xf]);
@@ -74,11 +75,6 @@ contract DeployedContract {
     }
     return buf;
   }
-
-  function getFixedBytes() public view returns (bytes6) {
-    return bytes6(uint48(this.getU64() & 0xffffffffffff));
-  }
-
   function getFixedArray() public view returns (int32[3] memory) {
     uint256 value = this.getU256();
     int32[3] memory buf = [int32(0), int32(0), int32(0)];
