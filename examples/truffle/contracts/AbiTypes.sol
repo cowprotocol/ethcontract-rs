@@ -78,6 +78,7 @@ contract DeployedContract {
   function getFixedBytes() public view returns (bytes6) {
     return bytes6(uint48(this.getU64() & 0xffffffffffff));
   }
+
   function getFixedArray() public view returns (int32[3] memory) {
     uint256 value = this.getU256();
     int32[3] memory buf = [int32(0), int32(0), int32(0)];
