@@ -61,6 +61,12 @@ cd examples/truffle
 yarn start
 ```
 
+- The `abi` example deploys a simple contract and performs various `eth_call`s
+  to illustrate how Solidity types are mapped to Rust types by `ethcontract`.
+  ```sh
+  cargo run --example abi
+  ```
+
 - The `async` example deploys an ERC20 token and interacts with the contract
   with various accounts.
   ```sh
