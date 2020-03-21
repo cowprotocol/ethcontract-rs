@@ -494,6 +494,22 @@ impl I256 {
         self.0.to_little_endian(bytes)
     }
 
+    /// Returns the sign of `self` to the exponent `exp`.
+    ///
+    /// Note that this method does not actually try to compute the `self` to the
+    /// exponent `exp`, but instead uses the property that a negative number to
+    /// an odd exponent will be negative. This means that the sign of the result
+    /// of exponentiation can be computed even if the actual result is too large
+    /// to fit in 256-bit signed integer.
+    fn pow_sign(self, exp: u32) -> Sign {
+        let is_exp_odd = exp % 2 != 0;
+        if is_exp_odd && self.is_negative() {
+            Sign::Negative
+        } else {
+            Sign::Positive
+        }
+    }
+
     /// Create 10**n as this type.
     ///
     /// # Panics
@@ -517,12 +533,7 @@ impl I256 {
     /// Returns a tuple of the exponentiation along with a bool indicating
     /// whether an overflow happened.
     pub fn overflowing_pow(self, exp: u32) -> (Self, bool) {
-        let sign = match self.signum64().pow(exp & 1) {
-            0 | 1 => Sign::Positive,
-            -1 => Sign::Negative,
-            _ => unreachable!(),
-        };
-
+        let sign = self.pow_sign(exp);
         let (unsigned, overflow_pow) = self.abs_unsigned().overflowing_pow(exp.into());
         let (result, overflow_conv) = I256::overflowing_from_sign_and_abs(sign, unsigned);
 
@@ -544,10 +555,9 @@ impl I256 {
     pub fn saturating_pow(self, exp: u32) -> Self {
         let (result, overflow) = self.overflowing_pow(exp);
         if overflow {
-            return match self.signum64().pow(exp & 1) {
-                1 => I256::MAX,
-                -1 => I256::MIN,
-                _ => unreachable!(),
+            return match self.pow_sign(exp) {
+                Sign::Positive => I256::MAX,
+                Sign::Negative => I256::MIN,
             };
         }
 
