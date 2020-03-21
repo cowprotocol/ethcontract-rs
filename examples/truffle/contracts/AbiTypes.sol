@@ -55,48 +55,35 @@ contract DeployedContract {
   }
 
   function getString() public view returns (string memory) {
-    uint8 value = this.getU8();
-    if (value == 0) {
-      return "0";
+    bytes16 alphabet = "0123456789abcdef";
+    uint32 value = this.getU32();
+    bytes memory buf = new bytes(16);
+    for (uint256 i = 16; i > 0; i--) {
+      buf[i-1] = byte(alphabet[value & 0xf]);
+      value >>= 4;
     }
-    uint256 j = value;
-    uint256 len;
-    while (j != 0) {
-      len++;
-      j /= 10;
-    }
-    bytes memory bstr = new bytes(len);
-    uint256 k = len - 1;
-    while (value != 0) {
-      bstr[k--] = byte(uint8(48 + value % 10));
-      value /= 10;
-    }
-    return string(bstr);
+    return string(buf);
   }
 
   function getArray() public view returns (uint64[] memory) {
     uint256 value = this.getU256();
     uint64[] memory buf = new uint64[](4);
-    for (uint256 i = 0; i < 32; i++) {
-      buf[0] = uint64(value & 0xffffffffffffffff);
-      value = value >> 64;
+    for (uint256 i = 4; i > 0; i--) {
+      buf[i-1] = uint64(value & 0xffffffffffffffff);
+      value >>= 64;
     }
     return buf;
   }
 
   function getFixedBytes() public view returns (bytes6) {
-    if (this.getBool()) {
-      return hex"000102030405";
-    } else {
-      return hex"fffefdfcfbfa";
-    }
+    return bytes6(uint48(this.getU64() & 0xffffffffffff));
   }
   function getFixedArray() public view returns (int32[3] memory) {
     uint256 value = this.getU256();
     int32[3] memory buf = [int32(0), int32(0), int32(0)];
-    for (uint256 i = 0; i < 32; i++) {
-      buf[0] = int32(value & 0xffffffff);
-      value = value >> 32;
+    for (uint256 i = 3; i > 0; i--) {
+      buf[i-1] = int32(value & 0xffffffff);
+      value >>= 32;
     }
     return buf;
   }
