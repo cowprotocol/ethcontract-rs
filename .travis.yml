@@ -29,6 +29,7 @@ jobs:
         #   calls `truffle develop`, so that the process' STDIN stays open, as
         #   `truffle develop` exits as soon as it gets an EOF from STDIN.
         - tail -f /dev/null | yarn --cwd examples/truffle start > /dev/null &
+        - cargo run --example abi
         - cargo run --example async
         - cargo run --example deployments
         - cargo run --example events
