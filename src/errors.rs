@@ -7,13 +7,13 @@ mod web3contract;
 
 pub use self::web3contract::Web3ContractError;
 use ethcontract_common::abi::{Error as AbiError, Function};
+pub use ethcontract_common::errors::*;
 use secp256k1::Error as Secp256k1Error;
 use std::num::ParseIntError;
 use thiserror::Error;
+use uint::FromDecStrErr;
 use web3::error::Error as Web3Error;
 use web3::types::H256;
-
-pub use ethcontract_common::errors::*;
 
 /// Error that can occur while locating a deployed contract.
 #[derive(Debug, Error)]
@@ -165,6 +165,34 @@ impl From<Secp256k1Error> for InvalidPrivateKey {
             }
         }
         InvalidPrivateKey
+    }
+}
+
+/// The error type that is returned when conversion to or from a 256-bit integer
+/// fails.
+#[derive(Clone, Copy, Debug, Error)]
+#[error("output of range integer conversion attempted")]
+pub struct TryFromBigIntError;
+
+/// The error type that is returned when parsing a 256-bit signed integer.
+#[derive(Clone, Copy, Debug, Error)]
+pub enum ParseI256Error {
+    /// Error that occurs when an invalid digit is encountered while parsing.
+    #[error("invalid digit found in string")]
+    InvalidDigit,
+
+    /// Error that occurs when the number is too large or too small (negative)
+    /// and does not fit in a 256-bit signed integer.
+    #[error("number does not fit in 256-bit integer")]
+    IntegerOverflow,
+}
+
+impl From<FromDecStrErr> for ParseI256Error {
+    fn from(err: FromDecStrErr) -> Self {
+        match err {
+            FromDecStrErr::InvalidCharacter => ParseI256Error::InvalidDigit,
+            FromDecStrErr::InvalidLength => ParseI256Error::IntegerOverflow,
+        }
     }
 }
 

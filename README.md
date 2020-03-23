@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/gnosis/ethcontract-rs.svg?branch=master)](https://travis-ci.org/gnosis/ethcontract-rs)
 [![Crates.io](https://img.shields.io/crates/v/ethcontract.svg)](https://crates.io/crates/ethcontract)
 [![Docs.rs](https://docs.rs/ethcontract/badge.svg)](https://docs.rs/ethcontract)
-[![Rustc Version](https://img.shields.io/badge/rustc-1.40+-lightgray.svg)](https://blog.rust-lang.org/2019/12/19/Rust-1.40.0.html)
+[![Rustc Version](https://img.shields.io/badge/rustc-1.42+-lightgray.svg)](https://blog.rust-lang.org/2019/12/19/Rust-1.42.0.html)
 
 # `ethcontract-rs`
 
@@ -30,7 +30,7 @@ for interacting with contract functions in a type-safe way.
 
 ### Minimum Supported Rust Version
 
-The minimum supported Rust version is 1.40.
+The minimum supported Rust version is 1.42.
 
 ## Generator API
 
@@ -60,6 +60,12 @@ terminal run:
 cd examples/truffle
 yarn start
 ```
+
+- The `abi` example deploys a simple contract and performs various `eth_call`s
+  to illustrate how Solidity types are mapped to Rust types by `ethcontract`.
+  ```sh
+  cargo run --example abi
+  ```
 
 - The `async` example deploys an ERC20 token and interacts with the contract
   with various accounts.

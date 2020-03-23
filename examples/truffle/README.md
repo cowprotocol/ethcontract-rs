@@ -3,6 +3,8 @@
 This subdirectory contains a truffle project with sample contracts used by the
 `ethcontract-rs` crate for its examples.
 
+- `AbiTypes.sol` a simple contract that just returns pseudo-random data for
+  various primitive Solidity types.
 - `DeployedContract.sol` a simple contract that is deployed on the Rinkeby
   testnet and used for the rinkeby example.
 - `DocumentedContract.sol` a sample with contract level documentation. We use

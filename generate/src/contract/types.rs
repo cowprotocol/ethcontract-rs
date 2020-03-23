@@ -16,8 +16,7 @@ pub(crate) fn expand(cx: &Context, kind: &ParamType) -> Result<TokenStream> {
             3..=4 => Ok(quote! { i32 }),
             5..=8 => Ok(quote! { i64 }),
             9..=16 => Ok(quote! { i128 }),
-            // NOTE: There is currently no 256-bit signed integer type.
-            17..=32 => Ok(quote! { #ethcontract::U256 }),
+            17..=32 => Ok(quote! { #ethcontract::I256 }),
             _ => Err(anyhow!("unsupported solidity type int{}", n)),
         },
         ParamType::Uint(n) => match n / 8 {
