@@ -22,13 +22,16 @@ async fn run() {
 
     macro_rules! debug_call {
         (instance . $call:ident ()) => {{
-            let value = instance.$call()
+            let value = instance
+                .$call()
                 .call()
                 .await
                 .expect(concat!(stringify!($call), " failed"));
             println!(
                 "{}() -> {}\n  ⏎ {:?}",
-                stringify!($call), type_name_of(&value), value,
+                stringify!($call),
+                type_name_of(&value),
+                value,
             )
         }};
     }

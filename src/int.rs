@@ -735,7 +735,7 @@ macro_rules! impl_from {
                 fn from(value: $t) -> Self {
                     #[allow(unused_comparisons)]
                     I256(if value < 0 {
-                        let abs = (u128::max_value() ^ (value as u128)).wrapping_add(1);
+                        let abs = (!(value as u128)).wrapping_add(1);
                         twos_complement(U256::from(abs))
                     } else {
                         U256::from(value)
