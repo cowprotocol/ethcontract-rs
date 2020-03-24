@@ -4,6 +4,7 @@
 
 mod deploy;
 mod deployed;
+mod event;
 mod method;
 
 use crate::abicompat::AbiCompat;
