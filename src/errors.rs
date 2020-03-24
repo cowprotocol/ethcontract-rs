@@ -6,7 +6,8 @@ pub(crate) mod revert;
 mod web3contract;
 
 pub use self::web3contract::Web3ContractError;
-use ethcontract_common::abi::{Error as AbiError, Function};
+use ethcontract_common::abi::{Error as AbiError, Event, Function};
+use ethcontract_common::abiext::EventExt;
 pub use ethcontract_common::errors::*;
 use secp256k1::Error as Secp256k1Error;
 use std::num::ParseIntError;
@@ -144,6 +145,31 @@ impl MethodError {
     /// Create a `MethodError` from its signature and inner `ExecutionError`.
     pub fn from_parts(signature: String, inner: ExecutionError) -> Self {
         MethodError { signature, inner }
+    }
+}
+
+/// Error that can occur while streaming contract events.
+#[derive(Debug, Error)]
+#[error("event '{signature}' failure: {inner}")]
+pub struct EventError {
+    /// The signature of the failed event.
+    pub signature: String,
+
+    /// The inner execution error that for the method transaction that failed.
+    #[source]
+    pub inner: ExecutionError,
+}
+
+impl EventError {
+    /// Create a new `EventError` from an ABI function specification and an
+    /// inner `ExecutionError`.
+    pub fn new<I: Into<ExecutionError>>(event: &Event, inner: I) -> Self {
+        EventError::from_parts(event.abi_signature(), inner.into())
+    }
+
+    /// Create a `EventError` from its signature and inner `ExecutionError`.
+    pub fn from_parts(signature: String, inner: ExecutionError) -> Self {
+        EventError { signature, inner }
     }
 }
 

@@ -1,7 +1,7 @@
 //! This module implements extensions to the `ethabi` API.
 
 use crate::hash;
-use ethabi::Function;
+use ethabi::{Event, Function};
 
 /// Extension trait for `ethabi::Function`.
 pub trait FunctionExt {
@@ -28,6 +28,29 @@ impl FunctionExt for Function {
     }
 }
 
+/// Extension trait for `ethabi::Event`.
+pub trait EventExt {
+    /// Compute the event signature in human-readable format. The `keccak256`
+    /// hash of this value is the actual event signature that is used as topic0
+    /// in the transaction logs.
+    fn abi_signature(&self) -> String;
+}
+
+impl EventExt for Event {
+    fn abi_signature(&self) -> String {
+        format!(
+            "{}({}){}",
+            self.name,
+            self.inputs
+                .iter()
+                .map(|input| input.kind.to_string())
+                .collect::<Vec<_>>()
+                .join(","),
+            if self.anonymous { " anonymous" } else { "" },
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -51,6 +74,29 @@ mod tests {
         ] {
             let function: Function = serde_json::from_str(f).expect("invalid function JSON");
             let signature = function.abi_signature();
+            assert_eq!(signature, *expected);
+        }
+    }
+
+    #[test]
+    fn format_event_signature() {
+        for (e, expected) in &[
+            (r#"{"name":"foo","inputs":[],"anonymous":false}"#, "foo()"),
+            (
+                r#"{"name":"bar","inputs":[{"name":"a","type":"uint256"},{"name":"b","type":"bool"}],"anonymous":false}"#,
+                "bar(uint256,bool)",
+            ),
+            (
+                r#"{"name":"baz","inputs":[{"name":"a","type":"uint256"}],"anonymous":true}"#,
+                "baz(uint256) anonymous",
+            ),
+            (
+                r#"{"name":"bax","inputs":[],"anonymous":true}"#,
+                "bax() anonymous",
+            ),
+        ] {
+            let event: Event = serde_json::from_str(e).expect("invalid event JSON");
+            let signature = event.abi_signature();
             assert_eq!(signature, *expected);
         }
     }
