@@ -106,7 +106,7 @@ pub mod transaction;
 pub mod transport;
 
 use crate::contract::{DeployBuilder, MethodBuilder, ViewMethodBuilder};
-pub use crate::contract::{Event, Instance, Topic};
+pub use crate::contract::{Event, Instance};
 pub use crate::int::I256;
 pub use crate::transaction::{Account, GasPrice};
 pub use crate::transport::DynTransport;

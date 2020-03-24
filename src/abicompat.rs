@@ -98,28 +98,3 @@ impl AbiCompat for Vec<ethabi_11_0::Token> {
         Some(tokens)
     }
 }
-
-impl<T> AbiCompat for ethabi_11_0::Topic<T> {
-    type Compat = ethabi_9_0::Topic<T>;
-
-    fn compat(self) -> Self::Compat {
-        match self {
-            ethabi_11_0::Topic::Any => ethabi_9_0::Topic::Any,
-            ethabi_11_0::Topic::OneOf(value) => ethabi_9_0::Topic::OneOf(value),
-            ethabi_11_0::Topic::This(value) => ethabi_9_0::Topic::This(value),
-        }
-    }
-}
-
-impl AbiCompat for ethabi_11_0::TopicFilter {
-    type Compat = ethabi_9_0::TopicFilter;
-
-    fn compat(self) -> Self::Compat {
-        ethabi_9_0::TopicFilter {
-            topic0: self.topic0.compat(),
-            topic1: self.topic1.compat(),
-            topic2: self.topic2.compat(),
-            topic3: self.topic3.compat(),
-        }
-    }
-}
