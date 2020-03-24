@@ -137,7 +137,7 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
     }
 
     /// Creates an event stream from the current event builder.
-    pub fn stream(self) -> Result<EventStream<T, E>, EventError> {
+    pub fn stream(self) -> EventStream<T, E> {
         EventStream::from_builder(self)
     }
 }
@@ -155,7 +155,7 @@ pub struct EventStream<T: Transport, E: Detokenize> {
 impl<T: Transport, E: Detokenize> EventStream<T, E> {
     /// Create a new log stream from a given web3 provider, filter and polling
     /// parameters.
-    pub fn from_builder(builder: EventBuilder<T, E>) -> Result<Self, EventError> {
+    pub fn from_builder(builder: EventBuilder<T, E>) -> Self {
         let event = builder.event;
 
         let web3 = builder.web3;
@@ -164,11 +164,11 @@ impl<T: Transport, E: Detokenize> EventStream<T, E> {
 
         let inner = LogStream::new(web3, filter, poll_interval);
 
-        Ok(EventStream {
+        EventStream {
             event,
             inner,
             _event: PhantomData,
-        })
+        }
     }
 }
 
@@ -274,7 +274,6 @@ mod tests {
         let (_, _, amount) = EventBuilder::<_, (Address, Address, U256)>::new(web3, event, address)
             .to_block(99.into())
             .stream()
-            .expect("failed to abi-encode filter")
             .next()
             .immediate()
             .expect("log stream did not produce any logs")

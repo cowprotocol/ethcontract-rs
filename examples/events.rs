@@ -32,8 +32,7 @@ async fn run() {
         .instance
         .event::<_, (Address, Address, U256)>("Transfer")
         .expect("transfer event not found")
-        .stream()
-        .expect("failed to encode topic filters");
+        .stream();
 
     join! {
         async {
