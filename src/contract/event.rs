@@ -1,8 +1,6 @@
 //! Module implements type-safe event streams from an ABI event definition with
 //! detokenization of the data included in the log.
 
-#![allow(dead_code)]
-
 use crate::abicompat::AbiCompat;
 use crate::errors::{EventError, ExecutionError};
 use crate::log::LogStream;
@@ -20,11 +18,65 @@ use web3::types::{Address, BlockNumber, FilterBuilder};
 use web3::Transport;
 
 /// A type representing a contract event.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Event<T> {
     /// A new event was received.
     Added(T),
     /// A previously revent was removed as the result of a re-org.
     Removed(T),
+}
+
+impl<T> Event<T> {
+    /// Get the underlying event data regardless of whether the event was added
+    /// or removed.
+    pub fn into_data(self) -> T {
+        match self {
+            Event::Added(value) => value,
+            Event::Removed(value) => value,
+        }
+    }
+
+    /// Get a reference the underlying event data regardless of whether the
+    /// event was added or removed.
+    pub fn as_data(&self) -> &T {
+        match self {
+            Event::Added(value) => value,
+            Event::Removed(value) => value,
+        }
+    }
+
+    /// Get a mutable reference the underlying event data regardless of whether
+    /// the event was added or removed.
+    pub fn as_data_mut(&mut self) -> &mut T {
+        match self {
+            Event::Added(value) => value,
+            Event::Removed(value) => value,
+        }
+    }
+
+    /// Get the underlying event data if the event was added.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the instance is a removed event.
+    pub fn added(self) -> T {
+        match self {
+            Event::Added(value) => value,
+            Event::Removed(_) => panic!("attempted to unwrap a removed event to an added one"),
+        }
+    }
+
+    /// Get the underlying event data if the event was removed.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the instance is a added event.
+    pub fn removed(self) -> T {
+        match self {
+            Event::Removed(value) => value,
+            Event::Added(_) => panic!("attempted to unwrap an added event to a removed one"),
+        }
+    }
 }
 
 /// The default poll interval to use for confirming transactions.
@@ -34,11 +86,17 @@ pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(5);
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(0);
 
 /// A builder for creating a filtered stream of contract events that are
+#[must_use = "event builder do nothing unless you or stream them"]
 pub struct EventBuilder<T: Transport, E: Detokenize> {
+    /// The underlying web3 instance.
     web3: Web3<T>,
+    /// The event ABI data for encoding topic filters and decoding logs.
     event: AbiEvent,
+    /// The web3 filter builder used for creating a log filter.
     filter: FilterBuilder,
+    /// The topic filters that are encoded based on the event ABI.
     pub topics: RawTopicFilter,
+    /// The polling interval for querying the node for more events.
     pub poll_interval: Option<Duration>,
     _event: PhantomData<E>,
 }
@@ -115,7 +173,7 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
 
     /// Creates an event stream from the current event builder.
     pub fn stream(self) -> Result<EventStream<T, E>, EventError> {
-        todo!()
+        EventStream::from_builder(self)
     }
 }
 
@@ -128,6 +186,7 @@ where
 }
 
 /// An event stream that emits events matching a builder.
+#[must_use = "streams do nothing unless you or poll them"]
 #[pin_project]
 pub struct EventStream<T: Transport, E: Detokenize> {
     event: AbiEvent,
@@ -193,5 +252,105 @@ impl<T: Transport, E: Detokenize> Stream for EventStream<T, E> {
             })
             .map(|next: Result<_, ExecutionError>| next.map_err(|err| EventError::new(&event, err)))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test::prelude::*;
+    use ethcontract_common::abi::{EventParam, ParamType};
+    use futures::stream::StreamExt;
+    use serde_json::Value;
+    use web3::types::{Address, H256, U256};
+
+    fn test_abi_event() -> (AbiEvent, Value) {
+        let event = AbiEvent {
+            name: "test".to_owned(),
+            inputs: vec![
+                EventParam {
+                    name: "from".to_owned(),
+                    kind: ParamType::Address,
+                    indexed: true,
+                },
+                EventParam {
+                    name: "to".to_owned(),
+                    kind: ParamType::Address,
+                    indexed: true,
+                },
+                EventParam {
+                    name: "amount".to_owned(),
+                    kind: ParamType::Uint(256),
+                    indexed: false,
+                },
+            ],
+            anonymous: false,
+        };
+        let log = json!({
+            "address": Address::zero(),
+            "topics": [
+                event.signature(),
+                H256::from(Address::repeat_byte(0xf0)),
+                H256::from(Address::repeat_byte(0x70)),
+            ],
+            "data": H256::from_low_u64_be(42),
+            "blockHash": H256::zero(),
+            "blockNumber": "0x0",
+            "transactionHash": H256::zero(),
+            "transactionIndex": "0x0",
+            "logIndex": "0x0",
+            "transactionLogIndex": "0x0",
+            "logType": "",
+            "removed": false,
+        });
+
+        (event, log)
+    }
+
+    #[test]
+    fn event_stream_next_event() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+        let (event, log) = test_abi_event();
+
+        // filter created
+        transport.add_response(json!("0xf0"));
+        // get logs filter
+        transport.add_response(json!([log]));
+
+        let address = Address::repeat_byte(0x01);
+        let signature = event.signature();
+        let (_, _, amount) = EventBuilder::<_, (Address, Address, U256)>::new(web3, event, address)
+            .to_block(99.into())
+            .topic1(Topic::OneOf(vec![
+                Address::repeat_byte(0x70),
+                Address::repeat_byte(0x80),
+            ]))
+            .stream()
+            .expect("failed to abi-encode filter")
+            .next()
+            .immediate()
+            .expect("log stream did not produce any logs")
+            .expect("failed to get log from log stream")
+            .added();
+
+        assert_eq!(amount, U256::from(42));
+        transport.assert_request(
+            "eth_newFilter",
+            &[json!({
+                "address": address,
+                "toBlock": U256::from(99),
+                "topics": [
+                    signature,
+                    null,
+                    [
+                        H256::from(Address::repeat_byte(0x70)),
+                        H256::from(Address::repeat_byte(0x80)),
+                    ],
+                ],
+            })],
+        );
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
+        transport.assert_no_more_requests();
     }
 }

@@ -19,6 +19,7 @@ use web3::Transport;
 /// Note that when creating a log stream that is only valid until a certain
 /// block number, the `Stream` implementation will currently remain in the
 /// pending state indefinitely.
+#[must_use = "streams do nothing unless you or poll them"]
 #[pin_project]
 pub struct LogStream<T: Transport> {
     #[pin]
