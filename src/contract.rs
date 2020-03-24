@@ -166,7 +166,6 @@ impl<T: Transport> Instance<T> {
     /// the stream was created for this contract instance.
     pub fn all_event(&self) -> LogStream<T> {
         let filter = FilterBuilder::default().address(vec![self.address]).build();
-
         LogStream::new(self.web3(), filter, DEFAULT_POLL_INTERVAL)
     }
 }
