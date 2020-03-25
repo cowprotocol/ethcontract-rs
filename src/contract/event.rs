@@ -12,7 +12,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use web3::api::Web3;
-use web3::contract::tokens::{Detokenize};
+use web3::contract::tokens::Detokenize;
 use web3::types::{Address, BlockNumber, FilterBuilder};
 use web3::Transport;
 
@@ -159,7 +159,10 @@ impl<T: Transport, E: Detokenize> EventStream<T, E> {
         let event = builder.event;
 
         let web3 = builder.web3;
-        let filter = builder.filter.build();
+        let filter = builder
+            .filter
+            .topics(Some(vec![event.signature()]), None, None, None)
+            .build();
         let poll_interval = builder.poll_interval.unwrap_or(DEFAULT_POLL_INTERVAL);
 
         let inner = LogStream::new(web3, filter, poll_interval);
