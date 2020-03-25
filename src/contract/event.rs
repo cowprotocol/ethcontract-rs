@@ -53,39 +53,32 @@ impl<T> Event<T> {
         }
     }
 
-    /// Get the underlying event data if the event was added.
-    ///
-    /// # Panics
-    ///
-    /// This method panics if the instance is a removed event.
-    pub fn added(self) -> T {
+    /// Get the underlying event data if the event was added, `None` otherwise.
+    pub fn added(self) -> Option<T> {
         match self {
-            Event::Added(value) => value,
-            Event::Removed(_) => panic!("attempted to unwrap a removed event to an added one"),
+            Event::Added(value) => Some(value),
+            Event::Removed(_) => None,
         }
     }
 
-    /// Get the underlying event data if the event was removed.
-    ///
-    /// # Panics
-    ///
-    /// This method panics if the instance is a added event.
-    pub fn removed(self) -> T {
+    /// Get the underlying event data if the event was removed, `None`
+    /// otherwise.
+    pub fn removed(self) -> Option<T> {
         match self {
-            Event::Removed(value) => value,
-            Event::Added(_) => panic!("attempted to unwrap an added event to a removed one"),
+            Event::Removed(value) => Some(value),
+            Event::Added(_) => None,
         }
     }
 }
 
-/// The default poll interval to use for confirming transactions.
+/// The default poll interval to use for polling logs from the block chain.
 #[cfg(not(test))]
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(5);
 #[cfg(test)]
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(0);
 
 /// A builder for creating a filtered stream of contract events that are
-#[must_use = "event builder do nothing unless you or stream them"]
+#[must_use = "event builders do nothing unless you stream them"]
 pub struct EventBuilder<T: Transport, E: Detokenize> {
     /// The underlying web3 instance.
     web3: Web3<T>,
@@ -281,7 +274,8 @@ mod tests {
             .immediate()
             .expect("log stream did not produce any logs")
             .expect("failed to get log from log stream")
-            .added();
+            .added()
+            .expect("expected an added event");
 
         assert_eq!(amount, U256::from(42));
         transport.assert_request(

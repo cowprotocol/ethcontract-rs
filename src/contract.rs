@@ -164,7 +164,7 @@ impl<T: Transport> Instance<T> {
 
     /// Returns a log stream that emits a log for every new event emitted after
     /// the stream was created for this contract instance.
-    pub fn all_event(&self) -> LogStream<T> {
+    pub fn all_events(&self) -> LogStream<T> {
         let filter = FilterBuilder::default().address(vec![self.address]).build();
         LogStream::new(self.web3(), filter, DEFAULT_POLL_INTERVAL)
     }

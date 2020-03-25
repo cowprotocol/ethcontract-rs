@@ -47,7 +47,8 @@ async fn run() {
                 .await
                 .expect("no more events")
                 .expect("failed to get event")
-                .added();
+                .added()
+                .expect("expected added event");
             println!("Received a transfer event to {:?} with amount {}", to, amount);
         },
     };
