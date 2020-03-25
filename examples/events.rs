@@ -1,5 +1,6 @@
 use ethcontract::web3::api::Web3;
 use ethcontract::web3::transports::Http;
+use ethcontract::{Address, U256};
 use futures::compat::Future01CompatExt;
 use futures::join;
 use futures::stream::StreamExt;
@@ -29,8 +30,9 @@ async fn run() {
         .expect("deployment failed");
     let mut transfers = instance
         .instance
-        .event("Transfer")
-        .expect("transfer event not found");
+        .event::<_, (Address, Address, U256)>("Transfer")
+        .expect("transfer event not found")
+        .stream();
 
     join! {
         async {
@@ -41,8 +43,13 @@ async fn run() {
                 .expect("transfer 0->1 failed");
         },
         async {
-            let log = transfers.next().await.expect("failed to get next transfer event");
-            println!("Received a transfer event: {:#?}", log);
+            let (_, to, amount) = transfers.next()
+                .await
+                .expect("no more events")
+                .expect("failed to get event")
+                .added()
+                .expect("expected added event");
+            println!("Received a transfer event to {:?} with amount {}", to, amount);
         },
     };
 }

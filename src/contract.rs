@@ -4,6 +4,7 @@
 
 mod deploy;
 mod deployed;
+mod event;
 mod method;
 
 use crate::abicompat::AbiCompat;
@@ -20,6 +21,7 @@ use web3::Transport;
 
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture};
 pub use self::deployed::{DeployedFuture, FromNetwork};
+pub use self::event::{Event, EventBuilder, EventStream, DEFAULT_POLL_INTERVAL};
 pub use self::method::{
     CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture, ViewMethodBuilder,
 };
@@ -144,27 +146,27 @@ impl<T: Transport> Instance<T> {
         Ok(self.method(name, params)?.view())
     }
 
-    /// Returns a log stream for the specified event that emits a new log for
-    /// every new event emitted after the stream was created.
-    pub fn event<S>(&self, name: S) -> AbiResult<LogStream<T>>
+    /// Returns a event builder to setup an event stream for a smart contract
+    /// that emits events for the specified Solidity event by name.
+    pub fn event<S, E>(&self, name: S) -> AbiResult<EventBuilder<T, E>>
     where
         S: AsRef<str>,
+        E: Detokenize,
     {
         let event = self.abi.event(name.as_ref())?;
-        if event.anonymous {
-            todo!("anonymous events are currently not supported");
-        }
 
-        let filter = FilterBuilder::default()
-            .address(vec![self.address])
-            .topics(Some(vec![event.signature()]), None, None, None)
-            .build();
-
-        Ok(LogStream::new(
+        Ok(EventBuilder::new(
             self.web3(),
-            filter,
-            std::time::Duration::from_secs(1),
+            event.clone(),
+            self.address(),
         ))
+    }
+
+    /// Returns a log stream that emits a log for every new event emitted after
+    /// the stream was created for this contract instance.
+    pub fn all_events(&self) -> LogStream<T> {
+        let filter = FilterBuilder::default().address(vec![self.address]).build();
+        LogStream::new(self.web3(), filter, DEFAULT_POLL_INTERVAL)
     }
 }
 
