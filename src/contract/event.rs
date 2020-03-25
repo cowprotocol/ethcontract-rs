@@ -4,7 +4,8 @@
 use crate::abicompat::AbiCompat;
 use crate::errors::{EventError, ExecutionError};
 use crate::log::LogStream;
-use ethcontract_common::abi::{Event as AbiEvent, RawLog};
+pub use ethcontract_common::abi::Topic;
+use ethcontract_common::abi::{Event as AbiEvent, RawLog, RawTopicFilter, Token};
 use futures::stream::Stream;
 use pin_project::{pin_project, project};
 use std::marker::PhantomData;
@@ -12,7 +13,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use web3::api::Web3;
-use web3::contract::tokens::Detokenize;
+use web3::contract::tokens::{Detokenize, Tokenizable};
 use web3::types::{Address, BlockNumber, FilterBuilder};
 use web3::Transport;
 
@@ -86,6 +87,8 @@ pub struct EventBuilder<T: Transport, E: Detokenize> {
     event: AbiEvent,
     /// The web3 filter builder used for creating a log filter.
     filter: FilterBuilder,
+    /// The topic filters that are encoded based on the event ABI.
+    pub topics: RawTopicFilter,
     /// The polling interval for querying the node for more events.
     pub poll_interval: Option<Duration>,
     _event: PhantomData<E>,
@@ -99,6 +102,7 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
             web3,
             event,
             filter: FilterBuilder::default().address(vec![address]),
+            topics: RawTopicFilter::default(),
             poll_interval: None,
             _event: PhantomData,
         }
@@ -122,6 +126,37 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
         self
     }
 
+    /// Adds a filter for the first indexed topic.
+    ///
+    /// This corresponds to the first indexed property, which for anonymous
+    /// events corresponds to `topic[0]` in the log, and for named events is
+    /// actually `topic[1]`.
+    pub fn topic0<P>(mut self, topic: Topic<P>) -> Self
+    where
+        P: Tokenizable,
+    {
+        self.topics.topic0 = tokenize_topic(topic);
+        self
+    }
+
+    /// Adds a filter for the second indexed topic.
+    pub fn topic1<P>(mut self, topic: Topic<P>) -> Self
+    where
+        P: Tokenizable,
+    {
+        self.topics.topic1 = tokenize_topic(topic);
+        self
+    }
+
+    /// Adds a filter for the third indexed topic.
+    pub fn topic2<P>(mut self, topic: Topic<P>) -> Self
+    where
+        P: Tokenizable,
+    {
+        self.topics.topic2 = tokenize_topic(topic);
+        self
+    }
+
     /// The polling interval. This is used as the interval between consecutive
     /// `eth_getFilterChanges` calls to get filter updates.
     pub fn poll_interval(mut self, value: Duration) -> Self {
@@ -130,9 +165,17 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
     }
 
     /// Creates an event stream from the current event builder.
-    pub fn stream(self) -> EventStream<T, E> {
+    pub fn stream(self) -> Result<EventStream<T, E>, EventError> {
         EventStream::from_builder(self)
     }
+}
+
+/// Converts a tokenizable topic into a raw topic for filtering.
+fn tokenize_topic<P>(topic: Topic<P>) -> Topic<Token>
+where
+    P: Tokenizable,
+{
+    topic.map(|parameter| parameter.into_token().compat())
 }
 
 /// An event stream that emits events matching a builder.
@@ -148,23 +191,26 @@ pub struct EventStream<T: Transport, E: Detokenize> {
 impl<T: Transport, E: Detokenize> EventStream<T, E> {
     /// Create a new log stream from a given web3 provider, filter and polling
     /// parameters.
-    pub fn from_builder(builder: EventBuilder<T, E>) -> Self {
+    pub fn from_builder(builder: EventBuilder<T, E>) -> Result<Self, EventError> {
         let event = builder.event;
 
         let web3 = builder.web3;
-        let filter = builder
-            .filter
-            .topics(Some(vec![event.signature()]), None, None, None)
-            .build();
+        let filter = {
+            let abi_filter = event
+                .filter(builder.topics)
+                .map_err(|err| EventError::new(&event, err))?;
+            builder.filter.topic_filter(abi_filter.compat()).build()
+        };
+
         let poll_interval = builder.poll_interval.unwrap_or(DEFAULT_POLL_INTERVAL);
 
         let inner = LogStream::new(web3, filter, poll_interval);
 
-        EventStream {
+        Ok(EventStream {
             event,
             inner,
             _event: PhantomData,
-        }
+        })
     }
 }
 
@@ -269,7 +315,12 @@ mod tests {
         let signature = event.signature();
         let (_, _, amount) = EventBuilder::<_, (Address, Address, U256)>::new(web3, event, address)
             .to_block(99.into())
+            .topic1(Topic::OneOf(vec![
+                Address::repeat_byte(0x70),
+                Address::repeat_byte(0x80),
+            ]))
             .stream()
+            .expect("failed to abi-encode filter")
             .next()
             .immediate()
             .expect("log stream did not produce any logs")
@@ -283,7 +334,14 @@ mod tests {
             &[json!({
                 "address": address,
                 "toBlock": U256::from(99),
-                "topics": [signature],
+                "topics": [
+                    signature,
+                    null,
+                    [
+                        H256::from(Address::repeat_byte(0x70)),
+                        H256::from(Address::repeat_byte(0x80)),
+                    ],
+                ],
             })],
         );
         transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
