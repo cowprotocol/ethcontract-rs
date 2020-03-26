@@ -1,26 +1,36 @@
 use crate::contract::{types, Context};
 use crate::util;
-use anyhow::{Context as _, Result};
+use anyhow::{anyhow, Context as _, Result};
 use ethcontract_common::abi::{Function, Param};
+use ethcontract_common::abiext::FunctionExt;
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
-use syn::Ident as SynIdent;
+use syn::Ident;
 
 pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
     let ethcontract = &cx.runtime_crate;
     let contract_name = &cx.contract_name;
     let methods = &cx.methods_struct_name()?;
 
+    let mut aliases = cx.method_aliases.clone();
     let functions = cx
         .artifact
         .abi
         .functions()
         .map(|function| {
-            expand_function(&cx, function)
-                .with_context(|| format!("error expanding function '{}'", function.name))
+            let signature = function.abi_signature();
+            expand_function(&cx, function, aliases.remove(&signature))
+                .with_context(|| format!("error expanding function '{}'", signature))
         })
         .collect::<Result<Vec<_>>>()?;
+    if let Some(unused) = aliases.keys().next() {
+        return Err(anyhow!(
+            "a manual method alias for '{}' was specified but this method does not exist",
+            unused,
+        ));
+    }
+
     let methods_struct = quote! {
         struct #methods {
             instance: #ethcontract::DynInstance,
@@ -64,13 +74,13 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
     })
 }
 
-fn expand_function(cx: &Context, function: &Function) -> Result<TokenStream> {
+fn expand_function(cx: &Context, function: &Function, alias: Option<Ident>) -> Result<TokenStream> {
     let ethcontract = &cx.runtime_crate;
 
-    let name = util::safe_ident(&function.name.to_snake_case());
-    let name_str = Literal::string(&function.name);
+    let name = alias.unwrap_or_else(|| util::safe_ident(&function.name.to_snake_case()));
+    let signature = function.abi_signature();
+    let signature_lit = Literal::string(&signature);
 
-    let signature = function_signature(&function);
     let doc_str = cx
         .artifact
         .devdoc
@@ -95,22 +105,10 @@ fn expand_function(cx: &Context, function: &Function) -> Result<TokenStream> {
     Ok(quote! {
         #doc
         pub fn #name(&self #input) -> #result {
-            self.instance.#method(#name_str, #arg)
+            self.instance.#method(#signature_lit, #arg)
                 .expect("generated call")
         }
     })
-}
-
-fn function_signature(function: &Function) -> String {
-    let types = match function.inputs.len() {
-        0 => String::new(),
-        _ => {
-            let mut params = function.inputs.iter().map(|param| &param.kind);
-            let first = params.next().expect("at least one param").to_string();
-            params.fold(first, |acc, param| format!("{},{}", acc, param))
-        }
-    };
-    format!("{}({})", function.name, types)
 }
 
 pub(crate) fn expand_inputs(cx: &Context, inputs: &[Param]) -> Result<TokenStream> {
@@ -126,7 +124,7 @@ pub(crate) fn expand_inputs(cx: &Context, inputs: &[Param]) -> Result<TokenStrea
     Ok(quote! { #( , #params )* })
 }
 
-fn input_name_to_ident(index: usize, name: &str) -> SynIdent {
+fn input_name_to_ident(index: usize, name: &str) -> Ident {
     let name_str = match name {
         "" => format!("p{}", index),
         n => n.to_snake_case(),
@@ -165,41 +163,6 @@ fn expand_fn_outputs(cx: &Context, outputs: &[Param]) -> Result<TokenStream> {
 mod tests {
     use super::*;
     use ethcontract_common::abi::ParamType;
-
-    #[test]
-    fn function_signature_empty() {
-        assert_eq!(
-            function_signature(&Function {
-                name: String::new(),
-                inputs: Vec::new(),
-                outputs: Vec::new(),
-                constant: false,
-            }),
-            "()"
-        );
-    }
-
-    #[test]
-    fn function_signature_normal() {
-        assert_eq!(
-            function_signature(&Function {
-                name: "name".to_string(),
-                inputs: vec![
-                    Param {
-                        name: "a".to_string(),
-                        kind: ParamType::Address,
-                    },
-                    Param {
-                        name: "b".to_string(),
-                        kind: ParamType::Bytes,
-                    },
-                ],
-                outputs: Vec::new(),
-                constant: false
-            }),
-            "name(address,bytes)"
-        );
-    }
 
     #[test]
     fn input_name_to_ident_empty() {

@@ -11,6 +11,7 @@ use crate::abicompat::AbiCompat;
 use crate::errors::{DeployError, LinkError};
 use crate::log::LogStream;
 use ethcontract_common::abi::Result as AbiResult;
+use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::truffle::Network;
 use ethcontract_common::{Abi, Artifact, Bytecode};
 use std::collections::HashMap;
@@ -36,6 +37,10 @@ pub struct Instance<T: Transport> {
     /// Default method parameters to use when sending method transactions or
     /// querying method calls.
     pub defaults: MethodDefaults,
+    /// A mapping from method signature to a name-index pair for accessing
+    /// functions in the contract ABI. This is used to avoid allocation when
+    /// searching for matching functions by signature.
+    methods: HashMap<String, (String, usize)>,
 }
 
 impl<T: Transport> Instance<T> {
@@ -45,11 +50,21 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
     pub fn at(web3: Web3<T>, abi: Abi, address: Address) -> Self {
+        let methods = abi
+            .functions
+            .iter()
+            .flat_map(|(name, functions)| {
+                functions.iter().enumerate().map(move |(index, function)| {
+                    (function.abi_signature(), (name.to_owned(), index))
+                })
+            })
+            .collect();
         Instance {
             web3,
             abi,
             address,
             defaults: MethodDefaults::default(),
+            methods,
         }
     }
 
@@ -114,12 +129,19 @@ impl<T: Transport> Instance<T> {
     /// Returns a method builder to setup a call or transaction on a smart
     /// contract method. Note that calls just get evaluated on a node but do not
     /// actually commit anything to the block chain.
-    pub fn method<S, P, R>(&self, name: S, params: P) -> AbiResult<MethodBuilder<T, R>>
+    pub fn method<S, P, R>(&self, signature: S, params: P) -> AbiResult<MethodBuilder<T, R>>
     where
         S: AsRef<str>,
         P: Tokenize,
     {
-        let function = self.abi.function(name.as_ref())?;
+        // NOTE: First try to get the method by signature, and if that fails
+        //   then by name.
+        let signature = signature.as_ref();
+        let function = self
+            .methods
+            .get(signature)
+            .map(|(name, index)| Ok(&self.abi.functions[name][*index]))
+            .unwrap_or_else(|| self.abi.function(signature))?;
         let data = function.encode_input(&params.into_tokens().compat())?;
 
         // take ownership here as it greatly simplifies dealing with futures
@@ -137,13 +159,17 @@ impl<T: Transport> Instance<T> {
     /// Returns a view method builder to setup a call to a smart contract. View
     /// method builders can't actually send transactions and only query contract
     /// state.
-    pub fn view_method<S, P, R>(&self, name: S, params: P) -> AbiResult<ViewMethodBuilder<T, R>>
+    pub fn view_method<S, P, R>(
+        &self,
+        signature: S,
+        params: P,
+    ) -> AbiResult<ViewMethodBuilder<T, R>>
     where
         S: AsRef<str>,
         P: Tokenize,
         R: Detokenize,
     {
-        Ok(self.method(name, params)?.view())
+        Ok(self.method(signature, params)?.view())
     }
 
     /// Returns a event builder to setup an event stream for a smart contract

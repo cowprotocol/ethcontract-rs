@@ -41,6 +41,8 @@ pub(crate) struct Args {
     contract_name_override: Option<String>,
     /// Manually specified deployed contract addresses.
     deployments: HashMap<u32, Address>,
+    /// Manually specified contract method aliases.
+    method_aliases: HashMap<String, String>,
 }
 
 impl Args {
@@ -54,6 +56,7 @@ impl Args {
             contract_mod_override: None,
             contract_name_override: None,
             deployments: HashMap::new(),
+            method_aliases: HashMap::new(),
         }
     }
 }
@@ -160,6 +163,20 @@ impl Builder {
             network_id,
             parse_address(address).expect("failed to parse address"),
         )
+    }
+
+    /// Manually adds a solidity method alias to specify what the method name
+    /// will be in Rust. For solidity methods without an alias, the snake cased
+    /// method name will be used.
+    pub fn add_method_alias<S1, S2>(mut self, signature: S1, alias: S2) -> Self
+    where
+        S1: Into<String>,
+        S2: Into<String>,
+    {
+        self.args
+            .method_aliases
+            .insert(signature.into(), alias.into());
+        self
     }
 
     /// Generates the contract bindings.
