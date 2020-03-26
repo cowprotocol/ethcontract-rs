@@ -4,6 +4,12 @@
 //! crate is intended to be used either indirectly with the `ethcontract`
 //! crate's `contract` procedural macro or directly from a build script.
 
+#[cfg(test)]
+#[allow(missing_docs)]
+#[macro_use]
+#[path = "test/macros.rs"]
+mod test_macros;
+
 mod contract;
 mod source;
 mod util;

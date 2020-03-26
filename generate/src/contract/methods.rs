@@ -190,17 +190,17 @@ mod tests {
 
     #[test]
     fn expand_inputs_empty() {
-        assert_eq!(
-            expand_inputs(&Context::empty(), &[]).unwrap().to_string(),
-            ""
+        assert_quote!(
+            expand_inputs(&Context::default(), &[]).unwrap().to_string(),
+            {},
         );
     }
 
     #[test]
     fn expand_inputs_() {
-        assert_eq!(
+        assert_quote!(
             expand_inputs(
-                &Context::empty(),
+                &Context::default(),
                 &[
                     Param {
                         name: "a".to_string(),
@@ -212,43 +212,38 @@ mod tests {
                     },
                 ],
             )
-            .unwrap()
-            .to_string(),
-            ", a : bool , b : ethcontract :: Address"
+            .unwrap(),
+            { , a: bool, b: ethcontract::Address },
         );
     }
 
     #[test]
     fn expand_fn_outputs_empty() {
-        assert_eq!(
-            expand_fn_outputs(&Context::empty(), &[],)
-                .unwrap()
-                .to_string(),
-            "( )"
-        );
+        assert_quote!(expand_fn_outputs(&Context::default(), &[],).unwrap(), {
+            ()
+        });
     }
 
     #[test]
     fn expand_fn_outputs_single() {
-        assert_eq!(
+        assert_quote!(
             expand_fn_outputs(
-                &Context::empty(),
+                &Context::default(),
                 &[Param {
                     name: "a".to_string(),
                     kind: ParamType::Bool,
                 },],
             )
-            .unwrap()
-            .to_string(),
-            "bool"
+            .unwrap(),
+            { bool },
         );
     }
 
     #[test]
     fn expand_fn_outputs_muliple() {
-        assert_eq!(
+        assert_quote!(
             expand_fn_outputs(
-                &Context::empty(),
+                &Context::default(),
                 &[
                     Param {
                         name: "a".to_string(),
@@ -260,9 +255,8 @@ mod tests {
                     },
                 ],
             )
-            .unwrap()
-            .to_string(),
-            "( bool , ethcontract :: Address )"
+            .unwrap(),
+            { (bool, ethcontract::Address) },
         );
     }
 }
