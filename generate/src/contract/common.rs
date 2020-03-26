@@ -82,6 +82,18 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             pub fn defaults_mut(&mut self) -> &mut #ethcontract::contract::MethodDefaults {
                 &mut self.instance.defaults
             }
+
+            /// Returns a reference to the raw runtime instance used by this
+            /// contract.
+            pub fn raw_instance(&self) -> &#ethcontract::DynInstance {
+                &self.instance
+            }
+
+            /// Returns a mutable reference to the raw runtime instance used by
+            /// this contract.
+            pub fn raw_instance_mut(&mut self) -> &mut #ethcontract::DynInstance {
+                &mut self.instance
+            }
         }
 
         impl std::fmt::Debug for #contract_name {

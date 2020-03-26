@@ -26,6 +26,11 @@ pub(crate) struct Args {
     artifact_source: Source,
     /// The runtime crate name to use.
     runtime_crate_name: String,
+    /// The visibility modifier to use for the generated module and contract
+    /// re-export.
+    visibility_modifier: Option<String>,
+    /// Override the contract module name that contains the generated code.
+    contract_mod_override: Option<String>,
     /// Override the contract name to use for the generated type.
     contract_name_override: Option<String>,
     /// Manually specified deployed contract addresses.
@@ -39,6 +44,8 @@ impl Args {
         Args {
             artifact_source: source,
             runtime_crate_name: "ethcontract".to_owned(),
+            visibility_modifier: None,
+            contract_mod_override: None,
             contract_name_override: None,
             deployments: HashMap::new(),
         }
@@ -85,6 +92,25 @@ impl Builder {
         S: Into<String>,
     {
         self.args.runtime_crate_name = name.into();
+        self
+    }
+
+    /// Sets an optional visibility modifier for the generated module and
+    /// contract re-export.
+    pub fn with_visibility_modifier<S>(mut self, vis: Option<S>) -> Self
+    where
+        S: Into<String>,
+    {
+        self.args.visibility_modifier = vis.map(S::into);
+        self
+    }
+
+    /// Sets the optional contract module name override.
+    pub fn with_contract_mod_override<S>(mut self, name: Option<S>) -> Self
+    where
+        S: Into<String>,
+    {
+        self.args.contract_mod_override = name.map(S::into);
         self
     }
 
