@@ -62,8 +62,6 @@ impl Context {
             (Literal::string(&artifact_json), artifact)
         };
 
-        let runtime_crate = util::ident(&args.runtime_crate_name);
-
         let raw_contract_name = if let Some(name) = args.contract_name_override.as_ref() {
             name
         } else if !artifact.contract_name.is_empty() {
@@ -71,12 +69,13 @@ impl Context {
         } else {
             return Err(anyhow!(
                 "contract artifact is missing a name, this can happen when \
-                     using a source that does not provide a contract name such \
-                     as Etherscan; in this case the contract must be manually \
-                     specified"
+                 using a source that does not provide a contract name such  as \
+                 Etherscan; in this case the contract must be manually \
+                 specified"
             ));
         };
 
+        let runtime_crate = util::ident(&args.runtime_crate_name);
         let visibility = match args.visibility_modifier.as_ref() {
             Some(vis) => syn::parse_str(vis)?,
             None => Visibility::Inherited,
