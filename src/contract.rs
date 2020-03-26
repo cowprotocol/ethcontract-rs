@@ -10,7 +10,7 @@ mod method;
 use crate::abicompat::AbiCompat;
 use crate::errors::{DeployError, LinkError};
 use crate::log::LogStream;
-use ethcontract_common::abi::Result as AbiResult;
+use ethcontract_common::abi::{Error as AbiError, Result as AbiResult};
 use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::truffle::Network;
 use ethcontract_common::{Abi, Artifact, Bytecode};
@@ -134,14 +134,12 @@ impl<T: Transport> Instance<T> {
         S: AsRef<str>,
         P: Tokenize,
     {
-        // NOTE: First try to get the method by signature, and if that fails
-        //   then by name.
         let signature = signature.as_ref();
         let function = self
             .methods
             .get(signature)
-            .map(|(name, index)| Ok(&self.abi.functions[name][*index]))
-            .unwrap_or_else(|| self.abi.function(signature))?;
+            .map(|(name, index)| &self.abi.functions[name][*index])
+            .ok_or_else(|| AbiError::InvalidName(signature.into()))?;
         let data = function.encode_input(&params.into_tokens().compat())?;
 
         // take ownership here as it greatly simplifies dealing with futures

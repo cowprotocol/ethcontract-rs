@@ -89,6 +89,9 @@ impl Context {
         };
         let contract_name = util::ident(raw_contract_name);
 
+        // NOTE: We only check for duplicate signatures here, since if there are
+        //   duplicate aliases, the compiler will produce a warning because a
+        //   method will be re-defined.
         let mut method_aliases = HashMap::new();
         for (signature, alias) in args.method_aliases.into_iter() {
             let alias = syn::parse_str(&alias)?;
