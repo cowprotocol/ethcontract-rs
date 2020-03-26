@@ -97,8 +97,7 @@ impl Default for Context {
 
 pub(crate) fn expand(args: Args) -> Result<TokenStream> {
     let cx = Context::from_args(args)?;
-    let contract = expand_contract(&cx)
-        .with_context(|| format!("error expanding contract from JSON '{}'", cx.artifact_json))?;
+    let contract = expand_contract(&cx).context("error expanding contract from ABI ")?;
 
     Ok(contract)
 }

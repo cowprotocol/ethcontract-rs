@@ -74,7 +74,7 @@ pub fn contract(input: TokenStream) -> TokenStream {
 
     let span = args.span();
     expand(args.into_inner())
-        .unwrap_or_else(|e| SynError::new(span, e.to_string()).to_compile_error())
+        .unwrap_or_else(|e| SynError::new(span, format!("{:?}", e)).to_compile_error())
         .into()
 }
 
