@@ -48,9 +48,7 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
         /// Type containing all contract methods for generated contract type.
         #[allow(non_camel_case_types)]
         #[derive(Clone)]
-        pub struct #methods {
-            instance: #ethcontract::DynInstance,
-        }
+        pub #methods_struct
 
         #[allow(clippy::too_many_arguments, clippy::type_complexity)]
         impl #methods {
