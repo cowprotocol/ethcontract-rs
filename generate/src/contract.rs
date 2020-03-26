@@ -80,9 +80,11 @@ impl Context {
             deployments: args.deployments,
         })
     }
+}
 
-    #[cfg(test)]
-    fn empty() -> Self {
+#[cfg(test)]
+impl Default for Context {
+    fn default() -> Self {
         Context {
             artifact_json: Literal::string("{}"),
             artifact: Artifact::empty(),
