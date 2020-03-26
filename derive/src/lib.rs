@@ -61,7 +61,9 @@ use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, T
 ///
 /// Additionally, the ABI source can be preceeded by a visibility modifier such
 /// as `pub` or `pub(crate)`. This visibility modifier is applied to both the
-/// generated module and contract re-export.
+/// generated module and contract re-export. If no visibility modifier is
+/// provided, then none is used for the generated code as well, making the
+/// module and contract private to the scope where the macro was invoked.
 ///
 /// ```ignore
 /// ethcontract::contract!(
