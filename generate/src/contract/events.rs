@@ -2,18 +2,124 @@ use crate::contract::{types, Context};
 use crate::util;
 use anyhow::Result;
 use ethcontract_common::abi::{Event, Hash};
+use ethcontract_common::abiext::EventExt;
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 
 pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
+    let structs_mod = expand_structs_mod(cx)?;
     let filters = expand_filters(cx)?;
     let all_events = expand_all_events(cx);
 
     Ok(quote! {
+        #structs_mod
         #filters
         #all_events
     })
+}
+
+fn expand_structs_mod(cx: &Context) -> Result<TokenStream> {
+    let structs = cx
+        .artifact
+        .abi
+        .events()
+        .map(|event| expand_struct(event))
+        .collect::<Result<Vec<_>>>()?;
+    if structs.is_empty() {
+        return Ok(quote! {});
+    }
+    Ok(quote! {
+        /// Module containing all generated data models for this contract's
+        /// events.
+        pub mod events {
+            use super::ethcontract;
+
+            #( #structs )*
+        }
+    })
+}
+
+fn expand_struct(event: &Event) -> Result<TokenStream> {
+    let event_name = expand_struct_name(event);
+    let signature = expand_hash(event.signature());
+    let abi_signature = Literal::string(&event.abi_signature());
+    let params = event
+        .inputs
+        .iter()
+        .map(|input| {
+            let name = util::safe_ident(&input.name);
+            let ty = types::expand(&input.kind)?;
+            Ok((name, ty))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let param_defs = params
+        .iter()
+        .map(|(name, ty)| quote! { pub #name: #ty, })
+        .collect::<Vec<_>>();
+    let param_tokens = params
+        .iter()
+        .map(|(name, ty)| {
+            quote! {
+                let #name = #ty::from_token(tokens.next().unwrap())?;
+            }
+        })
+        .collect::<Vec<_>>();
+    let param_names = params
+        .iter()
+        .map(|(name, _)| name)
+        .cloned()
+        .collect::<Vec<_>>();
+    let param_len = Literal::usize_unsuffixed(params.len());
+    Ok(quote! {
+        #[derive(Clone, Debug, Default, Eq, PartialEq)]
+        pub struct #event_name {
+            #( #param_defs )*
+        }
+
+        impl #event_name {
+            /// Retrieves the signature for the event this data corresponds to.
+            /// This signature is the Keccak-256 hash of the ABI signature of
+            /// this event.
+            pub fn signature() -> self::ethcontract::H256 {
+                #signature
+            }
+
+            /// Retrieves the ABI signature for the event this data corresponds
+            /// to.
+            pub fn abi_signature() -> &'static str {
+                #abi_signature
+            }
+        }
+
+        impl self::ethcontract::web3::contract::tokens::Detokenize for #event_name {
+            fn from_tokens(
+                tokens: Vec<self::ethcontract::private::ethabi_9_0::Token>,
+            ) -> Result<Self, self::ethcontract::web3::contract::Error> {
+                use self::ethcontract::web3::contract::tokens::Tokenizable;
+
+                if tokens.len() != #param_len {
+                    return Err(self::ethcontract::web3::contract::Error::InvalidOutputType(format!(
+                        "Expected {} tokens, got {}: {:?}",
+                        #param_len,
+                        tokens.len(),
+                        tokens
+                    )));
+                }
+
+                #[allow(unused_mut)]
+                let mut tokens = tokens.into_iter();
+                #( #param_tokens )*
+
+                Ok(#event_name { #( #param_names ),* })
+            }
+        }
+    })
+}
+
+fn expand_struct_name(event: &Event) -> TokenStream {
+    let event_name = util::ident(&event.name.to_pascal_case());
+    quote! { #event_name }
 }
 
 fn expand_filters(cx: &Context) -> Result<TokenStream> {
@@ -52,12 +158,8 @@ fn expand_filters(cx: &Context) -> Result<TokenStream> {
 fn expand_filter(event: &Event) -> Result<TokenStream> {
     let name = util::safe_ident(&event.name.to_snake_case());
     let data = {
-        let inputs = event
-            .inputs
-            .iter()
-            .map(|input| types::expand(&input.kind))
-            .collect::<Result<Vec<_>>>()?;
-        quote! { ( #( #inputs ),* ) }
+        let struct_name = expand_struct_name(event);
+        quote! { self::events::#struct_name }
     };
     let signature = expand_hash(event.signature());
 

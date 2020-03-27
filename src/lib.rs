@@ -157,6 +157,7 @@ pub mod private {
     //! but do not appear in public interfaces. No documentation is generated
     //! for these definitions.
 
+    pub use ethabi_9_0;
     pub use lazy_static::lazy_static;
 }
 
