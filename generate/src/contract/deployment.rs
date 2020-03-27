@@ -36,7 +36,6 @@ fn expand_deployed(cx: &Context) -> TokenStream {
     });
 
     quote! {
-        #[allow(dead_code)]
         impl #contract_name {
             /// Locates a deployed contract based on the current network ID
             /// reported by the `web3` provider.
@@ -75,9 +74,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                     #( #deployments )*
                     _ => artifact.networks.get(network_id)?.address,
                 };
-                let instance = Instance::at(web3, artifact.abi.clone(), address);
-
-                Some(Self { instance })
+                Some(Self::at(&web3, address))
             }
         }
     }
@@ -139,7 +136,6 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
     };
 
     Ok(quote! {
-        #[allow(dead_code)]
         impl #contract_name {
             #doc
             pub fn builder<F, T>(
@@ -175,12 +171,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             }
 
             fn at_address(web3: #ethcontract::DynWeb3, address: #ethcontract::Address, _: Self::Context) -> Self {
-                use #ethcontract::Instance;
-
-                let abi = Self::artifact().abi.clone();
-                Self {
-                    instance: Instance::at(web3, abi, address),
-                }
+                Self::at(&web3, address)
             }
         }
     })

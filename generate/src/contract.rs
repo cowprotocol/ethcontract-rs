@@ -97,6 +97,10 @@ impl Context {
             deployments: args.deployments,
         })
     }
+
+    fn methods_struct_name(&self) -> Result<Ident> {
+        Ok(syn::parse_str(&format!("{}Methods", self.contract_name,))?)
+    }
 }
 
 #[cfg(test)]
@@ -127,11 +131,12 @@ fn expand_contract(cx: &Context) -> Result<TokenStream> {
     let contract_mod = &cx.contract_mod;
     let contract_name = &cx.contract_name;
 
-    let common = common::expand(cx);
+    let common = common::expand(cx)?;
     let deployment = deployment::expand(cx)?;
     let methods = methods::expand(cx)?;
 
     Ok(quote! {
+        #[allow(dead_code)]
         #vis mod #contract_mod {
             #common
             #deployment

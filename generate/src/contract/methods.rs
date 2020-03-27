@@ -8,7 +8,9 @@ use quote::quote;
 use syn::Ident as SynIdent;
 
 pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
+    let ethcontract = &cx.runtime_crate;
     let contract_name = &cx.contract_name;
+    let methods = &cx.methods_struct_name()?;
 
     let functions = cx
         .artifact
@@ -19,16 +21,45 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
                 .with_context(|| format!("error expanding function '{}'", function.name))
         })
         .collect::<Result<Vec<_>>>()?;
+    let methods_struct = quote! {
+        struct #methods {
+            instance: #ethcontract::DynInstance,
+        }
+    };
 
     if functions.is_empty() {
-        return Ok(quote! {});
+        // NOTE: The methods struct is still needed when there are no functions
+        //   as it contains the the runtime instance. The code is setup this way
+        //   so that the contract can implement `Deref` targetting the methods
+        //   struct and, therefore, call the methods directly.
+        return Ok(quote! { #methods_struct });
     }
 
     Ok(quote! {
-        #[allow(dead_code)]
-        #[allow(clippy::too_many_arguments, clippy::type_complexity)]
         impl #contract_name {
+            /// Retrives a reference to type containing all the generated
+            /// contract methods. This can be used for methods where the name
+            /// would collide with a common method (like `at` or `deployed`).
+            pub fn methods(&self) -> &#methods {
+                &self.methods
+            }
+        }
+
+        /// Type containing all contract methods for generated contract type.
+        #[allow(non_camel_case_types)]
+        #[derive(Clone)]
+        pub #methods_struct
+
+        #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+        impl #methods {
             #( #functions )*
+        }
+
+        impl std::ops::Deref for #contract_name {
+            type Target = #methods;
+            fn deref(&self) -> &Self::Target {
+                &self.methods
+            }
         }
     })
 }
