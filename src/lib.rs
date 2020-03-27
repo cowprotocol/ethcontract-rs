@@ -105,7 +105,9 @@ pub mod sign;
 pub mod transaction;
 pub mod transport;
 
-use crate::contract::{DeployBuilder, EventBuilder, EventStream, MethodBuilder, ViewMethodBuilder};
+use crate::contract::{
+    DeployBuilder, DeployedFuture, EventBuilder, EventStream, MethodBuilder, ViewMethodBuilder,
+};
 pub use crate::contract::{Event, Instance, Topic};
 pub use crate::int::I256;
 use crate::log::LogStream;
@@ -127,6 +129,9 @@ pub type DynWeb3 = Web3<DynTransport>;
 
 /// Type alias for a contract `Instance` with an underyling `DynTransport`.
 pub type DynInstance = Instance<DynTransport>;
+
+/// Type alias for a `DeployBuilder` with an underlying `DynTransport`.
+pub type DynDeployedFuture<D> = DeployedFuture<DynTransport, D>;
 
 /// Type alias for a `DeployBuilder` with an underlying `DynTransport`.
 pub type DynDeployBuilder<D> = DeployBuilder<DynTransport, D>;

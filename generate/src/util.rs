@@ -15,7 +15,7 @@ pub fn ident(name: &str) -> Ident {
 ///
 /// Parsing keywords like `self` can fail, in this case we add an underscore.
 pub fn safe_ident(name: &str) -> Ident {
-    syn::parse_str::<SynIdent>(&name).unwrap_or_else(|_| ident(&format!("{}_", name)))
+    syn::parse_str::<SynIdent>(name).unwrap_or_else(|_| ident(&format!("{}_", name)))
 }
 
 /// Expands a doc string into an attribute token stream.

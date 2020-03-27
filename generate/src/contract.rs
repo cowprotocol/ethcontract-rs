@@ -115,10 +115,6 @@ impl Context {
             method_aliases,
         })
     }
-
-    fn methods_struct_name(&self) -> Result<Ident> {
-        Ok(syn::parse_str(&format!("{}Methods", self.contract_name,))?)
-    }
 }
 
 #[cfg(test)]
@@ -145,11 +141,12 @@ pub(crate) fn expand(args: Args) -> Result<TokenStream> {
 }
 
 fn expand_contract(cx: &Context) -> Result<TokenStream> {
+    let runtime_crate = &cx.runtime_crate;
     let vis = &cx.visibility;
     let contract_mod = &cx.contract_mod;
     let contract_name = &cx.contract_name;
 
-    let common = common::expand(cx)?;
+    let common = common::expand(cx);
     let deployment = deployment::expand(cx)?;
     let methods = methods::expand(cx)?;
     let events = events::expand(cx)?;
@@ -157,11 +154,13 @@ fn expand_contract(cx: &Context) -> Result<TokenStream> {
     Ok(quote! {
         #[allow(dead_code)]
         #vis mod #contract_mod {
+            use #runtime_crate as ethcontract;
+
             #common
             #deployment
             #methods
             #events
         }
-        #vis use self::#contract_mod::#contract_name;
+        #vis use self::#contract_mod::Contract as #contract_name;
     })
 }
