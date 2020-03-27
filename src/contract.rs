@@ -15,9 +15,10 @@ use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::truffle::Network;
 use ethcontract_common::{Abi, Artifact, Bytecode};
 use std::collections::HashMap;
+use std::hash::Hash;
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
-use web3::types::{Address, Bytes, FilterBuilder};
+use web3::types::{Address, Bytes, FilterBuilder, H256};
 use web3::Transport;
 
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture};
@@ -41,6 +42,9 @@ pub struct Instance<T: Transport> {
     /// functions in the contract ABI. This is used to avoid allocation when
     /// searching for matching functions by signature.
     methods: HashMap<String, (String, usize)>,
+    /// A mapping from event signature to a name-index pair for resolving
+    /// events in the contract ABI.
+    events: HashMap<H256, (String, usize)>,
 }
 
 impl<T: Transport> Instance<T> {
@@ -59,12 +63,24 @@ impl<T: Transport> Instance<T> {
                 })
             })
             .collect();
+        let events = abi
+            .events
+            .iter()
+            .flat_map(|(name, events)| {
+                events
+                    .iter()
+                    .enumerate()
+                    .map(move |(index, event)| (event.signature(), (name.to_owned(), index)))
+            })
+            .collect();
+
         Instance {
             web3,
             abi,
             address,
             defaults: MethodDefaults::default(),
             methods,
+            events,
         }
     }
 
@@ -285,4 +301,26 @@ impl<T: Transport> Deploy<T> for Instance<T> {
     fn at_address(web3: Web3<T>, address: Address, cx: Self::Context) -> Self {
         Instance::at(web3, cx.abi, address)
     }
+}
+
+/// Utility function for creating a mapping between a unique signature and a
+/// name-index pair for accessing contract ABI items.
+fn create_mapping<T, S, F>(
+    elements: &HashMap<String, Vec<T>>,
+    signature: F,
+) -> HashMap<S, (String, usize)>
+where
+    S: Hash + Eq,
+    F: Fn(&T) -> S,
+{
+    let signature = &signature;
+    elements
+        .iter()
+        .flat_map(|(name, sub_elements)| {
+            sub_elements
+                .iter()
+                .enumerate()
+                .map(move |(index, element)| (signature(element), (name.to_owned(), index)))
+        })
+        .collect()
 }

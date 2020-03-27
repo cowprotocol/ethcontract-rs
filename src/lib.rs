@@ -105,7 +105,7 @@ pub mod sign;
 pub mod transaction;
 pub mod transport;
 
-use crate::contract::{DeployBuilder, MethodBuilder, ViewMethodBuilder};
+use crate::contract::{DeployBuilder, EventBuilder, MethodBuilder, ViewMethodBuilder};
 pub use crate::contract::{Event, Instance, Topic};
 pub use crate::int::I256;
 pub use crate::transaction::{Account, GasPrice};
@@ -135,6 +135,9 @@ pub type DynMethodBuilder<R> = MethodBuilder<DynTransport, R>;
 
 /// Type alias for a `ViewMethodBuilder` with an underlying `DynTransport`.
 pub type DynViewMethodBuilder<R> = ViewMethodBuilder<DynTransport, R>;
+
+/// Type alias for a `EventBuilder` with an underlying `DynTransport`.
+pub type DynEventBuilder<E> = EventBuilder<DynTransport, E>;
 
 #[doc(hidden)]
 pub mod private {
