@@ -128,11 +128,10 @@ pub mod prelude {
     pub use web3::types::{Address, BlockNumber, TransactionCondition, H160, H256, U256};
 }
 
-#[doc(hidden)]
-pub mod private {
-    //! Private definitions that are needed by the generated contract code or
-    //! but do not appear in public interfaces. No documentation is generated
-    //! for these definitions.
+pub mod dyns {
+    //! Type aliases to various runtime types that use an underlying
+    //! `DynTransport`. These types are used extensively throughout the
+    //! generated code.
 
     use crate::contract::{
         DeployBuilder, DeployedFuture, EventBuilder, EventStream, Instance, MethodBuilder,
@@ -140,18 +139,43 @@ pub mod private {
     };
     use crate::log::LogStream;
     pub use crate::transport::DynTransport;
-    pub use lazy_static::lazy_static;
     use web3::api::Web3;
 
+    /// Type alias for a `Web3` with an underlying `DynTransport`.
     pub type DynWeb3 = Web3<DynTransport>;
+
+    /// Type alias for an `Instance` with an underlying `DynTransport`.
     pub type DynInstance = Instance<DynTransport>;
+
+    /// Type alias for a `DeployedFuture` with an underlying `DynTransport`.
     pub type DynDeployedFuture<D> = DeployedFuture<DynTransport, D>;
+
+    /// Type alias for a `DeployBuilder` with an underlying `DynTransport`.
     pub type DynDeployBuilder<D> = DeployBuilder<DynTransport, D>;
+
+    /// Type alias for a `MethodBuilder` with an underlying `DynTransport`.
     pub type DynMethodBuilder<R> = MethodBuilder<DynTransport, R>;
+
+    /// Type alias for a `ViewMethodBuilder` with an underlying `DynTransport`.
     pub type DynViewMethodBuilder<R> = ViewMethodBuilder<DynTransport, R>;
+
+    /// Type alias for a `EventBuilder` with an underlying `DynTransport`.
     pub type DynEventBuilder<E> = EventBuilder<DynTransport, E>;
+
+    /// Type alias for a `LogStream` with an underlying `DynTransport`.
     pub type DynLogStream = LogStream<DynTransport>;
+
+    /// Type alias for a `EventStream` with an underlying `DynTransport`.
     pub type DynEventStream<E> = EventStream<DynTransport, E>;
+}
+
+#[doc(hidden)]
+pub mod private {
+    //! Private definitions that are needed by the generated contract code or
+    //! but do not appear in public interfaces. No documentation is generated
+    //! for these definitions.
+
+    pub use lazy_static::lazy_static;
 }
 
 #[cfg(test)]

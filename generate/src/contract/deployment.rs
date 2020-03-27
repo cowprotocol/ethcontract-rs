@@ -41,7 +41,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
             /// `Abi` is actually deployed at the given address.
             pub fn deployed<F, T>(
                 web3: &self::ethcontract::web3::api::Web3<T>,
-            ) -> self::ethcontract::private::DynDeployedFuture<Self>
+            ) -> self::ethcontract::dyns::DynDeployedFuture<Self>
             where
                 F: self::ethcontract::web3::futures::Future<
                     Item = self::ethcontract::json::Value,
@@ -60,11 +60,11 @@ fn expand_deployed(cx: &Context) -> TokenStream {
             }
         }
 
-        impl self::ethcontract::contract::FromNetwork<self::ethcontract::private::DynTransport> for Contract {
+        impl self::ethcontract::contract::FromNetwork<self::ethcontract::dyns::DynTransport> for Contract {
             type Context = ();
 
             fn from_network(
-                web3: self::ethcontract::private::DynWeb3,
+                web3: self::ethcontract::dyns::DynWeb3,
                 network_id: &str,
                 _: Self::Context,
             ) -> Option<Self> {
@@ -138,7 +138,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             #doc
             pub fn builder<F, T>(
                 web3: &self::ethcontract::web3::api::Web3<T> #lib_input #input ,
-            ) -> self::ethcontract::private::DynDeployBuilder<Self>
+            ) -> self::ethcontract::dyns::DynDeployBuilder<Self>
             where
                 F: self::ethcontract::web3::futures::Future<
                     Item = self::ethcontract::json::Value,
@@ -146,7 +146,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
                 > + Send + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
-                use self::ethcontract::private::DynTransport;
+                use self::ethcontract::dyns::DynTransport;
                 use self::ethcontract::contract::DeployBuilder;
                 use self::ethcontract::web3::api::Web3;
 
@@ -160,7 +160,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             }
         }
 
-        impl self::ethcontract::contract::Deploy<self::ethcontract::private::DynTransport> for Contract {
+        impl self::ethcontract::contract::Deploy<self::ethcontract::dyns::DynTransport> for Contract {
             type Context = self::ethcontract::common::Bytecode;
 
             fn bytecode(cx: &Self::Context) -> &self::ethcontract::common::Bytecode {
@@ -172,7 +172,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             }
 
             fn at_address(
-                web3: self::ethcontract::private::DynWeb3,
+                web3: self::ethcontract::dyns::DynWeb3,
                 address: self::ethcontract::Address,
                 _: Self::Context,
             ) -> Self {
