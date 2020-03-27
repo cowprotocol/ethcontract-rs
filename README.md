@@ -116,16 +116,19 @@ export INFURA_PROJECT_ID="Infura project ID"
 cargo run --example rinkeby
 ```
 
-### Etherscan Example
+### Sources Example
 
-This example generates contract bindings from a verfied contract on Etherscan
-and then queries some contract state with Infura. Running this example requires
+This example generates contract bindings from online sources:
+- A verfied contract on Etherscan
+- An npmjs contract
+
+It also queries some contract state with Infura. Running this example requires
 an Infura project ID in order to connect to a node. Parameters are provided to
 the example by environment variables:
 
 ```sh
 export INFURA_PROJECT_ID="Infura project ID"
-cargo run --example etherscan
+cargo run --example sources
 ```
 
 ## Sample Contracts Documentation
