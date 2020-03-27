@@ -250,7 +250,9 @@ fn expand_all_events(cx: &Context) -> TokenStream {
     quote! {
         impl Contract {
             /// Returns a log stream with all events.
-            pub fn all_events(&self) -> self::ethcontract::dyns::DynLogStream {
+            pub fn all_events(&self) -> self::ethcontract::dyns::DynAllEventsBuilder<
+                self::ethcontract::RawEventData,
+            > {
                 self.raw_instance().all_events()
             }
         }
