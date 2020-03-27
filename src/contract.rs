@@ -24,7 +24,9 @@ use web3::Transport;
 
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture};
 pub use self::deployed::{DeployedFuture, FromNetwork};
-pub use self::event::{Event, EventBuilder, EventStream, Topic, DEFAULT_POLL_INTERVAL};
+pub use self::event::{
+    Event, EventBuilder, EventData, EventMetadata, EventStream, Topic, DEFAULT_POLL_INTERVAL,
+};
 pub use self::method::{
     CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture, ViewMethodBuilder,
 };

@@ -14,61 +14,100 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenizable};
-use web3::types::{Address, BlockNumber, FilterBuilder};
+use web3::types::{Address, BlockNumber, FilterBuilder, Log, H256};
 use web3::Transport;
 
-/// A type representing a contract event.
+/// A contract event
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Event<T> {
+pub struct Event<T> {
+    /// The decoded log data.
+    pub data: EventData<T>,
+    /// The additional metadata for the event. Note that this is not always
+    /// available if these logs are pending. This can happen if the `to_block`
+    /// option was set to `BlockNumber::Pending`.
+    pub meta: Option<EventMetadata>,
+}
+
+/// A type representing a contract event that was either added or removed. Note
+/// that this type intentionally an enum so that the handling of removed events
+/// is made more explicit.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EventData<T> {
     /// A new event was received.
     Added(T),
     /// A previously revent was removed as the result of a re-org.
     Removed(T),
 }
 
-impl<T> Event<T> {
-    /// Get the underlying event data regardless of whether the event was added
-    /// or removed.
-    pub fn into_data(self) -> T {
-        match self {
-            Event::Added(value) => value,
-            Event::Removed(value) => value,
-        }
-    }
+/// Additional metadata from the log for the event.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EventMetadata {
+    /// The hash of the block where the log was produced.
+    pub block_hash: H256,
+    /// The number of the block where the log was produced.
+    pub block_number: u64,
+    /// The hash of the transaction this log belongs to.
+    pub transaction_hash: H256,
+    /// The block index of the transaction this log belongs to.
+    pub transaction_index: usize,
+    /// The index of the log in the block.
+    pub log_index: usize,
+    /// The log index in the transaction this log belongs to.
+    pub transaction_log_index: usize,
+    /// The log type. Note that this property is non-standard but is supported
+    /// by Parity nodes.
+    pub log_type: Option<String>,
+}
 
+impl<T> Event<T> {
     /// Get a reference the underlying event data regardless of whether the
     /// event was added or removed.
-    pub fn as_data(&self) -> &T {
-        match self {
-            Event::Added(value) => value,
-            Event::Removed(value) => value,
+    pub fn inner_data(&self) -> &T {
+        match &self.data {
+            EventData::Added(value) => value,
+            EventData::Removed(value) => value,
         }
     }
 
-    /// Get a mutable reference the underlying event data regardless of whether
-    /// the event was added or removed.
-    pub fn as_data_mut(&mut self) -> &mut T {
-        match self {
-            Event::Added(value) => value,
-            Event::Removed(value) => value,
-        }
+    /// Gets a bool representing if the event was added.
+    pub fn is_added(&self) -> bool {
+        matches!(&self.data, EventData::Added(_))
+    }
+
+    /// Gets a bool representing if the event was removed.
+    pub fn is_removed(&self) -> bool {
+        matches!(&self.data, EventData::Removed(_))
     }
 
     /// Get the underlying event data if the event was added, `None` otherwise.
     pub fn added(self) -> Option<T> {
-        match self {
-            Event::Added(value) => Some(value),
-            Event::Removed(_) => None,
+        match self.data {
+            EventData::Added(value) => Some(value),
+            EventData::Removed(_) => None,
         }
     }
 
     /// Get the underlying event data if the event was removed, `None`
     /// otherwise.
     pub fn removed(self) -> Option<T> {
-        match self {
-            Event::Removed(value) => Some(value),
-            Event::Added(_) => None,
+        match self.data {
+            EventData::Removed(value) => Some(value),
+            EventData::Added(_) => None,
         }
+    }
+}
+
+impl EventMetadata {
+    fn from_log(log: &Log) -> Option<Self> {
+        Some(EventMetadata {
+            block_hash: log.block_hash?,
+            block_number: log.block_number?.as_u64(),
+            transaction_hash: log.transaction_hash?,
+            transaction_index: log.transaction_index?.as_usize(),
+            log_index: log.log_index?.as_usize(),
+            transaction_log_index: log.transaction_log_index?.as_usize(),
+            log_type: log.log_type.clone(),
+        })
     }
 }
 
@@ -224,10 +263,13 @@ impl<T: Transport, E: Detokenize> Stream for EventStream<T, E> {
         inner.poll_next(cx).map(|next| {
             next.map(|log| {
                 let log = log?;
+                let meta = EventMetadata::from_log(&log);
+
                 let event_log = event.parse_log(RawLog {
                     topics: log.topics,
                     data: log.data.0,
                 })?;
+
                 let tokens = event_log
                     .params
                     .into_iter()
@@ -235,13 +277,16 @@ impl<T: Transport, E: Detokenize> Stream for EventStream<T, E> {
                     .collect::<Vec<_>>()
                     .compat()
                     .ok_or(ExecutionError::UnsupportedToken)?;
-                let event_data = E::from_tokens(tokens)?;
+                let data = {
+                    let inner_data = E::from_tokens(tokens)?;
+                    if log.removed == Some(true) {
+                        EventData::Removed(inner_data)
+                    } else {
+                        EventData::Added(inner_data)
+                    }
+                };
 
-                Ok(if log.removed == Some(true) {
-                    Event::Removed(event_data)
-                } else {
-                    Event::Added(event_data)
-                })
+                Ok(Event { data, meta })
             })
             .map(|next: Result<_, ExecutionError>| next.map_err(|err| EventError::new(&event, err)))
         })
@@ -313,7 +358,7 @@ mod tests {
 
         let address = Address::repeat_byte(0x01);
         let signature = event.signature();
-        let (_, _, amount) = EventBuilder::<_, (Address, Address, U256)>::new(web3, event, address)
+        let event = EventBuilder::<_, (Address, Address, U256)>::new(web3, event, address)
             .to_block(99.into())
             .topic1(Topic::OneOf(vec![
                 Address::repeat_byte(0x70),
@@ -324,11 +369,10 @@ mod tests {
             .next()
             .immediate()
             .expect("log stream did not produce any logs")
-            .expect("failed to get log from log stream")
-            .added()
-            .expect("expected an added event");
+            .expect("failed to get log from log stream");
 
-        assert_eq!(amount, U256::from(42));
+        assert!(event.is_added());
+        assert_eq!(event.inner_data().2, U256::from(42));
         transport.assert_request(
             "eth_newFilter",
             &[json!({
