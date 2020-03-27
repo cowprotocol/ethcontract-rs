@@ -1,6 +1,5 @@
-use ethcontract::web3::api::Web3;
+use ethcontract::prelude::*;
 use ethcontract::web3::transports::WebSocket;
-use ethcontract::{Account, PrivateKey};
 use std::env;
 
 ethcontract::contract!("examples/truffle/build/contracts/DeployedContract.json");

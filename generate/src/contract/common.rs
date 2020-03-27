@@ -86,13 +86,13 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
 
             /// Returns a reference to the raw runtime instance used by this
             /// contract.
-            pub fn raw_instance(&self) -> &self::ethcontract::DynInstance {
+            pub fn raw_instance(&self) -> &self::ethcontract::dyns::DynInstance {
                 &self.methods.instance
             }
 
             /// Returns a mutable reference to the raw runtime instance used by
             /// this contract.
-            fn raw_instance_mut(&mut self) -> &mut self::ethcontract::DynInstance {
+            fn raw_instance_mut(&mut self) -> &mut self::ethcontract::dyns::DynInstance {
                 &mut self.methods.instance
             }
         }
