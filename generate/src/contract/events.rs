@@ -1,4 +1,4 @@
-use crate::contract::{types, Context};
+use crate::contract::{methods, types, Context};
 use crate::util;
 use anyhow::Result;
 use ethcontract_common::abi::{Event, Hash};
@@ -42,21 +42,49 @@ fn expand_structs_mod(cx: &Context) -> Result<TokenStream> {
 
 fn expand_struct(event: &Event) -> Result<TokenStream> {
     let event_name = expand_struct_name(event);
+
     let signature = expand_hash(event.signature());
     let abi_signature = Literal::string(&event.abi_signature());
+
     let params = event
         .inputs
         .iter()
-        .map(|input| {
-            let name = util::safe_ident(&input.name);
+        .enumerate()
+        .map(|(i, input)| {
+            // NOTE: Events can contain nameless values.
+            let name = methods::expand_input_name(i, &input.name);
             let ty = types::expand(&input.kind)?;
             Ok((name, ty))
         })
         .collect::<Result<Vec<_>>>()?;
-    let param_defs = params
+
+    let param_names = params
         .iter()
-        .map(|(name, ty)| quote! { pub #name: #ty, })
+        .map(|(name, _)| name)
+        .cloned()
         .collect::<Vec<_>>();
+    let (params_def, params_cstr) = if event.inputs.iter().all(|input| input.name.is_empty()) {
+        let fields = params
+            .iter()
+            .map(|(_, ty)| quote! { pub #ty, })
+            .collect::<Vec<_>>();
+
+        let defs = quote! { ( #( #fields )* ) };
+        let cstr = quote! { ( #( #param_names ),* ) };
+
+        (defs, cstr)
+    } else {
+        let fields = params
+            .iter()
+            .map(|(name, ty)| quote! { pub #name: #ty, })
+            .collect::<Vec<_>>();
+
+        let defs = quote! { { #( #fields )* } };
+        let cstr = quote! { { #( #param_names ),* } };
+
+        (defs, cstr)
+    };
+
     let param_tokens = params
         .iter()
         .map(|(name, ty)| {
@@ -65,17 +93,11 @@ fn expand_struct(event: &Event) -> Result<TokenStream> {
             }
         })
         .collect::<Vec<_>>();
-    let param_names = params
-        .iter()
-        .map(|(name, _)| name)
-        .cloned()
-        .collect::<Vec<_>>();
     let param_len = Literal::usize_unsuffixed(params.len());
+
     Ok(quote! {
         #[derive(Clone, Debug, Default, Eq, PartialEq)]
-        pub struct #event_name {
-            #( #param_defs )*
-        }
+        pub struct #event_name #params_def
 
         impl #event_name {
             /// Retrieves the signature for the event this data corresponds to.
@@ -111,7 +133,7 @@ fn expand_struct(event: &Event) -> Result<TokenStream> {
                 let mut tokens = tokens.into_iter();
                 #( #param_tokens )*
 
-                Ok(#event_name { #( #param_names ),* })
+                Ok(#event_name #params_cstr)
             }
         }
     })
@@ -245,8 +267,8 @@ mod tests {
     }
 
     #[test]
+    #[rustfmt::skip]
     fn expand_hash_value() {
-        #[rustfmt::skip]
         assert_quote!(
             expand_hash(
                 "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".parse().unwrap()

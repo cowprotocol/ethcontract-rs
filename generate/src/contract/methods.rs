@@ -126,7 +126,7 @@ fn input_name_to_ident(index: usize, name: &str) -> Ident {
     util::safe_ident(&name_str)
 }
 
-fn expand_input_name(index: usize, name: &str) -> TokenStream {
+pub(crate) fn expand_input_name(index: usize, name: &str) -> TokenStream {
     let name = input_name_to_ident(index, name);
     quote! { #name }
 }
