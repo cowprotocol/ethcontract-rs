@@ -206,7 +206,7 @@ fn get_npm_contract(package: &str) -> Result<String> {
 /// Truffle artifact JSON document.
 ///
 /// This method uses the fact that ABIs are arrays and Truffle artifacts are
-/// objects to guess at what type of document this is. Note that not parsing or
+/// objects to guess at what type of document this is. Note that no parsing or
 /// validation is done at this point as the document gets parsed and validated
 /// at generation time.
 ///
