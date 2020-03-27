@@ -107,7 +107,6 @@ pub mod transport;
 
 pub use crate::contract::Instance;
 pub use crate::prelude::*;
-pub use crate::transport::DynTransport;
 pub use ethcontract_common as common;
 pub use ethcontract_common::truffle::Artifact;
 #[cfg(feature = "derive")]
