@@ -5,7 +5,7 @@ use crate::abicompat::AbiCompat;
 use crate::errors::{EventError, ExecutionError};
 use crate::log::LogStream;
 pub use ethcontract_common::abi::Topic;
-use ethcontract_common::abi::{Event as AbiEvent, RawLog, RawTopicFilter, Token};
+use ethcontract_common::abi::{Event as AbiEvent, RawLog, RawTopicFilter, Token, TopicFilter};
 use futures::stream::Stream;
 use pin_project::{pin_project, project};
 use std::marker::PhantomData;
@@ -291,6 +291,152 @@ impl<T: Transport, E: Detokenize> Stream for EventStream<T, E> {
             .map(|next: Result<_, ExecutionError>| next.map_err(|err| EventError::new(&event, err)))
         })
     }
+}
+
+/// A builder for creating a filtered stream for any contract event.
+#[must_use = "event builders do nothing unless you stream them"]
+pub struct AllEventsBuilder<T: Transport, E: FromLog> {
+    /// The underlying web3 instance.
+    web3: Web3<T>,
+    /// The web3 filter builder used for creating a log filter.
+    filter: FilterBuilder,
+    /// The topic filters that are encoded based on the event ABI.
+    pub topics: TopicFilter,
+    /// The polling interval for querying the node for more events.
+    pub poll_interval: Option<Duration>,
+    _event: PhantomData<E>,
+}
+
+impl<T: Transport, E: Detokenize> AllEventsBuilder<T, E> {
+    /// Creates a new all events builder from a web3 provider and and address.
+    pub fn new(web3: Web3<T>, address: Address) -> Self {
+        EventBuilder {
+            web3,
+            filter: FilterBuilder::default().address(vec![address]),
+            topics: RawTopicFilter::default(),
+            poll_interval: None,
+            _event: PhantomData,
+        }
+    }
+
+    /// Sets the starting block from which to stream logs for.
+    ///
+    /// If left unset defaults to the latest block.
+    #[allow(clippy::wrong_self_convention)]
+    pub fn from_block(mut self, block: BlockNumber) -> Self {
+        self.filter = self.filter.from_block(block);
+        self
+    }
+
+    /// Sets the last block from which to stream logs for.
+    ///
+    /// If left unset defaults to the streaming until the end of days.
+    #[allow(clippy::wrong_self_convention)]
+    pub fn to_block(mut self, block: BlockNumber) -> Self {
+        self.filter = self.filter.to_block(block);
+        self
+    }
+
+    /// Adds a filter for the first indexed topic.
+    ///
+    /// For regular events, this corresponds to the event signature. For
+    /// anonymous events, this is the first indexed property.
+    pub fn topic0(mut self, topic: Topic<H256>) -> Self {
+        self.topics.topic0 = topic;
+        self
+    }
+
+    /// Adds a filter for the second indexed topic.
+    pub fn topic1(mut self, topic: Topic<H256>) -> Self {
+        self.topics.topic1 = topic;
+        self
+    }
+
+    /// Adds a filter for the third indexed topic.
+    pub fn topic2(mut self, topic: Topic<H256>) -> Self {
+        self.topics.topic2 = topic;
+        self
+    }
+
+    /// Adds a filter for the third indexed topic.
+    pub fn topic3(mut self, topic: Topic<H256>) -> Self {
+        self.topics.topic2 = topic;
+        self
+    }
+
+    /// The polling interval. This is used as the interval between consecutive
+    /// `eth_getFilterChanges` calls to get filter updates.
+    pub fn poll_interval(mut self, value: Duration) -> Self {
+        self.poll_interval = Some(value);
+        self
+    }
+
+    /// Creates an event stream from the current event builder.
+    pub fn stream(self) -> AllEventsStream<T, E> {
+        AllEventsStream::from_builder(self)
+    }
+}
+
+/// An event stream for all contract events.
+#[must_use = "streams do nothing unless you or poll them"]
+#[pin_project]
+pub struct AllEventsStream<T: Transport, E: FromLog> {
+    #[pin]
+    inner: LogStream<T>,
+    _events: PhantomData<E>,
+}
+
+impl<T: Transport, E: Detokenize> AllEventsStream<T, E> {
+    /// Create a new log stream from a given web3 provider, filter and polling
+    /// parameters.
+    pub fn from_builder(builder: AllEventsBuilder<T, E>) -> Self {
+        let web3 = builder.web3;
+        let filter = builder.filter.topic_filter(builder.topics.compat()).build();
+        let poll_interval = builder.poll_interval.unwrap_or(DEFAULT_POLL_INTERVAL);
+        let inner = LogStream::new(web3, filter, poll_interval);
+
+        Ok(EventStream {
+            inner,
+            _event: PhantomData,
+        })
+    }
+}
+
+impl<T: Transport, E: FromLog> Stream for AllEventsStream<T, E> {
+    type Item = Result<Event<E>, ExecutionError>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        self.project().inner.poll_next(cx).map(|next| {
+            next.map(|log| {
+                let log = log?;
+                let event_data = E::from_log(log)?;
+
+                Ok(if log.removed == Some(true) {
+                    Event::Removed(event_data)
+                } else {
+                    Event::Added(event_data)
+                })
+            })
+        })
+    }
+}
+
+/// Trait for parsing a transaction log into an some event data when the
+/// expected event type is not known.
+pub trait TryFromLog: Sized {
+    fn from_log(log: Log) -> Result<Self, ExecutionError>;
+}
+
+/// Raw log transaction data.
+pub struct RawEventData {
+    /// The raw topics.
+    pub topics: Vec<H256>,
+    /// Encoded log data.
+    pub data: Vec<u8>,
+}
+
+impl TryFromLog for RawEventData {
+    fn from_log(log: Log) -> Result<
 }
 
 #[cfg(test)]
