@@ -33,10 +33,10 @@ jobs:
         - cargo run --example async
         - cargo run --example deployments
         - cargo run --example events
-        - cargo run --example etherscan
         - cargo run --package examples-generate
         - cargo run --example linked
         - cargo run --example rinkeby
+        - cargo run --example sources
         - kill %1
 
     - stage: "Deploy"
