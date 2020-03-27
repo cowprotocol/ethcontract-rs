@@ -5,6 +5,7 @@ use quote::quote;
 
 pub(crate) fn expand(cx: &Context) -> TokenStream {
     let artifact_json = &cx.artifact_json;
+    let contract_name = &cx.contract_name;
 
     let doc_str = cx
         .artifact
@@ -95,7 +96,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
 
         impl std::fmt::Debug for Contract {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.debug_tuple(stringify!(Contract))
+                f.debug_tuple(stringify!(#contract_name))
                     .field(&self.address())
                     .finish()
             }
