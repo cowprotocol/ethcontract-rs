@@ -29,7 +29,7 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
 
     let methods_struct = quote! {
         struct Methods {
-            instance: self::ethcontract::DynInstance,
+            instance: self::ethcontract::private::DynInstance,
         }
     };
 
@@ -93,7 +93,7 @@ fn expand_function(cx: &Context, function: &Function, alias: Option<Ident>) -> R
     } else {
         (quote! { method }, quote! { DynMethodBuilder })
     };
-    let result = quote! { self::ethcontract::#result_type_name<#outputs> };
+    let result = quote! { self::ethcontract::private::#result_type_name<#outputs> };
     let arg = expand_inputs_call_arg(&function.inputs);
 
     Ok(quote! {

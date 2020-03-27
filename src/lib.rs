@@ -105,51 +105,29 @@ pub mod sign;
 pub mod transaction;
 pub mod transport;
 
-use crate::contract::{
-    DeployBuilder, DeployedFuture, EventBuilder, EventStream, MethodBuilder, ViewMethodBuilder,
-};
-pub use crate::contract::{Event, Instance, Topic};
-pub use crate::int::I256;
-use crate::log::LogStream;
-pub use crate::transaction::{Account, GasPrice};
+pub use crate::contract::Instance;
+pub use crate::prelude::*;
 pub use crate::transport::DynTransport;
 pub use ethcontract_common as common;
 pub use ethcontract_common::truffle::Artifact;
 #[cfg(feature = "derive")]
 pub use ethcontract_derive::contract;
 pub use jsonrpc_core as jsonrpc;
-pub use secret::{Password, PrivateKey};
 pub use serde_json as json;
 pub use web3;
-use web3::api::Web3;
-pub use web3::types::{Address, BlockNumber, TransactionCondition, H160, H256, U256};
 
-/// Type alias for a `Web3` provider with an underlying `DynTransport`.
-pub type DynWeb3 = Web3<DynTransport>;
+pub mod prelude {
+    //! A prelude module for importing commonly used types when interacting with
+    //! generated contracts.
 
-/// Type alias for a contract `Instance` with an underyling `DynTransport`.
-pub type DynInstance = Instance<DynTransport>;
-
-/// Type alias for a `DeployBuilder` with an underlying `DynTransport`.
-pub type DynDeployedFuture<D> = DeployedFuture<DynTransport, D>;
-
-/// Type alias for a `DeployBuilder` with an underlying `DynTransport`.
-pub type DynDeployBuilder<D> = DeployBuilder<DynTransport, D>;
-
-/// Type alias for a `MethodBuilder` with an underlying `DynTransport`.
-pub type DynMethodBuilder<R> = MethodBuilder<DynTransport, R>;
-
-/// Type alias for a `ViewMethodBuilder` with an underlying `DynTransport`.
-pub type DynViewMethodBuilder<R> = ViewMethodBuilder<DynTransport, R>;
-
-/// Type alias for a `EventBuilder` with an underlying `DynTransport`.
-pub type DynEventBuilder<E> = EventBuilder<DynTransport, E>;
-
-/// Type alias for a `LogStream` with an underlying `DynTransport`.
-pub type DynLogStream = LogStream<DynTransport>;
-
-/// Type alias for a `EventStream` with an underlying `DynTransport`.
-pub type DynEventStream<E> = EventStream<DynTransport, E>;
+    pub use crate::contract::{Event, Topic};
+    pub use crate::int::I256;
+    pub use crate::secret::{Password, PrivateKey};
+    pub use crate::transaction::{Account, GasPrice};
+    pub use web3::api::Web3;
+    pub use web3::transports::Http;
+    pub use web3::types::{Address, BlockNumber, TransactionCondition, H160, H256, U256};
+}
 
 #[doc(hidden)]
 pub mod private {
@@ -157,7 +135,24 @@ pub mod private {
     //! but do not appear in public interfaces. No documentation is generated
     //! for these definitions.
 
+    use crate::contract::{
+        DeployBuilder, DeployedFuture, EventBuilder, EventStream, Instance, MethodBuilder,
+        ViewMethodBuilder,
+    };
+    use crate::log::LogStream;
+    pub use crate::transport::DynTransport;
     pub use lazy_static::lazy_static;
+    use web3::api::Web3;
+
+    pub type DynWeb3 = Web3<DynTransport>;
+    pub type DynInstance = Instance<DynTransport>;
+    pub type DynDeployedFuture<D> = DeployedFuture<DynTransport, D>;
+    pub type DynDeployBuilder<D> = DeployBuilder<DynTransport, D>;
+    pub type DynMethodBuilder<R> = MethodBuilder<DynTransport, R>;
+    pub type DynViewMethodBuilder<R> = ViewMethodBuilder<DynTransport, R>;
+    pub type DynEventBuilder<E> = EventBuilder<DynTransport, E>;
+    pub type DynLogStream = LogStream<DynTransport>;
+    pub type DynEventStream<E> = EventStream<DynTransport, E>;
 }
 
 #[cfg(test)]
