@@ -54,6 +54,9 @@ pub struct EventMetadata {
     pub log_index: usize,
     /// The log index in the transaction this log belongs to.
     pub transaction_log_index: usize,
+    /// The log type. Note that this property is non-standard but is supported
+    /// by Parity nodes.
+    pub log_type: Option<String>,
 }
 
 impl<T> Event<T> {
@@ -103,6 +106,7 @@ impl EventMetadata {
             transaction_index: log.transaction_index?.as_usize(),
             log_index: log.log_index?.as_usize(),
             transaction_log_index: log.transaction_log_index?.as_usize(),
+            log_type: log.log_type.clone(),
         })
     }
 }
