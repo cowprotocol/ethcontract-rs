@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use curl::easy::Easy;
 use ethcontract_common::Address;
+use inflector::Inflector;
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::quote;
 use syn::Ident as SynIdent;
@@ -16,6 +17,17 @@ pub fn ident(name: &str) -> Ident {
 /// Parsing keywords like `self` can fail, in this case we add an underscore.
 pub fn safe_ident(name: &str) -> Ident {
     syn::parse_str::<SynIdent>(name).unwrap_or_else(|_| ident(&format!("{}_", name)))
+}
+
+/// Expands a positional identifier string that may b
+pub fn expand_input_name(index: usize, name: &str) -> TokenStream {
+    let name_str = match name {
+        "" => format!("p{}", index),
+        n => n.to_snake_case(),
+    };
+    let name = safe_ident(&name_str);
+
+    quote! { #name }
 }
 
 /// Expands a doc string into an attribute token stream.
@@ -59,6 +71,21 @@ pub fn http_get(url: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn input_name_to_ident_empty() {
+        assert_quote!(expand_input_name(0, ""), { p0 });
+    }
+
+    #[test]
+    fn input_name_to_ident_keyword() {
+        assert_quote!(expand_input_name(0, "self"), { self_ });
+    }
+
+    #[test]
+    fn input_name_to_ident_snake_case() {
+        assert_quote!(expand_input_name(0, "CamelCase1"), { camel_case_1 });
+    }
 
     #[test]
     fn parse_address_missing_prefix() {

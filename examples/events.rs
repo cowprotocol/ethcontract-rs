@@ -42,13 +42,13 @@ async fn run() {
                 .expect("transfer 0->1 failed");
         },
         async {
-            let (_, to, amount) = transfers.next()
+            let transfer = transfers.next()
                 .await
                 .expect("no more events")
-                .expect("failed to get event")
+                .expect("error querying event")
                 .added()
                 .expect("expected added event");
-            println!("Received a transfer event to {:?} with amount {}", to, amount);
+            println!("Received a transfer event to {:?} with amount {}", transfer.to, transfer.value);
         },
     };
 }
