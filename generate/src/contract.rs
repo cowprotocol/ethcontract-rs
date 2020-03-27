@@ -6,6 +6,7 @@
 
 mod common;
 mod deployment;
+mod events;
 mod methods;
 mod types;
 
@@ -151,6 +152,7 @@ fn expand_contract(cx: &Context) -> Result<TokenStream> {
     let common = common::expand(cx)?;
     let deployment = deployment::expand(cx)?;
     let methods = methods::expand(cx)?;
+    let events = events::expand(cx)?;
 
     Ok(quote! {
         #[allow(dead_code)]
@@ -158,6 +160,7 @@ fn expand_contract(cx: &Context) -> Result<TokenStream> {
             #common
             #deployment
             #methods
+            #events
         }
         #vis use self::#contract_mod::#contract_name;
     })
