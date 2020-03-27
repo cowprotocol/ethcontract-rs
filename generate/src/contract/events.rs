@@ -33,8 +33,8 @@ fn expand_filters(cx: &Context) -> Result<TokenStream> {
 
     Ok(quote! {
         impl #contract_name {
-            /// Retrieves a handle to a type containing for creating event
-            /// streams for all the contract events.
+            /// Retrieves a handle to a type for creating event streams for all
+            /// the contract events.
             pub fn events(&self) -> Events<'_> {
                 Events {
                     instance: self.raw_instance(),
