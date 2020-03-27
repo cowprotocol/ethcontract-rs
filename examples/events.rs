@@ -1,6 +1,6 @@
 use ethcontract::web3::api::Web3;
 use ethcontract::web3::transports::Http;
-use ethcontract::{Address, Topic, U256};
+use ethcontract::Topic;
 use futures::compat::Future01CompatExt;
 use futures::join;
 use futures::stream::StreamExt;
@@ -29,9 +29,8 @@ async fn run() {
         .await
         .expect("deployment failed");
     let mut transfers = instance
-        .raw_instance()
-        .event::<_, (Address, Address, U256)>("Transfer")
-        .expect("transfer event not found")
+        .events()
+        .transfer()
         .topic0(Topic::This(accounts[0])) // from
         .stream()
         .expect("failed to encode topic filters");

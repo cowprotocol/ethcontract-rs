@@ -54,25 +54,8 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
     pub fn at(web3: Web3<T>, abi: Abi, address: Address) -> Self {
-        let methods = abi
-            .functions
-            .iter()
-            .flat_map(|(name, functions)| {
-                functions.iter().enumerate().map(move |(index, function)| {
-                    (function.abi_signature(), (name.to_owned(), index))
-                })
-            })
-            .collect();
-        let events = abi
-            .events
-            .iter()
-            .flat_map(|(name, events)| {
-                events
-                    .iter()
-                    .enumerate()
-                    .map(move |(index, event)| (event.signature(), (name.to_owned(), index)))
-            })
-            .collect();
+        let methods = create_mapping(&abi.functions, |function| function.abi_signature());
+        let events = create_mapping(&abi.events, |event| event.signature());
 
         Instance {
             web3,
@@ -188,12 +171,15 @@ impl<T: Transport> Instance<T> {
 
     /// Returns a event builder to setup an event stream for a smart contract
     /// that emits events for the specified Solidity event by name.
-    pub fn event<S, E>(&self, name: S) -> AbiResult<EventBuilder<T, E>>
+    pub fn event<E>(&self, signature: H256) -> AbiResult<EventBuilder<T, E>>
     where
-        S: AsRef<str>,
         E: Detokenize,
     {
-        let event = self.abi.event(name.as_ref())?;
+        let event = self
+            .events
+            .get(&signature)
+            .map(|(name, index)| &self.abi.events[name][*index])
+            .ok_or_else(|| AbiError::InvalidData)?;
 
         Ok(EventBuilder::new(
             self.web3(),

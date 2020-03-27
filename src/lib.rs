@@ -105,9 +105,10 @@ pub mod sign;
 pub mod transaction;
 pub mod transport;
 
-use crate::contract::{DeployBuilder, EventBuilder, MethodBuilder, ViewMethodBuilder};
+use crate::contract::{DeployBuilder, EventBuilder, EventStream, MethodBuilder, ViewMethodBuilder};
 pub use crate::contract::{Event, Instance, Topic};
 pub use crate::int::I256;
+use crate::log::LogStream;
 pub use crate::transaction::{Account, GasPrice};
 pub use crate::transport::DynTransport;
 pub use ethcontract_common as common;
@@ -138,6 +139,12 @@ pub type DynViewMethodBuilder<R> = ViewMethodBuilder<DynTransport, R>;
 
 /// Type alias for a `EventBuilder` with an underlying `DynTransport`.
 pub type DynEventBuilder<E> = EventBuilder<DynTransport, E>;
+
+/// Type alias for a `LogStream` with an underlying `DynTransport`.
+pub type DynLogStream = LogStream<DynTransport>;
+
+/// Type alias for a `EventStream` with an underlying `DynTransport`.
+pub type DynEventStream<E> = EventStream<DynTransport, E>;
 
 #[doc(hidden)]
 pub mod private {
