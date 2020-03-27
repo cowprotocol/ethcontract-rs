@@ -19,7 +19,7 @@ This subdirectory contains a truffle project with sample contracts used by the
 
 ## Building
 
-This contract can be built with truffle. There is an NPM script for doing this:
+This contract can be built with truffle. There is an npm script for doing this:
 
 ```sh
 yarn run build
@@ -42,7 +42,7 @@ export INFURA_PROJECT_ID="Infura project ID"
 export ETHERSCAN_API_KEY="Etherscan API key"
 ```
 
-In order to deploy, the following NPM script should be used:
+In order to deploy, the following npm script should be used:
 ```sh
 yarn run deploy
 ```
