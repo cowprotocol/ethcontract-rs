@@ -1,6 +1,4 @@
-use ethcontract::web3::api::Web3;
-use ethcontract::web3::transports::Http;
-use ethcontract::Topic;
+use ethcontract::prelude::*;
 use futures::compat::Future01CompatExt;
 use futures::join;
 use futures::stream::StreamExt;

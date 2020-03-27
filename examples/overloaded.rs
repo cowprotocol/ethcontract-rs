@@ -1,5 +1,4 @@
-use ethcontract::web3::api::Web3;
-use ethcontract::web3::transports::Http;
+use ethcontract::prelude::*;
 
 ethcontract::contract!(
     "examples/truffle/build/contracts/OverloadedMethods.json",

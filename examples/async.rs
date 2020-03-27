@@ -1,7 +1,5 @@
-use ethcontract::web3::api::Web3;
-use ethcontract::web3::transports::Http;
+use ethcontract::prelude::*;
 use ethcontract::web3::types::TransactionRequest;
-use ethcontract::{Account, Address, PrivateKey};
 use futures::compat::Future01CompatExt;
 
 ethcontract::contract!("examples/truffle/build/contracts/RustCoin.json");
