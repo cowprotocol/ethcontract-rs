@@ -31,13 +31,17 @@ use syn::{
 /// ethcontract::contract!("build/contracts/MyContract.json");
 /// ```
 ///
-/// Alternatively, an etherscan URL can be specified. In this case the ABI will
-/// be retrieved and used to generate type-safe contract bindings:
+/// Alternatively, an other sources may be used, for full defailts consult the
+/// `ethcontract-generate::source` documentation. Some basic examples:
 ///
 /// ```ignore
+/// // HTTP(S) source
+/// ethcontract::contract!("https://my.domain.local/path/to/contract.json")
+/// // Etherscan.io
 /// ethcontract::contract!("etherscan:0x0001020304050607080910111213141516171819");
-/// // or
 /// ethcontract::contract!("https://etherscan.io/address/0x0001020304050607080910111213141516171819");
+/// // npmjs
+/// ethcontract::contract!("npm:@org/package@1.0.0/path/to/contract.json")
 /// ```
 ///
 /// Note that Etherscan rate-limits requests to their API, to avoid this an
