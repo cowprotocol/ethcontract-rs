@@ -29,7 +29,7 @@ async fn run() {
         .await
         .expect("deployment failed");
     let mut transfers = instance
-        .instance
+        .raw_instance()
         .event::<_, (Address, Address, U256)>("Transfer")
         .expect("transfer event not found")
         .topic0(Topic::This(accounts[0])) // from

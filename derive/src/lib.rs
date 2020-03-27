@@ -8,14 +8,20 @@ extern crate proc_macro;
 mod spanned;
 
 use crate::spanned::{ParseInner, Spanned};
+use ethcontract_common::abi::{Function, Param, ParamType};
+use ethcontract_common::abiext::{FunctionExt, ParamTypeExt};
 use ethcontract_generate::{parse_address, Address, Builder};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
+use quote::quote;
 use std::collections::HashSet;
 use std::error::Error;
 use syn::ext::IdentExt;
 use syn::parse::{Error as ParseError, Parse, ParseStream, Result as ParseResult};
-use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, Token};
+use syn::{
+    braced, parenthesized, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, Token,
+    Visibility,
+};
 
 /// Proc macro to generate type-safe bindings to a contract. This macro accepts
 /// a path to a Truffle artifact JSON file. Note that this path is rooted in
@@ -45,6 +51,10 @@ use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, T
 /// - `contract`: Override the contract name that is used for the generated
 ///   type. This is required when using sources that do not provide the contract
 ///   name in the artifact JSON such as Etherscan.
+/// - `mod`: The name of the contract module to place generated code in. Note
+///   that the root contract type gets re-exported in the context where the
+///   macro was invoked. This defaults to the contract name converted into snake
+///   case.
 /// - `deployments`: A list of additional addresses of deployed contract for
 ///   specified network IDs. This mapping allows `MyContract::deployed` to work
 ///   for networks that are not included in the Truffle artifact's `networks`
@@ -53,15 +63,29 @@ use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, T
 ///   used to manually specify contract addresses for test environments, be it
 ///   testnet addresses that may defer from the originally published artifact or
 ///   deterministic contract addresses on local development nodes.
+/// - `methods`: A list of mappings from method signatures to method names
+///   allowing methods names to be explicitely set for contract methods. This
+///   also provides a workaround for generating code for contracts with multiple
+///   methods with the same name.
+///
+/// Additionally, the ABI source can be preceeded by a visibility modifier such
+/// as `pub` or `pub(crate)`. This visibility modifier is applied to both the
+/// generated module and contract re-export. If no visibility modifier is
+/// provided, then none is used for the generated code as well, making the
+/// module and contract private to the scope where the macro was invoked.
 ///
 /// ```ignore
 /// ethcontract::contract!(
-///     "build/contracts/MyContract.json",
+///     pub(crate) "build/contracts/MyContract.json",
 ///     crate = ethcontract_rename,
+///     mod = my_contract_instance,
 ///     contract = MyContractInstance,
 ///     deployments {
-///         4 => "0x000102030405060708090a0b0c0d0e0f10111213"
-///         5777 => "0x0123456789012345678901234567890123456789"
+///         4 => "0x000102030405060708090a0b0c0d0e0f10111213",
+///         5777 => "0x0123456789012345678901234567890123456789",
+///     },
+///     methods {
+///         myMethod(uint256,bool) as my_renamed_method;
 ///     },
 /// );
 /// ```
@@ -85,22 +109,29 @@ fn expand(args: ContractArgs) -> Result<TokenStream2, Box<dyn Error>> {
 /// Contract procedural macro arguments.
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 struct ContractArgs {
+    visibility: Option<String>,
     artifact_path: String,
     parameters: Vec<Parameter>,
 }
 
 impl ContractArgs {
     fn into_builder(self) -> Result<Builder, Box<dyn Error>> {
-        let mut builder = Builder::from_source_url(&self.artifact_path)?;
+        let mut builder = Builder::from_source_url(&self.artifact_path)?
+            .with_visibility_modifier(self.visibility);
+
         for parameter in self.parameters.into_iter() {
             builder = match parameter {
-                Parameter::Crate(name) => builder.with_runtime_crate_name(name),
+                Parameter::Mod(name) => builder.with_contract_mod_override(Some(name)),
                 Parameter::Contract(name) => builder.with_contract_name_override(Some(name)),
+                Parameter::Crate(name) => builder.with_runtime_crate_name(name),
                 Parameter::Deployments(deployments) => {
                     deployments.into_iter().fold(builder, |builder, d| {
                         builder.add_deployment(d.network_id, d.address)
                     })
                 }
+                Parameter::Methods(methods) => methods.into_iter().fold(builder, |builder, m| {
+                    builder.add_method_alias(m.signature, m.alias)
+                }),
             };
         }
 
@@ -110,6 +141,11 @@ impl ContractArgs {
 
 impl ParseInner for ContractArgs {
     fn spanned_parse(input: ParseStream) -> ParseResult<(Span, Self)> {
+        let visibility = match input.parse::<Visibility>()? {
+            Visibility::Inherited => None,
+            token => Some(quote!(#token).to_string()),
+        };
+
         // TODO(nlordell): Due to limitation with the proc-macro Span API, we
         //   can't currently get a path the the file where we were called from;
         //   therefore, the path will always be rooted on the cargo manifest
@@ -131,6 +167,7 @@ impl ParseInner for ContractArgs {
         Ok((
             span,
             ContractArgs {
+                visibility,
                 artifact_path,
                 parameters,
             },
@@ -141,9 +178,11 @@ impl ParseInner for ContractArgs {
 /// A single procedural macro parameter.
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 enum Parameter {
-    Crate(String),
+    Mod(String),
     Contract(String),
+    Crate(String),
     Deployments(Vec<Deployment>),
+    Methods(Vec<Method>),
 }
 
 impl Parse for Parameter {
@@ -153,13 +192,16 @@ impl Parse for Parameter {
             "crate" => {
                 input.parse::<Token![=]>()?;
                 let name = input.call(Ident::parse_any)?.to_string();
-
                 Parameter::Crate(name)
+            }
+            "mod" => {
+                input.parse::<Token![=]>()?;
+                let name = input.parse::<Ident>()?.to_string();
+                Parameter::Mod(name)
             }
             "contract" => {
                 input.parse::<Token![=]>()?;
                 let name = input.parse::<Ident>()?.to_string();
-
                 Parameter::Contract(name)
             }
             "deployments" => {
@@ -185,6 +227,37 @@ impl Parse for Parameter {
                 };
 
                 Parameter::Deployments(deployments)
+            }
+            "methods" => {
+                let content;
+                braced!(content in input);
+                let methods = {
+                    let parsed =
+                        content.parse_terminated::<_, Token![;]>(Spanned::<Method>::parse)?;
+
+                    let mut methods = Vec::with_capacity(parsed.len());
+                    let mut signatures = HashSet::new();
+                    let mut aliases = HashSet::new();
+                    for method in parsed {
+                        if !signatures.insert(method.signature.clone()) {
+                            return Err(ParseError::new(
+                                method.span(),
+                                "duplicate method signature in `ethcontract::contract!` macro invocation",
+                            ));
+                        }
+                        if !aliases.insert(method.alias.clone()) {
+                            return Err(ParseError::new(
+                                method.span(),
+                                "duplicate method alias in `ethcontract::contract!` macro invocation",
+                            ));
+                        }
+                        methods.push(method.into_inner())
+                    }
+
+                    methods
+                };
+
+                Parameter::Methods(methods)
             }
             _ => {
                 return Err(ParseError::new(
@@ -221,6 +294,54 @@ impl Parse for Deployment {
     }
 }
 
+/// An explicitely named contract method.
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
+struct Method {
+    signature: String,
+    alias: String,
+}
+
+impl Parse for Method {
+    fn parse(input: ParseStream) -> ParseResult<Self> {
+        let function = {
+            let name = input.parse::<Ident>()?.to_string();
+
+            let content;
+            parenthesized!(content in input);
+            let inputs = content
+                .parse_terminated::<_, Token![,]>(Ident::parse)?
+                .iter()
+                .map(|ident| {
+                    let kind = ParamType::from_str(&ident.to_string())
+                        .map_err(|err| ParseError::new(ident.span(), err))?;
+                    Ok(Param {
+                        name: "".into(),
+                        kind,
+                    })
+                })
+                .collect::<ParseResult<Vec<_>>>()?;
+
+            Function {
+                name,
+                inputs,
+
+                // NOTE: The output types and const-ness of the function do not
+                //   affect its signature.
+                outputs: vec![],
+                constant: false,
+            }
+        };
+        let signature = function.abi_signature();
+        input.parse::<Token![as]>()?;
+        let alias = {
+            let ident = input.parse::<Ident>()?;
+            ident.to_string()
+        };
+
+        Ok(Method { signature, alias })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -253,6 +374,13 @@ mod tests {
         }
     }
 
+    fn method(signature: &str, alias: &str) -> Method {
+        Method {
+            signature: signature.into(),
+            alias: alias.into(),
+        }
+    }
+
     #[test]
     fn parse_contract_args() {
         let args = contract_args!("path/to/artifact.json");
@@ -266,26 +394,50 @@ mod tests {
     }
 
     #[test]
+    fn parse_contract_args_with_defaults() {
+        let args = contract_args!("artifact.json");
+        assert_eq!(
+            args,
+            ContractArgs {
+                visibility: None,
+                artifact_path: "artifact.json".into(),
+                parameters: vec![],
+            },
+        );
+    }
+
+    #[test]
     fn parse_contract_args_with_parameters() {
         let args = contract_args!(
-            "artifact.json",
+            pub(crate) "artifact.json",
             crate = foobar,
+            mod = contract,
             contract = Contract,
             deployments {
                 1 => "0x000102030405060708090a0b0c0d0e0f10111213",
                 4 => "0x0123456789012345678901234567890123456789",
             },
+            methods {
+                myMethod(uint256, bool) as my_renamed_method;
+                myOtherMethod() as my_other_renamed_method;
+            },
         );
         assert_eq!(
             args,
             ContractArgs {
+                visibility: Some(quote!(pub(crate)).to_string()),
                 artifact_path: "artifact.json".into(),
                 parameters: vec![
                     Parameter::Crate("foobar".into()),
+                    Parameter::Mod("contract".into()),
                     Parameter::Contract("Contract".into()),
                     Parameter::Deployments(vec![
                         deployment(1, "0x000102030405060708090a0b0c0d0e0f10111213"),
                         deployment(4, "0x0123456789012345678901234567890123456789"),
+                    ]),
+                    Parameter::Methods(vec![
+                        method("myMethod(uint256,bool)", "my_renamed_method"),
+                        method("myOtherMethod()", "my_other_renamed_method"),
                     ]),
                 ],
             },
@@ -299,6 +451,34 @@ mod tests {
             deployments {
                 1 => "0x000102030405060708090a0b0c0d0e0f10111213",
                 1 => "0x0123456789012345678901234567890123456789",
+            }
+        );
+    }
+
+    #[test]
+    fn duplicate_method_rename_error() {
+        contract_args_err!(
+            "artifact.json",
+            methods {
+                myMethod(uint256) as my_method_1;
+                myMethod(uint256) as my_method_2;
+            }
+        );
+        contract_args_err!(
+            "artifact.json",
+            methods {
+                myMethod1(uint256) as my_method;
+                myMethod2(uint256) as my_method;
+            }
+        );
+    }
+
+    #[test]
+    fn method_invalid_method_parameter_type() {
+        contract_args_err!(
+            "artifact.json",
+            methods {
+                myMethod(invalid) as my_method;
             }
         );
     }

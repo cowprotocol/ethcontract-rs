@@ -32,10 +32,17 @@ pub(crate) struct Args {
     artifact_source: Source,
     /// The runtime crate name to use.
     runtime_crate_name: String,
+    /// The visibility modifier to use for the generated module and contract
+    /// re-export.
+    visibility_modifier: Option<String>,
+    /// Override the contract module name that contains the generated code.
+    contract_mod_override: Option<String>,
     /// Override the contract name to use for the generated type.
     contract_name_override: Option<String>,
     /// Manually specified deployed contract addresses.
     deployments: HashMap<u32, Address>,
+    /// Manually specified contract method aliases.
+    method_aliases: HashMap<String, String>,
 }
 
 impl Args {
@@ -45,8 +52,11 @@ impl Args {
         Args {
             artifact_source: source,
             runtime_crate_name: "ethcontract".to_owned(),
+            visibility_modifier: None,
+            contract_mod_override: None,
             contract_name_override: None,
             deployments: HashMap::new(),
+            method_aliases: HashMap::new(),
         }
     }
 }
@@ -94,6 +104,25 @@ impl Builder {
         self
     }
 
+    /// Sets an optional visibility modifier for the generated module and
+    /// contract re-export.
+    pub fn with_visibility_modifier<S>(mut self, vis: Option<S>) -> Self
+    where
+        S: Into<String>,
+    {
+        self.args.visibility_modifier = vis.map(S::into);
+        self
+    }
+
+    /// Sets the optional contract module name override.
+    pub fn with_contract_mod_override<S>(mut self, name: Option<S>) -> Self
+    where
+        S: Into<String>,
+    {
+        self.args.contract_mod_override = name.map(S::into);
+        self
+    }
+
     /// Sets the optional contract name override. This setting is needed when
     /// using a artifact JSON source that does not provide a contract name such
     /// as Etherscan.
@@ -134,6 +163,20 @@ impl Builder {
             network_id,
             parse_address(address).expect("failed to parse address"),
         )
+    }
+
+    /// Manually adds a solidity method alias to specify what the method name
+    /// will be in Rust. For solidity methods without an alias, the snake cased
+    /// method name will be used.
+    pub fn add_method_alias<S1, S2>(mut self, signature: S1, alias: S2) -> Self
+    where
+        S1: Into<String>,
+        S2: Into<String>,
+    {
+        self.args
+            .method_aliases
+            .insert(signature.into(), alias.into());
+        self
     }
 
     /// Generates the contract bindings.
