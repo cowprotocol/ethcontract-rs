@@ -1,7 +1,7 @@
 //! This module implements extensions to the `ethabi` API.
 
 use crate::errors::ParseParamTypeError;
-use crate::hash;
+use crate::hash::{self, H32};
 use ethabi::{Event, Function, ParamType};
 use serde_json::json;
 
@@ -12,7 +12,7 @@ pub trait FunctionExt {
     fn abi_signature(&self) -> String;
 
     /// Compute the Keccak256 function selector used by contract ABIs.
-    fn selector(&self) -> [u8; 4];
+    fn selector(&self) -> H32;
 }
 
 impl FunctionExt for Function {
@@ -25,7 +25,7 @@ impl FunctionExt for Function {
         full_signature
     }
 
-    fn selector(&self) -> [u8; 4] {
+    fn selector(&self) -> H32 {
         hash::function_selector(self.abi_signature())
     }
 }
