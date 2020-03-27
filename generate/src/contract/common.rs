@@ -25,9 +25,9 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
         impl Contract {
             /// Retrieves the truffle artifact used to generate the type safe
             /// API for this contract.
-            pub fn artifact() -> &'static ethcontract::Artifact {
-                use ethcontract::private::lazy_static;
-                use ethcontract::Artifact;
+            pub fn artifact() -> &'static self::ethcontract::Artifact {
+                use self::ethcontract::private::lazy_static;
+                use self::ethcontract::Artifact;
 
                 lazy_static! {
                     pub static ref ARTIFACT: Artifact = {
@@ -44,16 +44,19 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             /// Note that this does not verify that a contract with a maching
             /// `Abi` is actually deployed at the given address.
             pub fn at<F, T>(
-                web3: &ethcontract::web3::api::Web3<T>,
-                address: ethcontract::Address,
+                web3: &self::ethcontract::web3::api::Web3<T>,
+                address: self::ethcontract::Address,
             ) -> Self
             where
-                F: ethcontract::web3::futures::Future<Item = ethcontract::json::Value, Error = ethcontract::web3::Error> + Send + 'static,
-                T: ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
+                F: self::ethcontract::web3::futures::Future<
+                    Item = self::ethcontract::json::Value,
+                    Error = self::ethcontract::web3::Error,
+                > + Send + 'static,
+                T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
-                use ethcontract::Instance;
-                use ethcontract::transport::DynTransport;
-                use ethcontract::web3::api::Web3;
+                use self::ethcontract::Instance;
+                use self::ethcontract::transport::DynTransport;
+                use self::ethcontract::web3::api::Web3;
 
                 let transport = DynTransport::new(web3.transport().clone());
                 let web3 = Web3::new(transport);
@@ -65,31 +68,31 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             }
 
             /// Returns the contract address being used by this instance.
-            pub fn address(&self) -> ethcontract::Address {
+            pub fn address(&self) -> self::ethcontract::Address {
                 self.raw_instance().address()
             }
 
             /// Returns a reference to the default method options used by this
             /// contract.
-            pub fn defaults(&self) -> &ethcontract::contract::MethodDefaults {
+            pub fn defaults(&self) -> &self::ethcontract::contract::MethodDefaults {
                 &self.raw_instance().defaults
             }
 
             /// Returns a mutable reference to the default method options used
             /// by this contract.
-            pub fn defaults_mut(&mut self) -> &mut ethcontract::contract::MethodDefaults {
+            pub fn defaults_mut(&mut self) -> &mut self::ethcontract::contract::MethodDefaults {
                 &mut self.raw_instance_mut().defaults
             }
 
             /// Returns a reference to the raw runtime instance used by this
             /// contract.
-            pub fn raw_instance(&self) -> &ethcontract::DynInstance {
+            pub fn raw_instance(&self) -> &self::ethcontract::DynInstance {
                 &self.methods.instance
             }
 
             /// Returns a mutable reference to the raw runtime instance used by
             /// this contract.
-            fn raw_instance_mut(&mut self) -> &mut ethcontract::DynInstance {
+            fn raw_instance_mut(&mut self) -> &mut self::ethcontract::DynInstance {
                 &mut self.methods.instance
             }
         }

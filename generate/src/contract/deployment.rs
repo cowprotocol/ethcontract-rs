@@ -40,18 +40,18 @@ fn expand_deployed(cx: &Context) -> TokenStream {
             /// Note that this does not verify that a contract with a maching
             /// `Abi` is actually deployed at the given address.
             pub fn deployed<F, T>(
-                web3: &ethcontract::web3::api::Web3<T>,
-            ) -> ethcontract::contract::DeployedFuture<ethcontract::transport::DynTransport, Self>
+                web3: &self::ethcontract::web3::api::Web3<T>,
+            ) -> self::ethcontract::DynDeployedFuture<Self>
             where
-                F: ethcontract::web3::futures::Future<
-                    Item = ethcontract::json::Value,
-                    Error = ethcontract::web3::Error
+                F: self::ethcontract::web3::futures::Future<
+                    Item = self::ethcontract::json::Value,
+                    Error = self::ethcontract::web3::Error
                 > + Send + 'static,
-                T: ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
+                T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
-                use ethcontract::contract::DeployedFuture;
-                use ethcontract::transport::DynTransport;
-                use ethcontract::web3::api::Web3;
+                use self::ethcontract::contract::DeployedFuture;
+                use self::ethcontract::transport::DynTransport;
+                use self::ethcontract::web3::api::Web3;
 
                 let transport = DynTransport::new(web3.transport().clone());
                 let web3 = Web3::new(transport);
@@ -60,11 +60,11 @@ fn expand_deployed(cx: &Context) -> TokenStream {
             }
         }
 
-        impl ethcontract::contract::FromNetwork<ethcontract::DynTransport> for Contract {
+        impl self::ethcontract::contract::FromNetwork<self::ethcontract::DynTransport> for Contract {
             type Context = ();
 
-            fn from_network(web3: ethcontract::DynWeb3, network_id: &str, _: Self::Context) -> Option<Self> {
-                use ethcontract::Instance;
+            fn from_network(web3: self::ethcontract::DynWeb3, network_id: &str, _: Self::Context) -> Option<Self> {
+                use self::ethcontract::Instance;
 
                 let artifact = Self::artifact();
                 let address = match network_id {
@@ -133,15 +133,18 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
         impl Contract {
             #doc
             pub fn builder<F, T>(
-                web3: &ethcontract::web3::api::Web3<T> #lib_input #input ,
-            ) -> ethcontract::DynDeployBuilder<Self>
+                web3: &self::ethcontract::web3::api::Web3<T> #lib_input #input ,
+            ) -> self::ethcontract::DynDeployBuilder<Self>
             where
-                F: ethcontract::web3::futures::Future<Item = ethcontract::json::Value, Error = ethcontract::web3::Error> + Send + 'static,
-                T: ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
+                F: self::ethcontract::web3::futures::Future<
+                    Item = self::ethcontract::json::Value,
+                    Error = self::ethcontract::web3::Error,
+                > + Send + 'static,
+                T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
-                use ethcontract::DynTransport;
-                use ethcontract::contract::DeployBuilder;
-                use ethcontract::web3::api::Web3;
+                use self::ethcontract::DynTransport;
+                use self::ethcontract::contract::DeployBuilder;
+                use self::ethcontract::web3::api::Web3;
 
                 let transport = DynTransport::new(web3.transport().clone());
                 let web3 = Web3::new(transport);
@@ -153,18 +156,18 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             }
         }
 
-        impl ethcontract::contract::Deploy<ethcontract::DynTransport> for Contract {
-            type Context = ethcontract::common::Bytecode;
+        impl self::ethcontract::contract::Deploy<self::ethcontract::DynTransport> for Contract {
+            type Context = self::ethcontract::common::Bytecode;
 
-            fn bytecode(cx: &Self::Context) -> &ethcontract::common::Bytecode {
+            fn bytecode(cx: &Self::Context) -> &self::ethcontract::common::Bytecode {
                 cx
             }
 
-            fn abi(_: &Self::Context) -> &ethcontract::common::Abi {
+            fn abi(_: &Self::Context) -> &self::ethcontract::common::Abi {
                 &Self::artifact().abi
             }
 
-            fn at_address(web3: ethcontract::DynWeb3, address: ethcontract::Address, _: Self::Context) -> Self {
+            fn at_address(web3: self::ethcontract::DynWeb3, address: self::ethcontract::Address, _: Self::Context) -> Self {
                 Self::at(&web3, address)
             }
         }
@@ -181,7 +184,7 @@ fn expand_address(address: Address) -> TokenStream {
         .map(Literal::u8_unsuffixed);
 
     quote! {
-        ethcontract::Address::from([#( #bytes ),*])
+        self::ethcontract::Address::from([#( #bytes ),*])
     }
 }
 
@@ -190,18 +193,19 @@ mod tests {
     use super::*;
 
     #[test]
+    #[rustfmt::skip]
     fn expand_address_value() {
-        assert_quote!(expand_address(Address::zero()), {
-            ethcontract::Address::from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        });
-
-        #[rustfmt::skip]
         assert_quote!(
-            expand_address(
-                "000102030405060708090a0b0c0d0e0f10111213".parse().unwrap()
-            ),
+            expand_address(Address::zero()),
             {
-                ethcontract::Address::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
+                self::ethcontract::Address::from([ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ])
+            },
+        );
+
+        assert_quote!(
+            expand_address("000102030405060708090a0b0c0d0e0f10111213".parse().unwrap()),
+            {
+                self::ethcontract::Address::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
             },
         );
     }
