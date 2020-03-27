@@ -69,7 +69,7 @@ fn expand_struct(event: &Event) -> Result<TokenStream> {
             .map(|(_, ty)| quote! { pub #ty, })
             .collect::<Vec<_>>();
 
-        let defs = quote! { ( #( #fields )* ) };
+        let defs = quote! { ( #( #fields )* ); };
         let cstr = quote! { ( #( #param_names ),* ) };
 
         (defs, cstr)
