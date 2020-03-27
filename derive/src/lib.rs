@@ -8,6 +8,8 @@ extern crate proc_macro;
 mod spanned;
 
 use crate::spanned::{ParseInner, Spanned};
+use ethcontract_common::abi::{Function, Param, ParamType};
+use ethcontract_common::abiext::{FunctionExt, ParamTypeExt};
 use ethcontract_generate::{parse_address, Address, Builder};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
@@ -16,7 +18,10 @@ use std::collections::HashSet;
 use std::error::Error;
 use syn::ext::IdentExt;
 use syn::parse::{Error as ParseError, Parse, ParseStream, Result as ParseResult};
-use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, Token, Visibility};
+use syn::{
+    braced, parenthesized, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, Token,
+    Visibility,
+};
 
 /// Proc macro to generate type-safe bindings to a contract. This macro accepts
 /// a path to a Truffle artifact JSON file. Note that this path is rooted in
@@ -58,6 +63,10 @@ use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, T
 ///   used to manually specify contract addresses for test environments, be it
 ///   testnet addresses that may defer from the originally published artifact or
 ///   deterministic contract addresses on local development nodes.
+/// - `methods`: A list of mappings from method signatures to method names
+///   allowing methods names to be explicitely set for contract methods. This
+///   also provides a workaround for generating code for contracts with multiple
+///   methods with the same name.
 ///
 /// Additionally, the ABI source can be preceeded by a visibility modifier such
 /// as `pub` or `pub(crate)`. This visibility modifier is applied to both the
@@ -72,8 +81,11 @@ use syn::{braced, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, T
 ///     mod = my_contract_instance,
 ///     contract = MyContractInstance,
 ///     deployments {
-///         4 => "0x000102030405060708090a0b0c0d0e0f10111213"
-///         5777 => "0x0123456789012345678901234567890123456789"
+///         4 => "0x000102030405060708090a0b0c0d0e0f10111213",
+///         5777 => "0x0123456789012345678901234567890123456789",
+///     },
+///     methods {
+///         myMethod(uint256,bool) as my_renamed_method;
 ///     },
 /// );
 /// ```
@@ -86,7 +98,7 @@ pub fn contract(input: TokenStream) -> TokenStream {
 
     let span = args.span();
     expand(args.into_inner())
-        .unwrap_or_else(|e| SynError::new(span, e.to_string()).to_compile_error())
+        .unwrap_or_else(|e| SynError::new(span, format!("{:?}", e)).to_compile_error())
         .into()
 }
 
@@ -117,6 +129,9 @@ impl ContractArgs {
                         builder.add_deployment(d.network_id, d.address)
                     })
                 }
+                Parameter::Methods(methods) => methods.into_iter().fold(builder, |builder, m| {
+                    builder.add_method_alias(m.signature, m.alias)
+                }),
             };
         }
 
@@ -167,6 +182,7 @@ enum Parameter {
     Contract(String),
     Crate(String),
     Deployments(Vec<Deployment>),
+    Methods(Vec<Method>),
 }
 
 impl Parse for Parameter {
@@ -212,6 +228,37 @@ impl Parse for Parameter {
 
                 Parameter::Deployments(deployments)
             }
+            "methods" => {
+                let content;
+                braced!(content in input);
+                let methods = {
+                    let parsed =
+                        content.parse_terminated::<_, Token![;]>(Spanned::<Method>::parse)?;
+
+                    let mut methods = Vec::with_capacity(parsed.len());
+                    let mut signatures = HashSet::new();
+                    let mut aliases = HashSet::new();
+                    for method in parsed {
+                        if !signatures.insert(method.signature.clone()) {
+                            return Err(ParseError::new(
+                                method.span(),
+                                "duplicate method signature in `ethcontract::contract!` macro invocation",
+                            ));
+                        }
+                        if !aliases.insert(method.alias.clone()) {
+                            return Err(ParseError::new(
+                                method.span(),
+                                "duplicate method alias in `ethcontract::contract!` macro invocation",
+                            ));
+                        }
+                        methods.push(method.into_inner())
+                    }
+
+                    methods
+                };
+
+                Parameter::Methods(methods)
+            }
             _ => {
                 return Err(ParseError::new(
                     name.span(),
@@ -247,6 +294,54 @@ impl Parse for Deployment {
     }
 }
 
+/// An explicitely named contract method.
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
+struct Method {
+    signature: String,
+    alias: String,
+}
+
+impl Parse for Method {
+    fn parse(input: ParseStream) -> ParseResult<Self> {
+        let function = {
+            let name = input.parse::<Ident>()?.to_string();
+
+            let content;
+            parenthesized!(content in input);
+            let inputs = content
+                .parse_terminated::<_, Token![,]>(Ident::parse)?
+                .iter()
+                .map(|ident| {
+                    let kind = ParamType::from_str(&ident.to_string())
+                        .map_err(|err| ParseError::new(ident.span(), err))?;
+                    Ok(Param {
+                        name: "".into(),
+                        kind,
+                    })
+                })
+                .collect::<ParseResult<Vec<_>>>()?;
+
+            Function {
+                name,
+                inputs,
+
+                // NOTE: The output types and const-ness of the function do not
+                //   affect its signature.
+                outputs: vec![],
+                constant: false,
+            }
+        };
+        let signature = function.abi_signature();
+        input.parse::<Token![as]>()?;
+        let alias = {
+            let ident = input.parse::<Ident>()?;
+            ident.to_string()
+        };
+
+        Ok(Method { signature, alias })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -276,6 +371,13 @@ mod tests {
         Deployment {
             network_id,
             address: parse_address(address).expect("failed to parse deployment address"),
+        }
+    }
+
+    fn method(signature: &str, alias: &str) -> Method {
+        Method {
+            signature: signature.into(),
+            alias: alias.into(),
         }
     }
 
@@ -315,6 +417,10 @@ mod tests {
                 1 => "0x000102030405060708090a0b0c0d0e0f10111213",
                 4 => "0x0123456789012345678901234567890123456789",
             },
+            methods {
+                myMethod(uint256, bool) as my_renamed_method;
+                myOtherMethod() as my_other_renamed_method;
+            },
         );
         assert_eq!(
             args,
@@ -329,6 +435,10 @@ mod tests {
                         deployment(1, "0x000102030405060708090a0b0c0d0e0f10111213"),
                         deployment(4, "0x0123456789012345678901234567890123456789"),
                     ]),
+                    Parameter::Methods(vec![
+                        method("myMethod(uint256,bool)", "my_renamed_method"),
+                        method("myOtherMethod()", "my_other_renamed_method"),
+                    ]),
                 ],
             },
         );
@@ -341,6 +451,34 @@ mod tests {
             deployments {
                 1 => "0x000102030405060708090a0b0c0d0e0f10111213",
                 1 => "0x0123456789012345678901234567890123456789",
+            }
+        );
+    }
+
+    #[test]
+    fn duplicate_method_rename_error() {
+        contract_args_err!(
+            "artifact.json",
+            methods {
+                myMethod(uint256) as my_method_1;
+                myMethod(uint256) as my_method_2;
+            }
+        );
+        contract_args_err!(
+            "artifact.json",
+            methods {
+                myMethod1(uint256) as my_method;
+                myMethod2(uint256) as my_method;
+            }
+        );
+    }
+
+    #[test]
+    fn method_invalid_method_parameter_type() {
+        contract_args_err!(
+            "artifact.json",
+            methods {
+                myMethod(invalid) as my_method;
             }
         );
     }

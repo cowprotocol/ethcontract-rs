@@ -1,7 +1,9 @@
 //! This module implements extensions to the `ethabi` API.
 
+use crate::errors::ParseParamTypeError;
 use crate::hash;
-use ethabi::{Event, Function};
+use ethabi::{Event, Function, ParamType};
+use serde_json::json;
 
 /// Extension trait for `ethabi::Function`.
 pub trait FunctionExt {
@@ -50,6 +52,16 @@ impl EventExt for Event {
         )
     }
 }
+
+/// An extension trait for Solidity parameter types.
+pub trait ParamTypeExt {
+    /// Parses a parameter type from a string value.
+    fn from_str(s: &str) -> Result<ParamType, ParseParamTypeError> {
+        serde_json::from_value(json!(s)).map_err(|_| ParseParamTypeError(s.into()))
+    }
+}
+
+impl ParamTypeExt for ParamType {}
 
 #[cfg(test)]
 mod tests {

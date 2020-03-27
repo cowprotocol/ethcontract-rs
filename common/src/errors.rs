@@ -50,3 +50,8 @@ pub enum LinkError {
     #[error("undefined library {0}")]
     UndefinedLibrary(String),
 }
+
+/// An error reprensenting an error parsing a parameter type.
+#[derive(Clone, Debug, Error)]
+#[error("'{0}' is not a valid Solidity type")]
+pub struct ParseParamTypeError(pub String);

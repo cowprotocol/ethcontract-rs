@@ -39,6 +39,8 @@ pub(crate) struct Context {
     contract_name: Ident,
     /// Additional contract deployments.
     deployments: HashMap<u32, Address>,
+    /// Manually specified method aliases.
+    method_aliases: HashMap<String, Ident>,
 }
 
 impl Context {
@@ -87,6 +89,20 @@ impl Context {
         };
         let contract_name = util::ident(raw_contract_name);
 
+        // NOTE: We only check for duplicate signatures here, since if there are
+        //   duplicate aliases, the compiler will produce a warning because a
+        //   method will be re-defined.
+        let mut method_aliases = HashMap::new();
+        for (signature, alias) in args.method_aliases.into_iter() {
+            let alias = syn::parse_str(&alias)?;
+            if method_aliases.insert(signature.clone(), alias).is_some() {
+                return Err(anyhow!(
+                    "duplicate method signature '{}' in method aliases",
+                    signature,
+                ));
+            }
+        }
+
         Ok(Context {
             artifact_json,
             artifact,
@@ -95,6 +111,7 @@ impl Context {
             contract_mod,
             contract_name,
             deployments: args.deployments,
+            method_aliases,
         })
     }
 
@@ -114,14 +131,14 @@ impl Default for Context {
             contract_mod: util::ident("contract"),
             contract_name: util::ident("Contract"),
             deployments: HashMap::new(),
+            method_aliases: HashMap::new(),
         }
     }
 }
 
 pub(crate) fn expand(args: Args) -> Result<TokenStream> {
     let cx = Context::from_args(args)?;
-    let contract = expand_contract(&cx)
-        .with_context(|| format!("error expanding contract from JSON '{}'", cx.artifact_json))?;
+    let contract = expand_contract(&cx).context("error expanding contract from source")?;
 
     Ok(contract)
 }
