@@ -1,4 +1,4 @@
-use crate::contract::{methods, types, Context};
+use crate::contract::{types, Context};
 use crate::util;
 use anyhow::Result;
 use ethcontract_common::abi::{Event, Hash};
@@ -49,12 +49,15 @@ fn expand_data_type(event: &Event) -> Result<TokenStream> {
     let event_name = expand_struct_name(event);
 
     let signature = expand_hash(event.signature());
-    let abi_signature = Literal::string(&event.abi_signature());
+
+    let abi_signature = event.abi_signature();
+    let abi_signature_lit = Literal::string(&abi_signature);
+    let abi_signature_doc = util::expand_doc(&format!("`{}`", abi_signature));
 
     let params = expand_params(event)?;
 
     let all_anonymous_fields = event.inputs.iter().all(|input| input.name.is_empty());
-    let (data_type_def, data_type_cstr) = if all_anonymous_fields {
+    let (data_type_definition, data_type_construction) = if all_anonymous_fields {
         expand_data_tuple(&event_name, &params)
     } else {
         expand_data_struct(&event_name, &params)
@@ -72,7 +75,7 @@ fn expand_data_type(event: &Event) -> Result<TokenStream> {
 
     Ok(quote! {
         #[derive(Clone, Debug, Default, Eq, PartialEq)]
-        pub #data_type_def
+        pub #data_type_definition
 
         impl #event_name {
             /// Retrieves the signature for the event this data corresponds to.
@@ -83,9 +86,11 @@ fn expand_data_type(event: &Event) -> Result<TokenStream> {
             }
 
             /// Retrieves the ABI signature for the event this data corresponds
-            /// to.
+            /// to. For this event the value should always be:
+            ///
+            #abi_signature_doc
             pub fn abi_signature() -> &'static str {
-                #abi_signature
+                #abi_signature_lit
             }
         }
 
@@ -108,7 +113,7 @@ fn expand_data_type(event: &Event) -> Result<TokenStream> {
                 let mut tokens = tokens.into_iter();
                 #( #read_param_token )*
 
-                Ok(#data_type_cstr)
+                Ok(#data_type_construction)
             }
         }
     })
@@ -128,7 +133,7 @@ fn expand_params(event: &Event) -> Result<Vec<(TokenStream, TokenStream)>> {
         .enumerate()
         .map(|(i, input)| {
             // NOTE: Events can contain nameless values.
-            let name = methods::expand_input_name(i, &input.name);
+            let name = util::expand_input_name(i, &input.name);
             let ty = types::expand(&input.kind)?;
             Ok((name, ty))
         })

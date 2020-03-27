@@ -110,7 +110,7 @@ pub(crate) fn expand_inputs(inputs: &[Param]) -> Result<TokenStream> {
         .iter()
         .enumerate()
         .map(|(i, param)| {
-            let name = expand_input_name(i, &param.name);
+            let name = util::expand_input_name(i, &param.name);
             let kind = types::expand(&param.kind)?;
             Ok(quote! { #name: #kind })
         })
@@ -118,24 +118,11 @@ pub(crate) fn expand_inputs(inputs: &[Param]) -> Result<TokenStream> {
     Ok(quote! { #( , #params )* })
 }
 
-fn input_name_to_ident(index: usize, name: &str) -> Ident {
-    let name_str = match name {
-        "" => format!("p{}", index),
-        n => n.to_snake_case(),
-    };
-    util::safe_ident(&name_str)
-}
-
-pub(crate) fn expand_input_name(index: usize, name: &str) -> TokenStream {
-    let name = input_name_to_ident(index, name);
-    quote! { #name }
-}
-
 pub(crate) fn expand_inputs_call_arg(inputs: &[Param]) -> TokenStream {
     let names = inputs
         .iter()
         .enumerate()
-        .map(|(i, param)| expand_input_name(i, &param.name));
+        .map(|(i, param)| util::expand_input_name(i, &param.name));
     quote! { ( #( #names ,)* ) }
 }
 
@@ -157,24 +144,6 @@ fn expand_fn_outputs(outputs: &[Param]) -> Result<TokenStream> {
 mod tests {
     use super::*;
     use ethcontract_common::abi::ParamType;
-
-    #[test]
-    fn input_name_to_ident_empty() {
-        assert_eq!(input_name_to_ident(0, ""), util::ident("p0"));
-    }
-
-    #[test]
-    fn input_name_to_ident_keyword() {
-        assert_eq!(input_name_to_ident(0, "self"), util::ident("self_"));
-    }
-
-    #[test]
-    fn input_name_to_ident_snake_case() {
-        assert_eq!(
-            input_name_to_ident(0, "CamelCase1"),
-            util::ident("camel_case_1")
-        );
-    }
 
     #[test]
     fn expand_inputs_empty() {
