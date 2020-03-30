@@ -31,7 +31,7 @@ use syn::{
 /// ethcontract::contract!("build/contracts/MyContract.json");
 /// ```
 ///
-/// Alternatively, other sources may be used, for full detailts consult the
+/// Alternatively, other sources may be used, for full details consult the
 /// `ethcontract-generate::source` documentation. Some basic examples:
 ///
 /// ```ignore
