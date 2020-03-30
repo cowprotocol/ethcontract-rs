@@ -38,6 +38,7 @@ pub struct Instance<T: Transport> {
     web3: Web3<T>,
     abi: Abi,
     address: Address,
+    transaction_hash: Option<H256>,
     /// Default method parameters to use when sending method transactions or
     /// querying method calls.
     pub defaults: MethodDefaults,
@@ -54,9 +55,26 @@ impl<T: Transport> Instance<T> {
     /// Creates a new contract instance with the specified `web3` provider with
     /// the given `Abi` at the given `Address`.
     ///
-    /// Note that this does not verify that a contract with a matchin `Abi` is
+    /// Note that this does not verify that a contract with a matching `Abi` is
     /// actually deployed at the given address.
     pub fn at(web3: Web3<T>, abi: Abi, address: Address) -> Self {
+        Instance::with_transaction(web3, abi, address, None)
+    }
+
+    /// Creates a new contract instance with the specified `web3` provider with
+    /// the given `Abi` at the given `Address` and an optional transaction hash.
+    /// This hash is used to retrieve contract related information such as the
+    /// creation block (which is useful for fetching all historic events).
+    ///
+    /// Note that this does not verify that a contract with a matching `Abi` is
+    /// actually deployed at the given address nor that the transaction hash,
+    /// when provided, is actually for this contract deployment.
+    pub fn with_transaction(
+        web3: Web3<T>,
+        abi: Abi,
+        address: Address,
+        transaction_hash: Option<H256>,
+    ) -> Self {
         let methods = create_mapping(&abi.functions, |function| function.selector());
         let events = create_mapping(&abi.events, |event| event.signature());
 
@@ -64,6 +82,7 @@ impl<T: Transport> Instance<T> {
             web3,
             abi,
             address,
+            transaction_hash,
             defaults: MethodDefaults::default(),
             methods,
             events,
@@ -126,6 +145,12 @@ impl<T: Transport> Instance<T> {
     /// Returns the contract address being used by this instance.
     pub fn address(&self) -> Address {
         self.address
+    }
+
+    /// Returns the hash for the transaction that deployed the contract if it is
+    /// known, `None` otherwise.
+    pub fn transaction_hash(&self) -> Option<H256> {
+        self.transaction_hash
     }
 
     /// Returns a method builder to setup a call or transaction on a smart
@@ -216,8 +241,13 @@ impl<T: Transport> FromNetwork<T> for Instance<T> {
     type Context = Deployments;
 
     fn from_network(web3: Web3<T>, network_id: &str, cx: Self::Context) -> Option<Self> {
-        let address = cx.networks.get(network_id)?.address;
-        Some(Instance::at(web3, cx.abi, address))
+        let network = cx.networks.get(network_id)?;
+        Some(Instance::with_transaction(
+            web3,
+            cx.abi,
+            network.address,
+            network.transaction_hash,
+        ))
     }
 }
 
@@ -281,8 +311,13 @@ impl<T: Transport> Deploy<T> for Instance<T> {
         &cx.bytecode
     }
 
-    fn at_address(web3: Web3<T>, address: Address, cx: Self::Context) -> Self {
-        Instance::at(web3, cx.abi, address)
+    fn from_deployment(
+        web3: Web3<T>,
+        address: Address,
+        transaction_hash: H256,
+        cx: Self::Context,
+    ) -> Self {
+        Instance::with_transaction(web3, cx.abi, address, Some(transaction_hash))
     }
 }
 

@@ -28,7 +28,10 @@ fn expand_deployed(cx: &Context) -> TokenStream {
         let address = expand_address(*address);
 
         quote! {
-            #network_id => #address,
+            #network_id => Network {
+                address: #address,
+                transaction_hash: None,
+            },
         }
     });
 
@@ -60,7 +63,9 @@ fn expand_deployed(cx: &Context) -> TokenStream {
             }
         }
 
-        impl self::ethcontract::contract::FromNetwork<self::ethcontract::dyns::DynTransport> for Contract {
+        impl self::ethcontract::contract::FromNetwork<self::ethcontract::dyns::DynTransport>
+            for Contract
+        {
             type Context = ();
 
             fn from_network(
@@ -69,13 +74,19 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                 _: Self::Context,
             ) -> Option<Self> {
                 use self::ethcontract::Instance;
+                use self::ethcontract::common::truffle::Network;
 
                 let artifact = Self::artifact();
-                let address = match network_id {
+                let network = match network_id {
                     #( #deployments )*
-                    _ => artifact.networks.get(network_id)?.address,
+                    _ => artifact.networks.get(network_id)?.clone(),
                 };
-                Some(Self::at(&web3, address))
+
+                Some(Self::with_transaction(
+                    &web3,
+                    network.address,
+                    network.transaction_hash,
+                ))
             }
         }
     }
@@ -171,12 +182,13 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
                 &Self::artifact().abi
             }
 
-            fn at_address(
+            fn from_deployment(
                 web3: self::ethcontract::dyns::DynWeb3,
                 address: self::ethcontract::Address,
+                transaction_hash: self::ethcontract::H256,
                 _: Self::Context,
             ) -> Self {
-                Self::at(&web3, address)
+                Self::with_transaction(&web3, address, Some(transaction_hash))
             }
         }
     })
