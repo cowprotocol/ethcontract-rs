@@ -24,7 +24,7 @@ use web3::Transport;
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture};
 pub use self::deployed::{DeployedFuture, FromNetwork};
 pub use self::event::{
-    AllEventsBuilder, Event, EventBuilder, EventData, EventMetadata, EventStream, RawEventData,
+    AllEventsBuilder, Event, EventBuilder, EventData, EventMetadata, EventStream, ParseLog, RawLog,
     Topic, DEFAULT_POLL_INTERVAL,
 };
 pub use self::method::{
@@ -57,8 +57,14 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
     pub fn at(web3: Web3<T>, abi: Abi, address: Address) -> Self {
-        let methods = create_mapping(&abi.functions, |function| function.selector());
-        let events = create_mapping(&abi.events, |event| event.signature());
+        let methods = create_mapping(&abi.functions, |function| Some(function.selector()));
+        let events = create_mapping(&abi.events, |event| {
+            if event.anonymous {
+                None
+            } else {
+                Some(event.signature())
+            }
+        });
 
         Instance {
             web3,
@@ -187,7 +193,7 @@ impl<T: Transport> Instance<T> {
 
     /// Returns a log stream that emits a log for every new event emitted after
     /// the stream was created for this contract instance.
-    pub fn all_events(&self) -> AllEventsBuilder<T, RawEventData> {
+    pub fn all_events(&self) -> AllEventsBuilder<T, RawLog> {
         AllEventsBuilder::new(self.web3(), self.address())
     }
 }
@@ -293,7 +299,7 @@ fn create_mapping<T, S, F>(
 ) -> HashMap<S, (String, usize)>
 where
     S: Hash + Eq,
-    F: Fn(&T) -> S,
+    F: Fn(&T) -> Option<S>,
 {
     let signature = &signature;
     elements
@@ -302,7 +308,9 @@ where
             sub_elements
                 .iter()
                 .enumerate()
-                .map(move |(index, element)| (signature(element), (name.to_owned(), index)))
+                .filter_map(move |(index, element)| {
+                    Some((signature(element)?, (name.to_owned(), index)))
+                })
         })
         .collect()
 }

@@ -119,7 +119,7 @@ pub mod prelude {
     //! A prelude module for importing commonly used types when interacting with
     //! generated contracts.
 
-    pub use crate::contract::{Event, EventData, EventMetadata, RawEventData, Topic};
+    pub use crate::contract::{Event, EventData, EventMetadata, RawLog, Topic};
     pub use crate::int::I256;
     pub use crate::secret::{Password, PrivateKey};
     pub use crate::transaction::{Account, GasPrice};
@@ -134,8 +134,8 @@ pub mod dyns {
     //! generated code.
 
     use crate::contract::{
-        AllEventsBuilder, DeployBuilder, DeployedFuture, EventBuilder, Instance,
-        MethodBuilder, ViewMethodBuilder,
+        AllEventsBuilder, DeployBuilder, DeployedFuture, EventBuilder, Instance, MethodBuilder,
+        ViewMethodBuilder,
     };
     pub use crate::transport::DynTransport;
     use web3::api::Web3;

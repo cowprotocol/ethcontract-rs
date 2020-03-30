@@ -5,7 +5,9 @@ use crate::abicompat::AbiCompat;
 use crate::errors::{EventError, ExecutionError};
 use crate::log::LogStream;
 pub use ethcontract_common::abi::Topic;
-use ethcontract_common::abi::{Event as AbiEvent, RawLog, RawTopicFilter, Token, TopicFilter};
+use ethcontract_common::abi::{
+    Event as AbiEvent, RawLog as AbiRawLog, RawTopicFilter, Token, TopicFilter,
+};
 use futures::stream::Stream;
 use pin_project::{pin_project, project};
 use std::marker::PhantomData;
@@ -263,27 +265,17 @@ impl<T: Transport, E: Detokenize> Stream for EventStream<T, E> {
         inner.poll_next(cx).map(|next| {
             next.map(|log| {
                 let log = log?;
+
                 let meta = EventMetadata::from_log(&log);
+                let removed = log.removed == Some(true);
 
-                let event_log = event.parse_log(RawLog {
-                    topics: log.topics,
-                    data: log.data.0,
-                })?;
+                let raw_log = RawLog::from(log);
+                let inner_data = raw_log.decode(event)?;
 
-                let tokens = event_log
-                    .params
-                    .into_iter()
-                    .map(|param| param.value)
-                    .collect::<Vec<_>>()
-                    .compat()
-                    .ok_or(ExecutionError::UnsupportedToken)?;
-                let data = {
-                    let inner_data = E::from_tokens(tokens)?;
-                    if log.removed == Some(true) {
-                        EventData::Removed(inner_data)
-                    } else {
-                        EventData::Added(inner_data)
-                    }
+                let data = if removed {
+                    EventData::Removed(inner_data)
+                } else {
+                    EventData::Added(inner_data)
                 };
 
                 Ok(Event { data, meta })
@@ -295,31 +287,62 @@ impl<T: Transport, E: Detokenize> Stream for EventStream<T, E> {
 
 /// Trait for parsing a transaction log into an some event data when the
 /// expected event type is not known.
-pub trait TryFromLog: Sized {
-    fn from_log(log: Log) -> Result<Self, ExecutionError>;
+pub trait ParseLog: Sized {
+    /// Create a new instance by parsing raw log data.
+    fn parse_log(log: RawLog) -> Result<Self, ExecutionError>;
 }
 
 /// Raw log transaction data.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RawEventData {
-    /// The raw topics.
+pub struct RawLog {
+    /// The raw 32-byte topics.
     pub topics: Vec<H256>,
-    /// Encoded log data.
+    /// The raw non-indexed data attached to an event.
     pub data: Vec<u8>,
 }
 
-impl TryFromLog for RawEventData {
-    fn from_log(log: Log) -> Result<Self, ExecutionError> {
-        Ok(RawEventData {
+impl RawLog {
+    /// Decode raw log data into a tokenizable for a matching event ABI entry.
+    pub fn decode<D>(self, event: &AbiEvent) -> Result<D, ExecutionError>
+    where
+        D: Detokenize,
+    {
+        let event_log = event.parse_log(AbiRawLog {
+            topics: self.topics,
+            data: self.data,
+        })?;
+
+        let tokens = event_log
+            .params
+            .into_iter()
+            .map(|param| param.value)
+            .collect::<Vec<_>>()
+            .compat()
+            .ok_or(ExecutionError::UnsupportedToken)?;
+        let data = D::from_tokens(tokens)?;
+
+        Ok(data)
+    }
+}
+
+impl From<Log> for RawLog {
+    fn from(log: Log) -> Self {
+        RawLog {
             topics: log.topics,
             data: log.data.0,
-        })
+        }
+    }
+}
+
+impl ParseLog for RawLog {
+    fn parse_log(log: RawLog) -> Result<Self, ExecutionError> {
+        Ok(log)
     }
 }
 
 /// A builder for creating a filtered stream for any contract event.
 #[must_use = "event builders do nothing unless you stream them"]
-pub struct AllEventsBuilder<T: Transport, E: TryFromLog> {
+pub struct AllEventsBuilder<T: Transport, E: ParseLog> {
     /// The underlying web3 instance.
     web3: Web3<T>,
     /// The web3 filter builder used for creating a log filter.
@@ -331,7 +354,7 @@ pub struct AllEventsBuilder<T: Transport, E: TryFromLog> {
     _events: PhantomData<E>,
 }
 
-impl<T: Transport, E: TryFromLog> AllEventsBuilder<T, E> {
+impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// Creates a new all events builder from a web3 provider and and address.
     pub fn new(web3: Web3<T>, address: Address) -> Self {
         AllEventsBuilder {
@@ -404,13 +427,13 @@ impl<T: Transport, E: TryFromLog> AllEventsBuilder<T, E> {
 /// An event stream for all contract events.
 #[must_use = "streams do nothing unless you or poll them"]
 #[pin_project]
-pub struct AllEventsStream<T: Transport, E: TryFromLog> {
+pub struct AllEventsStream<T: Transport, E: ParseLog> {
     #[pin]
     inner: LogStream<T>,
     _events: PhantomData<E>,
 }
 
-impl<T: Transport, E: TryFromLog> AllEventsStream<T, E> {
+impl<T: Transport, E: ParseLog> AllEventsStream<T, E> {
     /// Create a new log stream from a given web3 provider, filter and polling
     /// parameters.
     pub fn from_builder(builder: AllEventsBuilder<T, E>) -> Self {
@@ -426,19 +449,24 @@ impl<T: Transport, E: TryFromLog> AllEventsStream<T, E> {
     }
 }
 
-impl<T: Transport, E: TryFromLog> Stream for AllEventsStream<T, E> {
+impl<T: Transport, E: ParseLog> Stream for AllEventsStream<T, E> {
     type Item = Result<Event<E>, ExecutionError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         self.project().inner.poll_next(cx).map(|next| {
             next.map(|log| {
                 let log = log?;
-                let meta = EventMetadata::from_log(&log);
 
-                let data = if log.removed == Some(true) {
-                    EventData::Removed(E::from_log(log)?)
+                let meta = EventMetadata::from_log(&log);
+                let removed = log.removed == Some(true);
+
+                let raw_log = RawLog::from(log);
+                let inner_data = E::parse_log(raw_log)?;
+
+                let data = if removed {
+                    EventData::Removed(inner_data)
                 } else {
-                    EventData::Added(E::from_log(log)?)
+                    EventData::Added(inner_data)
                 };
 
                 Ok(Event { data, meta })
@@ -559,7 +587,7 @@ mod tests {
 
         let address = Address::repeat_byte(0x01);
         let signature = event.signature();
-        let raw_event = AllEventsBuilder::<_, RawEventData>::new(web3, address)
+        let raw_event = AllEventsBuilder::<_, RawLog>::new(web3, address)
             .to_block(99.into())
             .topic0(Topic::This(event.signature()))
             .topic2(Topic::OneOf(vec![
@@ -575,7 +603,7 @@ mod tests {
         assert!(raw_event.is_added());
         assert_eq!(
             *raw_event.inner_data(),
-            RawEventData {
+            RawLog {
                 topics: vec![
                     signature,
                     Address::repeat_byte(0xf0).into(),
