@@ -19,7 +19,10 @@ pub fn safe_ident(name: &str) -> Ident {
     syn::parse_str::<SynIdent>(name).unwrap_or_else(|_| ident(&format!("{}_", name)))
 }
 
-/// Expands a positional identifier string that may b
+/// Expands a positional identifier string that may be empty.
+///
+/// Note that this expands the parameter name with `safe_ident`, meaning that
+/// identifiers that are reserved keywords get `_` appended to them.
 pub fn expand_input_name(index: usize, name: &str) -> TokenStream {
     let name_str = match name {
         "" => format!("p{}", index),

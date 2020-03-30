@@ -35,7 +35,7 @@ pub struct Event<T> {
 pub enum EventData<T> {
     /// A new event was received.
     Added(T),
-    /// A previously revent was removed as the result of a re-org.
+    /// A previously mined event was removed as a result of a re-org.
     Removed(T),
 }
 
