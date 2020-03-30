@@ -57,14 +57,8 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
     pub fn at(web3: Web3<T>, abi: Abi, address: Address) -> Self {
-        let methods = create_mapping(&abi.functions, |function| Some(function.selector()));
-        let events = create_mapping(&abi.events, |event| {
-            if event.anonymous {
-                None
-            } else {
-                Some(event.signature())
-            }
-        });
+        let methods = create_mapping(&abi.functions, |function| function.selector());
+        let events = create_mapping(&abi.events, |event| event.signature());
 
         Instance {
             web3,
@@ -299,7 +293,7 @@ fn create_mapping<T, S, F>(
 ) -> HashMap<S, (String, usize)>
 where
     S: Hash + Eq,
-    F: Fn(&T) -> Option<S>,
+    F: Fn(&T) -> S,
 {
     let signature = &signature;
     elements
@@ -308,9 +302,7 @@ where
             sub_elements
                 .iter()
                 .enumerate()
-                .filter_map(move |(index, element)| {
-                    Some((signature(element)?, (name.to_owned(), index)))
-                })
+                .map(move |(index, element)| (signature(element), (name.to_owned(), index)))
         })
         .collect()
 }
