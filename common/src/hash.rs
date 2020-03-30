@@ -14,7 +14,10 @@ where
     output
 }
 
-/// A 32-byte hash prefix.
+/// A 32-bit prefix of a standard 256-bit Keccak hash.
+///
+/// This 32-bit prefix is generally used as the first 4 bytes of transaction
+/// data in order to select which Solidity method will be called.
 pub type H32 = [u8; 4];
 
 /// Calculate the function selector as per the contract ABI specification. This
