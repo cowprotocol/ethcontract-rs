@@ -366,7 +366,7 @@ fn expand_all_events(cx: &Context) -> TokenStream {
     }
 
     let event_enum = expand_event_enum(cx);
-    let event_from_log = expand_event_from_log(cx);
+    let event_parse_log = expand_event_parse_log(cx);
 
     quote! {
         impl Contract {
@@ -380,7 +380,7 @@ fn expand_all_events(cx: &Context) -> TokenStream {
         }
 
         #event_enum
-        #event_from_log
+        #event_parse_log
     }
 }
 
@@ -408,7 +408,7 @@ fn expand_event_enum(cx: &Context) -> TokenStream {
 }
 
 /// Expands the `ParseLog` implementation for the event enum.
-fn expand_event_from_log(cx: &Context) -> TokenStream {
+fn expand_event_parse_log(cx: &Context) -> TokenStream {
     let all_events = {
         let mut all_events = cx
             .artifact
@@ -471,11 +471,7 @@ fn expand_event_from_log(cx: &Context) -> TokenStream {
         })
         .collect::<Vec<_>>();
 
-    let invalid_data = quote! {
-        Err(self::ethcontract::errors::ExecutionError::from(
-            self::ethcontract::common::abi::Error::InvalidData
-        ))
-    };
+    let invalid_data = expand_invalid_data();
 
     quote! {
         impl self::ethcontract::contract::ParseLog for Event {
@@ -509,6 +505,15 @@ fn expand_hash(hash: Hash) -> TokenStream {
 
     quote! {
         self::ethcontract::H256([#( #bytes ),*])
+    }
+}
+
+/// Expands to a generic `InvalidData` error.
+fn expand_invalid_data() -> TokenStream {
+    quote! {
+        Err(self::ethcontract::errors::ExecutionError::from(
+            self::ethcontract::common::abi::Error::InvalidData
+        ))
     }
 }
 
@@ -660,6 +665,119 @@ mod tests {
     }
 
     #[test]
+    fn expand_enum_for_all_events() {
+        let context = {
+            let mut context = Context::default();
+            context.artifact.abi.events.insert(
+                "Foo".into(),
+                vec![Event {
+                    name: "Foo".into(),
+                    inputs: vec![EventParam {
+                        name: String::new(),
+                        kind: ParamType::Bool,
+                        indexed: false,
+                    }],
+                    anonymous: false,
+                }],
+            );
+            context.artifact.abi.events.insert(
+                "Bar".into(),
+                vec![Event {
+                    name: "Bar".into(),
+                    inputs: vec![EventParam {
+                        name: String::new(),
+                        kind: ParamType::Address,
+                        indexed: false,
+                    }],
+                    anonymous: true,
+                }],
+            );
+            context
+        };
+
+        assert_quote!(expand_event_enum(&context), {
+            /// A contract event.
+            pub enum Event {
+                Foo(self::events::Foo),
+                Bar(self::events::Bar),
+            }
+        });
+    }
+
+    #[test]
+    fn expand_parse_log_impl_for_all_events() {
+        let context = {
+            let mut context = Context::default();
+            context.artifact.abi.events.insert(
+                "Foo".into(),
+                vec![Event {
+                    name: "Foo".into(),
+                    inputs: vec![EventParam {
+                        name: String::new(),
+                        kind: ParamType::Bool,
+                        indexed: false,
+                    }],
+                    anonymous: false,
+                }],
+            );
+            context.artifact.abi.events.insert(
+                "Bar".into(),
+                vec![Event {
+                    name: "Bar".into(),
+                    inputs: vec![EventParam {
+                        name: String::new(),
+                        kind: ParamType::Address,
+                        indexed: false,
+                    }],
+                    anonymous: true,
+                }],
+            );
+            context
+        };
+
+        let foo_signature = expand_hash(context.artifact.abi.event("Foo").unwrap().signature());
+        let invalid_data = expand_invalid_data();
+
+        assert_quote!(expand_event_parse_log(&context), {
+            impl self::ethcontract::contract::ParseLog for Event {
+                fn parse_log(
+                    log: self::ethcontract::RawLog,
+                ) -> Result<Self, self::ethcontract::errors::ExecutionError> {
+                    let standard_event = log.topics
+                        .get(0)
+                        .copied()
+                        .map(|topic| match topic {
+                            #foo_signature => Ok(Event::Foo(
+                                log.decode(
+                                    &Contract::artifact()
+                                        .abi
+                                        .event("Foo")
+                                        .expect("generated event decode")
+                                )?
+                            )),
+                            _ => #invalid_data,
+                        });
+
+                    if let Some(Ok(data)) = standard_event {
+                        return Ok(data);
+                    }
+
+                    if let Ok(data) = log.decode(
+                        &Contract::artifact()
+                            .abi
+                            .event("Bar")
+                            .expect("generated event decode")
+                    ) {
+                        return Ok(Event::Bar(data));
+                    }
+
+                    #invalid_data
+                }
+            }
+        });
+    }
+
+    #[test]
     #[rustfmt::skip]
     fn expand_hash_value() {
         assert_quote!(
@@ -667,7 +785,7 @@ mod tests {
                 "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".parse().unwrap()
             ),
             {
-                self::ethcontract::H256::from([
+                self::ethcontract::H256([
                     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
                     16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
                 ])
