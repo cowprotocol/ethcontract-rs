@@ -210,10 +210,6 @@ fn expand_filters(cx: &Context) -> Result<TokenStream> {
         .collect::<Result<Vec<_>>>()?;
 
     Ok(quote! {
-        pub struct Events<'a> {
-            instance: &'a self::ethcontract::dyns::DynInstance,
-        }
-
         impl Contract {
             /// Retrieves a handle to a type containing for creating event
             /// streams for all the contract events.
@@ -222,6 +218,10 @@ fn expand_filters(cx: &Context) -> Result<TokenStream> {
                     instance: self.raw_instance(),
                 }
             }
+        }
+
+        pub struct Events<'a> {
+            instance: &'a self::ethcontract::dyns::DynInstance,
         }
 
         impl Events<'_> {
