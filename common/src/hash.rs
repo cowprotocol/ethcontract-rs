@@ -14,15 +14,21 @@ where
     output
 }
 
+/// A 32-bit prefix of a standard 256-bit Keccak hash.
+///
+/// This 32-bit prefix is generally used as the first 4 bytes of transaction
+/// data in order to select which Solidity method will be called.
+pub type H32 = [u8; 4];
+
 /// Calculate the function selector as per the contract ABI specification. This
 /// is definied as the first 4 bytes of the Keccak256 hash of the function
 /// signature.
-pub fn function_selector<S>(signature: S) -> [u8; 4]
+pub fn function_selector<S>(signature: S) -> H32
 where
     S: AsRef<str>,
 {
     let hash = keccak256(signature.as_ref());
-    let mut selector = [0u8; 4];
+    let mut selector = H32::default();
     selector.copy_from_slice(&hash[0..4]);
     selector
 }

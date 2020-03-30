@@ -3,6 +3,7 @@ use crate::util;
 use anyhow::{anyhow, Context as _, Result};
 use ethcontract_common::abi::{Function, Param};
 use ethcontract_common::abiext::FunctionExt;
+use ethcontract_common::hash::H32;
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
@@ -73,7 +74,7 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
 fn expand_function(cx: &Context, function: &Function, alias: Option<Ident>) -> Result<TokenStream> {
     let name = alias.unwrap_or_else(|| util::safe_ident(&function.name.to_snake_case()));
     let signature = function.abi_signature();
-    let signature_lit = Literal::string(&signature);
+    let selector = expand_selector(function.selector());
 
     let doc_str = cx
         .artifact
@@ -99,7 +100,7 @@ fn expand_function(cx: &Context, function: &Function, alias: Option<Ident>) -> R
     Ok(quote! {
         #doc
         pub fn #name(&self #input) -> #result {
-            self.instance.#method(#signature_lit, #arg)
+            self.instance.#method(#selector, #arg)
                 .expect("generated call")
         }
     })
@@ -138,6 +139,11 @@ fn expand_fn_outputs(outputs: &[Param]) -> Result<TokenStream> {
             Ok(quote! { (#( #types ),*) })
         }
     }
+}
+
+fn expand_selector(selector: H32) -> TokenStream {
+    let bytes = selector.iter().copied().map(Literal::u8_unsuffixed);
+    quote! { [#( #bytes ),*] }
 }
 
 #[cfg(test)]

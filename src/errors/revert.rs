@@ -1,12 +1,12 @@
 //! Module implements decoding ABI encoded revert reasons.
 
 use ethcontract_common::abi::{self, ParamType};
-use ethcontract_common::hash;
+use ethcontract_common::hash::{self, H32};
 use lazy_static::lazy_static;
 
 lazy_static! {
     /// The ABI function selector for identifying encoded revert reasons.
-    static ref ERROR_SELECTOR: [u8; 4] = hash::function_selector("Error(string)");
+    static ref ERROR_SELECTOR: H32 = hash::function_selector("Error(string)");
 }
 
 /// Decodes an ABI encoded revert reason. Returns `Some(reason)` when the ABI
