@@ -5,7 +5,9 @@ use crate::abicompat::AbiCompat;
 use crate::errors::{EventError, ExecutionError};
 use crate::log::LogStream;
 pub use ethcontract_common::abi::Topic;
-use ethcontract_common::abi::{Event as AbiEvent, RawLog, RawTopicFilter, Token};
+use ethcontract_common::abi::{
+    Event as AbiEvent, RawLog as AbiRawLog, RawTopicFilter, Token, TopicFilter,
+};
 use futures::stream::Stream;
 use pin_project::{pin_project, project};
 use std::marker::PhantomData;
@@ -263,32 +265,212 @@ impl<T: Transport, E: Detokenize> Stream for EventStream<T, E> {
         inner.poll_next(cx).map(|next| {
             next.map(|log| {
                 let log = log?;
+
                 let meta = EventMetadata::from_log(&log);
+                let removed = log.removed == Some(true);
 
-                let event_log = event.parse_log(RawLog {
-                    topics: log.topics,
-                    data: log.data.0,
-                })?;
+                let raw_log = RawLog::from(log);
+                let inner_data = raw_log.decode(event)?;
 
-                let tokens = event_log
-                    .params
-                    .into_iter()
-                    .map(|param| param.value)
-                    .collect::<Vec<_>>()
-                    .compat()
-                    .ok_or(ExecutionError::UnsupportedToken)?;
-                let data = {
-                    let inner_data = E::from_tokens(tokens)?;
-                    if log.removed == Some(true) {
-                        EventData::Removed(inner_data)
-                    } else {
-                        EventData::Added(inner_data)
-                    }
+                let data = if removed {
+                    EventData::Removed(inner_data)
+                } else {
+                    EventData::Added(inner_data)
                 };
 
                 Ok(Event { data, meta })
             })
             .map(|next: Result<_, ExecutionError>| next.map_err(|err| EventError::new(&event, err)))
+        })
+    }
+}
+
+/// Trait for parsing a transaction log into an some event data when the
+/// expected event type is not known.
+pub trait ParseLog: Sized {
+    /// Create a new instance by parsing raw log data.
+    fn parse_log(log: RawLog) -> Result<Self, ExecutionError>;
+}
+
+/// Raw log transaction data.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RawLog {
+    /// The raw 32-byte topics.
+    pub topics: Vec<H256>,
+    /// The raw non-indexed data attached to an event.
+    pub data: Vec<u8>,
+}
+
+impl RawLog {
+    /// Decode raw log data into a tokenizable for a matching event ABI entry.
+    pub fn decode<D>(self, event: &AbiEvent) -> Result<D, ExecutionError>
+    where
+        D: Detokenize,
+    {
+        let event_log = event.parse_log(AbiRawLog {
+            topics: self.topics,
+            data: self.data,
+        })?;
+
+        let tokens = event_log
+            .params
+            .into_iter()
+            .map(|param| param.value)
+            .collect::<Vec<_>>()
+            .compat()
+            .ok_or(ExecutionError::UnsupportedToken)?;
+        let data = D::from_tokens(tokens)?;
+
+        Ok(data)
+    }
+}
+
+impl From<Log> for RawLog {
+    fn from(log: Log) -> Self {
+        RawLog {
+            topics: log.topics,
+            data: log.data.0,
+        }
+    }
+}
+
+impl ParseLog for RawLog {
+    fn parse_log(log: RawLog) -> Result<Self, ExecutionError> {
+        Ok(log)
+    }
+}
+
+/// A builder for creating a filtered stream for any contract event.
+#[must_use = "event builders do nothing unless you stream them"]
+pub struct AllEventsBuilder<T: Transport, E: ParseLog> {
+    /// The underlying web3 instance.
+    web3: Web3<T>,
+    /// The web3 filter builder used for creating a log filter.
+    filter: FilterBuilder,
+    /// The topic filters that are encoded based on the event ABI.
+    pub topics: TopicFilter,
+    /// The polling interval for querying the node for more events.
+    pub poll_interval: Option<Duration>,
+    _events: PhantomData<E>,
+}
+
+impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
+    /// Creates a new all events builder from a web3 provider and and address.
+    pub fn new(web3: Web3<T>, address: Address) -> Self {
+        AllEventsBuilder {
+            web3,
+            filter: FilterBuilder::default().address(vec![address]),
+            topics: TopicFilter::default(),
+            poll_interval: None,
+            _events: PhantomData,
+        }
+    }
+
+    /// Sets the starting block from which to stream logs for.
+    ///
+    /// If left unset defaults to the latest block.
+    #[allow(clippy::wrong_self_convention)]
+    pub fn from_block(mut self, block: BlockNumber) -> Self {
+        self.filter = self.filter.from_block(block);
+        self
+    }
+
+    /// Sets the last block from which to stream logs for.
+    ///
+    /// If left unset defaults to the streaming until the end of days.
+    #[allow(clippy::wrong_self_convention)]
+    pub fn to_block(mut self, block: BlockNumber) -> Self {
+        self.filter = self.filter.to_block(block);
+        self
+    }
+
+    /// Adds a filter for the first indexed topic.
+    ///
+    /// For regular events, this corresponds to the event signature. For
+    /// anonymous events, this is the first indexed property.
+    pub fn topic0(mut self, topic: Topic<H256>) -> Self {
+        self.topics.topic0 = topic;
+        self
+    }
+
+    /// Adds a filter for the second indexed topic.
+    pub fn topic1(mut self, topic: Topic<H256>) -> Self {
+        self.topics.topic1 = topic;
+        self
+    }
+
+    /// Adds a filter for the third indexed topic.
+    pub fn topic2(mut self, topic: Topic<H256>) -> Self {
+        self.topics.topic2 = topic;
+        self
+    }
+
+    /// Adds a filter for the third indexed topic.
+    pub fn topic3(mut self, topic: Topic<H256>) -> Self {
+        self.topics.topic2 = topic;
+        self
+    }
+
+    /// The polling interval. This is used as the interval between consecutive
+    /// `eth_getFilterChanges` calls to get filter updates.
+    pub fn poll_interval(mut self, value: Duration) -> Self {
+        self.poll_interval = Some(value);
+        self
+    }
+
+    /// Creates an event stream from the current event builder.
+    pub fn stream(self) -> AllEventsStream<T, E> {
+        AllEventsStream::from_builder(self)
+    }
+}
+
+/// An event stream for all contract events.
+#[must_use = "streams do nothing unless you or poll them"]
+#[pin_project]
+pub struct AllEventsStream<T: Transport, E: ParseLog> {
+    #[pin]
+    inner: LogStream<T>,
+    _events: PhantomData<E>,
+}
+
+impl<T: Transport, E: ParseLog> AllEventsStream<T, E> {
+    /// Create a new log stream from a given web3 provider, filter and polling
+    /// parameters.
+    pub fn from_builder(builder: AllEventsBuilder<T, E>) -> Self {
+        let web3 = builder.web3;
+        let filter = builder.filter.topic_filter(builder.topics.compat()).build();
+        let poll_interval = builder.poll_interval.unwrap_or(DEFAULT_POLL_INTERVAL);
+        let inner = LogStream::new(web3, filter, poll_interval);
+
+        AllEventsStream {
+            inner,
+            _events: PhantomData,
+        }
+    }
+}
+
+impl<T: Transport, E: ParseLog> Stream for AllEventsStream<T, E> {
+    type Item = Result<Event<E>, ExecutionError>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        self.project().inner.poll_next(cx).map(|next| {
+            next.map(|log| {
+                let log = log?;
+
+                let meta = EventMetadata::from_log(&log);
+                let removed = log.removed == Some(true);
+
+                let raw_log = RawLog::from(log);
+                let inner_data = E::parse_log(raw_log)?;
+
+                let data = if removed {
+                    EventData::Removed(inner_data)
+                } else {
+                    EventData::Added(inner_data)
+                };
+
+                Ok(Event { data, meta })
+            })
         })
     }
 }
@@ -373,6 +555,67 @@ mod tests {
 
         assert!(event.is_added());
         assert_eq!(event.inner_data().2, U256::from(42));
+        transport.assert_request(
+            "eth_newFilter",
+            &[json!({
+                "address": address,
+                "toBlock": U256::from(99),
+                "topics": [
+                    signature,
+                    null,
+                    [
+                        H256::from(Address::repeat_byte(0x70)),
+                        H256::from(Address::repeat_byte(0x80)),
+                    ],
+                ],
+            })],
+        );
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn all_events_stream_next_event() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+        let (event, log) = test_abi_event();
+
+        // filter created
+        transport.add_response(json!("0xf0"));
+        // get logs filter
+        transport.add_response(json!([log]));
+
+        let address = Address::repeat_byte(0x01);
+        let signature = event.signature();
+        let raw_event = AllEventsBuilder::<_, RawLog>::new(web3, address)
+            .to_block(99.into())
+            .topic0(Topic::This(event.signature()))
+            .topic2(Topic::OneOf(vec![
+                Address::repeat_byte(0x70).into(),
+                Address::repeat_byte(0x80).into(),
+            ]))
+            .stream()
+            .next()
+            .immediate()
+            .expect("log stream did not produce any logs")
+            .expect("failed to get log from log stream");
+
+        assert!(raw_event.is_added());
+        assert_eq!(
+            *raw_event.inner_data(),
+            RawLog {
+                topics: vec![
+                    signature,
+                    Address::repeat_byte(0xf0).into(),
+                    Address::repeat_byte(0x70).into(),
+                ],
+                data: {
+                    let mut buf = vec![0u8; 32];
+                    buf[31] = 42;
+                    buf
+                },
+            },
+        );
         transport.assert_request(
             "eth_newFilter",
             &[json!({
