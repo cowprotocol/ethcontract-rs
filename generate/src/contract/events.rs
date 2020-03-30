@@ -387,17 +387,24 @@ fn expand_all_events(cx: &Context) -> TokenStream {
 /// Expands into an enum with one variant for each distinct event type,
 /// including anonymous types.
 fn expand_event_enum(cx: &Context) -> TokenStream {
-    let variants = cx
-        .artifact
-        .abi
-        .events()
-        .map(|event| {
-            let struct_name = expand_struct_name(&event);
-            quote! {
-                #struct_name(self::events::#struct_name)
-            }
-        })
-        .collect::<Vec<_>>();
+    let variants = {
+        let mut events = cx.artifact.abi.events().collect::<Vec<_>>();
+
+        // NOTE: We sort the events by name so that the generated enum is
+        //   consistent. This also faciliates testing as so that the same ABI
+        //   yields consistent code.
+        events.sort_unstable_by_key(|event| &event.name);
+
+        events
+            .into_iter()
+            .map(|event| {
+                let struct_name = expand_struct_name(&event);
+                quote! {
+                    #struct_name(self::events::#struct_name)
+                }
+            })
+            .collect::<Vec<_>>()
+    };
 
     quote! {
         /// A contract event.
@@ -698,8 +705,8 @@ mod tests {
         assert_quote!(expand_event_enum(&context), {
             /// A contract event.
             pub enum Event {
-                Foo(self::events::Foo),
                 Bar(self::events::Bar),
+                Foo(self::events::Foo),
             }
         });
     }
