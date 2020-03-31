@@ -407,6 +407,7 @@ fn expand_event_enum(cx: &Context) -> TokenStream {
 
     quote! {
         /// A contract event.
+        #[derive(Clone, Debug, Eq, PartialEq)]
         pub enum Event {
             #( #variants, )*
         }
@@ -703,6 +704,7 @@ mod tests {
 
         assert_quote!(expand_event_enum(&context), {
             /// A contract event.
+            #[derive(Clone, Debug, Eq, PartialEq)]
             pub enum Event {
                 Bar(self::event_data::Bar),
                 Foo(self::event_data::Foo),
