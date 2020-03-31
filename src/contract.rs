@@ -9,7 +9,6 @@ mod method;
 
 use crate::abicompat::AbiCompat;
 use crate::errors::{DeployError, LinkError};
-use crate::log::LogStream;
 use ethcontract_common::abi::{Error as AbiError, Result as AbiResult};
 use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::hash::H32;
@@ -19,13 +18,14 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenize};
-use web3::types::{Address, Bytes, FilterBuilder, H256};
+use web3::types::{Address, Bytes, H256};
 use web3::Transport;
 
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture};
 pub use self::deployed::{DeployedFuture, FromNetwork};
 pub use self::event::{
-    Event, EventBuilder, EventData, EventMetadata, EventStream, Topic, DEFAULT_POLL_INTERVAL,
+    AllEventsBuilder, Event, EventBuilder, EventData, EventMetadata, EventStream, ParseLog, RawLog,
+    Topic, DEFAULT_POLL_INTERVAL,
 };
 pub use self::method::{
     CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture, ViewMethodBuilder,
@@ -212,9 +212,8 @@ impl<T: Transport> Instance<T> {
 
     /// Returns a log stream that emits a log for every new event emitted after
     /// the stream was created for this contract instance.
-    pub fn all_events(&self) -> LogStream<T> {
-        let filter = FilterBuilder::default().address(vec![self.address]).build();
-        LogStream::new(self.web3(), filter, DEFAULT_POLL_INTERVAL)
+    pub fn all_events(&self) -> AllEventsBuilder<T, RawLog> {
+        AllEventsBuilder::new(self.web3(), self.address())
     }
 }
 
