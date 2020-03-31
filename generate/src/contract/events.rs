@@ -400,7 +400,7 @@ fn expand_event_enum(cx: &Context) -> TokenStream {
             .map(|event| {
                 let struct_name = expand_struct_name(&event);
                 quote! {
-                    #struct_name(self::events::#struct_name)
+                    #struct_name(self::event_data::#struct_name)
                 }
             })
             .collect::<Vec<_>>()
@@ -705,8 +705,8 @@ mod tests {
         assert_quote!(expand_event_enum(&context), {
             /// A contract event.
             pub enum Event {
-                Bar(self::events::Bar),
-                Foo(self::events::Foo),
+                Bar(self::event_data::Bar),
+                Foo(self::event_data::Foo),
             }
         });
     }
