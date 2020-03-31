@@ -98,14 +98,20 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
         None => (quote! {}, quote! {()}),
     };
 
-    let libs: Vec<_> = cx.artifact.bytecode.undefined_libraries().collect();
+    let libs: Vec<_> = cx
+        .artifact
+        .bytecode
+        .undefined_libraries()
+        .map(|name| (name, util::safe_ident(&name.to_snake_case())))
+        .collect();
     let (lib_struct, lib_input, link) = if !libs.is_empty() {
         let lib_struct = {
-            let lib_struct_fields = libs.iter().map(|name| {
+            let lib_struct_fields = libs.iter().map(|(name, field)| {
                 let doc = util::expand_doc(&format!("Address of the `{}` library.", name));
-                let field = util::safe_ident(&name.to_snake_case());
 
-                quote! { #doc pub #field: self::ethcontract::Address }
+                quote! {
+                    #doc pub #field: self::ethcontract::Address
+                }
             });
 
             quote! {
@@ -118,9 +124,8 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
         };
 
         let link = {
-            let link_libraries = libs.iter().map(|name| {
+            let link_libraries = libs.iter().map(|(name, field)| {
                 let name_lit = Literal::string(&name);
-                let field = util::safe_ident(&name.to_snake_case());
 
                 quote! {
                     bytecode.link(#name_lit, libs.#field).expect("valid library");
