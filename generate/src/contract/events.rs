@@ -457,6 +457,7 @@ mod tests {
             anonymous: false,
         };
 
+        #[rustfmt::skip]
         assert_quote!(expand_builder_topic_filters(&event).unwrap(), {
             #[doc = "Adds a filter for the from event parameter."]
             pub fn from(mut self, topic: self::ethcontract::Topic<self::ethcontract::Address>) -> Self {
