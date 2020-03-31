@@ -365,13 +365,141 @@ fn expand_all_events(cx: &Context) -> TokenStream {
         return quote! {};
     }
 
+    let event_enum = expand_event_enum(cx);
+    let event_parse_log = expand_event_parse_log(cx);
+
     quote! {
         impl Contract {
             /// Returns a log stream with all events.
-            pub fn all_events(&self) -> self::ethcontract::dyns::DynAllEventsBuilder<
-                self::ethcontract::RawLog,
-            > {
-                self.raw_instance().all_events()
+            pub fn all_events(&self) -> self::ethcontract::dyns::DynAllEventsBuilder<Event> {
+                self::ethcontract::dyns::DynAllEventsBuilder::new(
+                    self.raw_instance().web3(),
+                    self.address(),
+                )
+            }
+        }
+
+        #event_enum
+        #event_parse_log
+    }
+}
+
+/// Expands into an enum with one variant for each distinct event type,
+/// including anonymous types.
+fn expand_event_enum(cx: &Context) -> TokenStream {
+    let variants = {
+        let mut events = cx.artifact.abi.events().collect::<Vec<_>>();
+
+        // NOTE: We sort the events by name so that the generated enum is
+        //   consistent. This also faciliates testing as so that the same ABI
+        //   yields consistent code.
+        events.sort_unstable_by_key(|event| &event.name);
+
+        events
+            .into_iter()
+            .map(|event| {
+                let struct_name = expand_struct_name(&event);
+                quote! {
+                    #struct_name(self::event_data::#struct_name)
+                }
+            })
+            .collect::<Vec<_>>()
+    };
+
+    quote! {
+        /// A contract event.
+        pub enum Event {
+            #( #variants, )*
+        }
+    }
+}
+
+/// Expands the `ParseLog` implementation for the event enum.
+fn expand_event_parse_log(cx: &Context) -> TokenStream {
+    let all_events = {
+        let mut all_events = cx
+            .artifact
+            .abi
+            .events()
+            .map(|event| {
+                let struct_name = expand_struct_name(&event);
+
+                let name = Literal::string(&event.name);
+                let decode_event = quote! {
+                    log.decode(
+                        &Contract::artifact()
+                            .abi
+                            .event(#name)
+                            .expect("generated event decode")
+                    )
+                };
+
+                (event, struct_name, decode_event)
+            })
+            .collect::<Vec<_>>();
+
+        // NOTE: We sort the events by name so that the anonymous error decoding
+        //   is consistent. Since the events are stored in a `HashMap`, there is
+        //   no guaranteed order, and in the case where there is ambiguity in
+        //   decoding anonymous events, its nice if they follow some strict and
+        //   predictable order.
+        all_events.sort_unstable_by_key(|(event, _, _)| &event.name);
+        all_events
+    };
+
+    let standard_event_match_arms = all_events
+        .iter()
+        .filter(|(event, _, _)| !event.anonymous)
+        .map(|(event, struct_name, decode_event)| {
+            // These are all possible stardard (i.e. non-anonymous) events that
+            // the contract can produce, along with its signature and index in
+            // the contract ABI. For these, we match topic 0 to the signature
+            // and try to decode.
+
+            let signature = expand_hash(event.signature());
+            quote! {
+                #signature => Ok(Event::#struct_name(#decode_event?)),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let anonymous_event_try_decode = all_events
+        .iter()
+        .filter(|(event, _, _)| event.anonymous)
+        .map(|(_, struct_name, decode_event)| {
+            // For anonymous events, just try to decode one at a time and return
+            // the first that succeeds.
+
+            quote! {
+                if let Ok(data) = #decode_event {
+                    return Ok(Event::#struct_name(data));
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let invalid_data = expand_invalid_data();
+
+    quote! {
+        impl self::ethcontract::contract::ParseLog for Event {
+            fn parse_log(
+                log: self::ethcontract::RawLog,
+            ) -> Result<Self, self::ethcontract::errors::ExecutionError> {
+                let standard_event = log.topics
+                    .get(0)
+                    .copied()
+                    .map(|topic| match topic {
+                        #( #standard_event_match_arms )*
+                        _ => #invalid_data,
+                    });
+
+                if let Some(Ok(data)) = standard_event {
+                    return Ok(data);
+                }
+
+                #( #anonymous_event_try_decode )*
+
+                #invalid_data
             }
         }
     }
@@ -383,7 +511,16 @@ fn expand_hash(hash: Hash) -> TokenStream {
     let bytes = hash.as_bytes().iter().copied().map(Literal::u8_unsuffixed);
 
     quote! {
-        self::ethcontract::H256::from([#( #bytes ),*])
+        self::ethcontract::H256([#( #bytes ),*])
+    }
+}
+
+/// Expands to a generic `InvalidData` error.
+fn expand_invalid_data() -> TokenStream {
+    quote! {
+        Err(self::ethcontract::errors::ExecutionError::from(
+            self::ethcontract::common::abi::Error::InvalidData
+        ))
     }
 }
 
@@ -535,6 +672,119 @@ mod tests {
     }
 
     #[test]
+    fn expand_enum_for_all_events() {
+        let context = {
+            let mut context = Context::default();
+            context.artifact.abi.events.insert(
+                "Foo".into(),
+                vec![Event {
+                    name: "Foo".into(),
+                    inputs: vec![EventParam {
+                        name: String::new(),
+                        kind: ParamType::Bool,
+                        indexed: false,
+                    }],
+                    anonymous: false,
+                }],
+            );
+            context.artifact.abi.events.insert(
+                "Bar".into(),
+                vec![Event {
+                    name: "Bar".into(),
+                    inputs: vec![EventParam {
+                        name: String::new(),
+                        kind: ParamType::Address,
+                        indexed: false,
+                    }],
+                    anonymous: true,
+                }],
+            );
+            context
+        };
+
+        assert_quote!(expand_event_enum(&context), {
+            /// A contract event.
+            pub enum Event {
+                Bar(self::event_data::Bar),
+                Foo(self::event_data::Foo),
+            }
+        });
+    }
+
+    #[test]
+    fn expand_parse_log_impl_for_all_events() {
+        let context = {
+            let mut context = Context::default();
+            context.artifact.abi.events.insert(
+                "Foo".into(),
+                vec![Event {
+                    name: "Foo".into(),
+                    inputs: vec![EventParam {
+                        name: String::new(),
+                        kind: ParamType::Bool,
+                        indexed: false,
+                    }],
+                    anonymous: false,
+                }],
+            );
+            context.artifact.abi.events.insert(
+                "Bar".into(),
+                vec![Event {
+                    name: "Bar".into(),
+                    inputs: vec![EventParam {
+                        name: String::new(),
+                        kind: ParamType::Address,
+                        indexed: false,
+                    }],
+                    anonymous: true,
+                }],
+            );
+            context
+        };
+
+        let foo_signature = expand_hash(context.artifact.abi.event("Foo").unwrap().signature());
+        let invalid_data = expand_invalid_data();
+
+        assert_quote!(expand_event_parse_log(&context), {
+            impl self::ethcontract::contract::ParseLog for Event {
+                fn parse_log(
+                    log: self::ethcontract::RawLog,
+                ) -> Result<Self, self::ethcontract::errors::ExecutionError> {
+                    let standard_event = log.topics
+                        .get(0)
+                        .copied()
+                        .map(|topic| match topic {
+                            #foo_signature => Ok(Event::Foo(
+                                log.decode(
+                                    &Contract::artifact()
+                                        .abi
+                                        .event("Foo")
+                                        .expect("generated event decode")
+                                )?
+                            )),
+                            _ => #invalid_data,
+                        });
+
+                    if let Some(Ok(data)) = standard_event {
+                        return Ok(data);
+                    }
+
+                    if let Ok(data) = log.decode(
+                        &Contract::artifact()
+                            .abi
+                            .event("Bar")
+                            .expect("generated event decode")
+                    ) {
+                        return Ok(Event::Bar(data));
+                    }
+
+                    #invalid_data
+                }
+            }
+        });
+    }
+
+    #[test]
     #[rustfmt::skip]
     fn expand_hash_value() {
         assert_quote!(
@@ -542,7 +792,7 @@ mod tests {
                 "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f".parse().unwrap()
             ),
             {
-                self::ethcontract::H256::from([
+                self::ethcontract::H256([
                     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
                     16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
                 ])

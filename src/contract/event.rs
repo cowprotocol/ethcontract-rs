@@ -97,6 +97,20 @@ impl<T> Event<T> {
             EventData::Added(_) => None,
         }
     }
+
+    /// Maps the inner data of an event into some other data.
+    pub fn map<U, F>(self, f: F) -> Event<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        Event {
+            data: match self.data {
+                EventData::Added(inner) => EventData::Added(f(inner)),
+                EventData::Removed(inner) => EventData::Removed(f(inner)),
+            },
+            meta: self.meta,
+        }
+    }
 }
 
 impl EventMetadata {
@@ -292,7 +306,7 @@ pub trait ParseLog: Sized {
     fn parse_log(log: RawLog) -> Result<Self, ExecutionError>;
 }
 
-/// Raw log transaction data.
+/// Raw log topics and data for a contract event.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RawLog {
     /// The raw 32-byte topics.
