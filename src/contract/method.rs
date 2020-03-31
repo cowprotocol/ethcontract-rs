@@ -43,6 +43,21 @@ pub struct MethodBuilder<T: Transport, R> {
     _result: PhantomData<R>,
 }
 
+impl<T: Transport> MethodBuilder<T, ()> {
+    /// Creates a new builder for a transaction invoking the fallback method.
+    pub fn fallback(web3: Web3<T>, address: Address, data: Bytes) -> Self {
+        // NOTE: We create a fake `Function` entry for the fallback method. This
+        //   is OK since it is only ever used for error formatting purposes.
+        let function = Function {
+            name: "fallback".into(),
+            inputs: vec![],
+            outputs: vec![],
+            constant: false,
+        };
+        MethodBuilder::new(web3, function, address, data)
+    }
+}
+
 impl<T: Transport, R> MethodBuilder<T, R> {
     /// Creates a new builder for a transaction.
     pub fn new(web3: Web3<T>, function: Function, address: Address, data: Bytes) -> Self {

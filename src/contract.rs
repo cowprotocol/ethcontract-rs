@@ -165,7 +165,7 @@ impl<T: Transport> Instance<T> {
             .methods
             .get(signature)
             .map(|(name, index)| &self.abi.functions[name][*index])
-            .ok_or_else(|| AbiError::InvalidData)?;
+            .ok_or_else(|| AbiError::InvalidName(hex::encode(&signature)))?;
         let data = function.encode_input(&params.into_tokens().compat())?;
 
         // take ownership here as it greatly simplifies dealing with futures
@@ -191,6 +191,26 @@ impl<T: Transport> Instance<T> {
         Ok(self.method(signature, params)?.view())
     }
 
+    /// Returns a method builder to setup a call to a smart contract's fallback
+    /// function.
+    ///
+    /// This method will error if the ABI does not contain an entry for a
+    /// fallback function.
+    pub fn fallback<D>(&self, data: D) -> AbiResult<MethodBuilder<T, ()>>
+    where
+        D: Into<Vec<u8>>,
+    {
+        if !self.abi.fallback {
+            return Err(AbiError::InvalidName("fallback".into()));
+        }
+
+        Ok(MethodBuilder::fallback(
+            self.web3(),
+            self.address,
+            Bytes(data.into()),
+        ))
+    }
+
     /// Returns a event builder to setup an event stream for a smart contract
     /// that emits events for the specified Solidity event by name.
     pub fn event<E>(&self, signature: H256) -> AbiResult<EventBuilder<T, E>>
@@ -201,7 +221,7 @@ impl<T: Transport> Instance<T> {
             .events
             .get(&signature)
             .map(|(name, index)| &self.abi.events[name][*index])
-            .ok_or_else(|| AbiError::InvalidData)?;
+            .ok_or_else(|| AbiError::InvalidName(hex::encode(&signature)))?;
 
         Ok(EventBuilder::new(
             self.web3(),

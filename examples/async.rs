@@ -79,6 +79,16 @@ async fn run() {
 
     print_balance_of(&instance, x).await;
     print_balance_of(&instance, accounts[4]).await;
+
+    // mint some RustCoin with the fallback method
+    instance
+        .fallback(vec![])
+        .from(Account::Local(accounts[3], None))
+        .value(1_000_000_000_000_000_000u64.into())
+        .send()
+        .await
+        .expect("mint 3 failed");
+    print_balance_of(&instance, accounts[3]).await;
 }
 
 async fn print_balance_of(instance: &RustCoin, account: Address) {
