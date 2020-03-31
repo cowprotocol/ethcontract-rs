@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
-use web3::types::Address;
+use web3::types::{Address, H256};
 
 /// Represents a truffle artifact.
 #[derive(Clone, Debug, Deserialize)]
@@ -71,6 +71,9 @@ impl Artifact {
 pub struct Network {
     /// The address at which the contract is deployed on this network.
     pub address: Address,
+    /// The hash of the transaction that deployed the contract on this network.
+    #[serde(rename = "transactionHash")]
+    pub transaction_hash: Option<H256>,
 }
 
 /// A contract's documentation.
