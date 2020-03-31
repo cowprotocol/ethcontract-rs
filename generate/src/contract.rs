@@ -154,6 +154,7 @@ fn expand_contract(cx: &Context) -> Result<TokenStream> {
     Ok(quote! {
         #[allow(dead_code)]
         #vis mod #contract_mod {
+            #[rustfmt::skip]
             use #runtime_crate as ethcontract;
 
             #common
