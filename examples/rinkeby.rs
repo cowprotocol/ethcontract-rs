@@ -39,6 +39,12 @@ async fn run() {
     };
 
     println!(
+        "Using contract at {:?} deployed with transaction {:?}",
+        instance.address(),
+        instance.transaction_hash(),
+    );
+
+    println!(
         "  value before: {}",
         instance.value().call().await.expect("get value failed")
     );

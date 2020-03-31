@@ -54,6 +54,30 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
                 > + Send + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
+                Contract::with_transaction(web3, address, None)
+            }
+
+
+            /// Creates a new contract instance with the specified `web3` provider with
+            /// the given `Abi` at the given `Address` and an optional transaction hash.
+            /// This hash is used to retrieve contract related information such as the
+            /// creation block (which is useful for fetching all historic events).
+            ///
+            /// Note that this does not verify that a contract with a matching `Abi` is
+            /// actually deployed at the given address nor that the transaction hash,
+            /// when provided, is actually for this contract deployment.
+            pub fn with_transaction<F, T>(
+                web3: &self::ethcontract::web3::api::Web3<T>,
+                address: self::ethcontract::Address,
+                transaction_hash: Option<self::ethcontract::H256>,
+            ) -> Self
+            where
+                F: self::ethcontract::web3::futures::Future<
+                    Item = self::ethcontract::json::Value,
+                    Error = self::ethcontract::web3::Error,
+                > + Send + 'static,
+                T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
+            {
                 use self::ethcontract::Instance;
                 use self::ethcontract::transport::DynTransport;
                 use self::ethcontract::web3::api::Web3;
@@ -61,7 +85,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
                 let transport = DynTransport::new(web3.transport().clone());
                 let web3 = Web3::new(transport);
                 let abi = Self::artifact().abi.clone();
-                let instance = Instance::at(web3, abi, address);
+                let instance = Instance::with_transaction(web3, abi, address, transaction_hash);
                 let methods = Methods { instance };
 
                 Contract { methods }
@@ -70,6 +94,12 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             /// Returns the contract address being used by this instance.
             pub fn address(&self) -> self::ethcontract::Address {
                 self.raw_instance().address()
+            }
+
+            /// Returns the hash for the transaction that deployed the contract
+            /// if it is known, `None` otherwise.
+            pub fn transaction_hash(&self) -> Option<self::ethcontract::H256> {
+                self.raw_instance().transaction_hash()
             }
 
             /// Returns a reference to the default method options used by this

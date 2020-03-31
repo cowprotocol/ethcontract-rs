@@ -88,6 +88,7 @@ mod tests {
     use crate::test::prelude::*;
     use ethcontract_common::truffle::Network;
     use ethcontract_common::Artifact;
+    use web3::types::H256;
 
     type InstanceDeployedFuture<T> = DeployedFuture<T, Instance<T>>;
 
@@ -98,11 +99,16 @@ mod tests {
 
         let network_id = "42";
         let address = addr!("0x0102030405060708091011121314151617181920");
+        let transaction_hash = Some(H256::repeat_byte(0x42));
         let artifact = {
             let mut artifact = Artifact::empty();
-            artifact
-                .networks
-                .insert(network_id.to_string(), Network { address });
+            artifact.networks.insert(
+                network_id.to_string(),
+                Network {
+                    address,
+                    transaction_hash,
+                },
+            );
             artifact
         };
 
@@ -116,6 +122,7 @@ mod tests {
         transport.assert_no_more_requests();
 
         assert_eq!(instance.address(), address);
+        assert_eq!(instance.transaction_hash(), transaction_hash);
     }
 
     #[test]

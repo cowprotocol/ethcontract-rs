@@ -15,7 +15,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use web3::api::Web3;
 use web3::contract::tokens::Tokenize;
-use web3::types::{Address, Bytes, U256};
+use web3::types::{Address, Bytes, H256, U256};
 use web3::Transport;
 
 /// a factory trait for deployable contract instances. this traits provides
@@ -34,8 +34,13 @@ pub trait Deploy<T: Transport>: Sized {
     /// Gets a reference the contract ABI.
     fn abi(cx: &Self::Context) -> &Abi;
 
-    /// Create a contract instance from the specified address.
-    fn at_address(web3: Web3<T>, address: Address, cx: Self::Context) -> Self;
+    /// Create a contract instance from the specified deployment.
+    fn from_deployment(
+        web3: Web3<T>,
+        address: Address,
+        transaction_hash: H256,
+        cx: Self::Context,
+    ) -> Self;
 }
 
 /// Builder for specifying options for deploying a linked contract.
@@ -200,10 +205,16 @@ where
                 ))));
             }
         };
+        let transaction_hash = tx.transaction_hash;
 
         let (web3, context) = self.args.take().expect("called more than once");
 
-        Poll::Ready(Ok(I::at_address(web3, address, context)))
+        Poll::Ready(Ok(I::from_deployment(
+            web3,
+            address,
+            transaction_hash,
+            context,
+        )))
     }
 }
 
