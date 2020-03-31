@@ -29,9 +29,8 @@ async fn run() {
     let mut transfers = instance
         .events()
         .transfer()
-        .topic0(Topic::This(accounts[0])) // from
-        .stream()
-        .expect("failed to encode topic filters");
+        .from(Topic::This(accounts[0]))
+        .stream();
 
     join! {
         async {
