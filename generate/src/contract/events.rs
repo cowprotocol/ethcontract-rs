@@ -407,7 +407,7 @@ fn expand_event_enum(cx: &Context) -> TokenStream {
 
     quote! {
         /// A contract event.
-        #[derive(Clone, Debug, Default, Eq, PartialEq)]
+        #[derive(Clone, Debug, Eq, PartialEq)]
         pub enum Event {
             #( #variants, )*
         }
