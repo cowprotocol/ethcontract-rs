@@ -7,4 +7,8 @@ contract RustCoin is ERC20, ERC20Detailed {
   constructor() ERC20Detailed("Rust Coin", "RUST", 18) public {
     _mint(msg.sender, 1337 * (10 ** uint256(decimals())));
   }
+
+  function() external payable {
+    _mint(msg.sender, msg.value);
+  }
 }
