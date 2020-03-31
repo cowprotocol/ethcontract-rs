@@ -11,6 +11,7 @@
 mod test_macros;
 
 mod contract;
+mod rustfmt;
 mod source;
 mod util;
 
@@ -61,11 +62,26 @@ impl Args {
     }
 }
 
+/// Internal output options for controlling how the generated code gets
+/// serialized to file.
+struct SerializationOptions {
+    /// Format the code using a locally installed copy of `rustfmt`.
+    rustfmt: bool,
+}
+
+impl Default for SerializationOptions {
+    fn default() -> Self {
+        SerializationOptions { rustfmt: true }
+    }
+}
+
 /// Builder for generating contract code. Note that no code is generated until
 /// the builder is finalized with `generate` or `output`.
 pub struct Builder {
     /// The contract binding generation args.
     args: Args,
+    /// The serialization options.
+    options: SerializationOptions,
 }
 
 impl Builder {
@@ -91,6 +107,7 @@ impl Builder {
     pub fn with_source(source: Source) -> Self {
         Builder {
             args: Args::new(source),
+            options: SerializationOptions::default(),
         }
     }
 
@@ -179,10 +196,23 @@ impl Builder {
         self
     }
 
+    /// Specify whether or not to format the code using a locally installed copy
+    /// of `rustfmt`.
+    ///
+    /// Note that in case `rustfmt` does not exist or produces an error, the
+    /// unformatted code will be used.
+    pub fn with_rustfmt(mut self, rustfmt: bool) -> Self {
+        self.options.rustfmt = rustfmt;
+        self
+    }
+
     /// Generates the contract bindings.
     pub fn generate(self) -> Result<ContractBindings> {
         let tokens = contract::expand(self.args)?;
-        Ok(ContractBindings { tokens })
+        Ok(ContractBindings {
+            tokens,
+            options: self.options,
+        })
     }
 }
 
@@ -191,6 +221,8 @@ impl Builder {
 pub struct ContractBindings {
     /// The TokenStream representing the contract bindings.
     tokens: TokenStream,
+    /// The output options used for serialization.
+    options: SerializationOptions,
 }
 
 impl ContractBindings {
@@ -199,7 +231,17 @@ impl ContractBindings {
     where
         W: Write,
     {
-        write!(w, "{}", self.tokens)?;
+        let source = {
+            let raw = self.tokens.to_string();
+
+            if self.options.rustfmt {
+                rustfmt::format(&raw).unwrap_or(raw)
+            } else {
+                raw
+            }
+        };
+
+        w.write_all(source.as_bytes())?;
         Ok(())
     }
 
