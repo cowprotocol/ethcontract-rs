@@ -27,7 +27,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
         let address = expand_address(*address);
 
         quote! {
-            #network_id => Network {
+            #network_id => self::ethcontract::common::truffle::Network {
                 address: #address,
                 transaction_hash: None,
             },
@@ -72,9 +72,6 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                 network_id: &str,
                 _: Self::Context,
             ) -> Option<Self> {
-                use self::ethcontract::Instance;
-                use self::ethcontract::common::truffle::Network;
-
                 let artifact = Self::artifact();
                 let network = match network_id {
                     #( #deployments )*
