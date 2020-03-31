@@ -68,7 +68,8 @@ fn expand_data_type(event: &Event) -> Result<TokenStream> {
         .iter()
         .map(|(name, ty)| {
             quote! {
-                let #name = #ty::from_token(tokens.next().unwrap())?;
+                let #name = <#ty as self::ethcontract::web3::contract::tokens::Tokenizable>
+                    ::from_token(tokens.next().unwrap())?;
             }
         })
         .collect::<Vec<_>>();
@@ -98,8 +99,6 @@ fn expand_data_type(event: &Event) -> Result<TokenStream> {
             fn from_tokens(
                 tokens: Vec<self::ethcontract::private::ethabi_9_0::Token>,
             ) -> Result<Self, self::ethcontract::web3::contract::Error> {
-                use self::ethcontract::web3::contract::tokens::Tokenizable;
-
                 if tokens.len() != #params_len {
                     return Err(self::ethcontract::web3::contract::Error::InvalidOutputType(format!(
                         "Expected {} tokens, got {}: {:?}",
@@ -339,7 +338,7 @@ fn expand_builder_topic_filter(topic_index: usize, param: &EventParam) -> Result
     let name = if param.name.is_empty() {
         topic.clone()
     } else {
-        util::safe_ident(&param.name)
+        util::safe_ident(&param.name.to_snake_case())
     };
     let ty = types::expand(&param.kind)?;
 
