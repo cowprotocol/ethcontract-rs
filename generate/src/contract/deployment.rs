@@ -1,7 +1,6 @@
 use crate::contract::{methods, Context};
 use crate::util;
 use anyhow::{Context as _, Result};
-use ethcontract_common::abi::{Param, ParamType};
 use ethcontract_common::Address;
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
@@ -110,41 +109,54 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
         None => (quote! {}, quote! {()}),
     };
 
-    let lib_params: Vec<_> = cx
+    let libs: Vec<_> = cx
         .artifact
         .bytecode
         .undefined_libraries()
-        .map(|name| Param {
-            name: name.to_snake_case(),
-            kind: ParamType::Address,
-        })
+        .map(|name| (name, util::safe_ident(&name.to_snake_case())))
         .collect();
-    let lib_input = methods::expand_inputs(&lib_params)?;
-
-    let link = if !lib_params.is_empty() {
-        let link_libraries = cx
-            .artifact
-            .bytecode
-            .undefined_libraries()
-            .zip(lib_params.iter())
-            .map(|(name, lib_param)| {
-                let name = Literal::string(&name);
-                let address = util::ident(&lib_param.name);
+    let (lib_struct, lib_input, link) = if !libs.is_empty() {
+        let lib_struct = {
+            let lib_struct_fields = libs.iter().map(|(name, field)| {
+                let doc = util::expand_doc(&format!("Address of the `{}` library.", name));
 
                 quote! {
-                    bytecode.link(#name, #address).expect("valid library");
+                    #doc pub #field: self::ethcontract::Address
                 }
             });
 
-        quote! {
-            let mut bytecode = bytecode;
-            #( #link_libraries )*
-        }
+            quote! {
+                /// Undefinied libraries in the contract bytecode that are
+                /// required for linking in order to deploy.
+                pub struct Libraries {
+                    #( #lib_struct_fields, )*
+                }
+            }
+        };
+
+        let link = {
+            let link_libraries = libs.iter().map(|(name, field)| {
+                let name_lit = Literal::string(&name);
+
+                quote! {
+                    bytecode.link(#name_lit, libs.#field).expect("valid library");
+                }
+            });
+
+            quote! {
+                let mut bytecode = bytecode;
+                #( #link_libraries )*
+            }
+        };
+
+        (lib_struct, quote! { , libs: Libraries }, link)
     } else {
-        quote! {}
+        Default::default()
     };
 
     Ok(quote! {
+        #lib_struct
+
         impl Contract {
             #doc
             pub fn builder<F, T>(
