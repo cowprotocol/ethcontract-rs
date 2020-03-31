@@ -10,6 +10,18 @@ use quote::quote;
 use syn::Ident;
 
 pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
+    let functions = expand_functions(cx)?;
+    let fallback = expand_fallback(cx);
+
+    Ok(quote! {
+        #functions
+        #fallback
+    })
+}
+
+/// Expands a context into a method struct containing all the generated bindings
+/// to the Solidity contract methods.
+fn expand_functions(cx: &Context) -> Result<TokenStream> {
     let mut aliases = cx.method_aliases.clone();
     let functions = cx
         .artifact
@@ -144,6 +156,28 @@ fn expand_fn_outputs(outputs: &[Param]) -> Result<TokenStream> {
 fn expand_selector(selector: H32) -> TokenStream {
     let bytes = selector.iter().copied().map(Literal::u8_unsuffixed);
     quote! { [#( #bytes ),*] }
+}
+
+/// Expands a context into fallback method when the contract implements one,
+/// and an empty token stream otherwise.
+fn expand_fallback(cx: &Context) -> TokenStream {
+    if cx.artifact.abi.fallback {
+        quote! {
+            impl Contract {
+                /// Returns a method builder to setup a call to a smart
+                /// contract's fallback function.
+                pub fn fallback<D>(&self, data: D) -> self::ethcontract::dyns::DynMethodBuilder<()>
+                where
+                    D: Into<Vec<u8>>,
+                {
+                    self.raw_instance().fallback(data)
+                        .expect("generated fallback method")
+                }
+            }
+        }
+    } else {
+        quote! {}
+    }
 }
 
 #[cfg(test)]
