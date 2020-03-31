@@ -190,21 +190,21 @@ fn expand_data_tuple(
 /// Expands into an `Events` type with method definitions for creating event
 /// streams for all non-anonymous contract events in the ABI.
 fn expand_filters(cx: &Context) -> Result<TokenStream> {
-    let anonymous_events = cx
+    let standard_events = cx
         .artifact
         .abi
         .events()
         .filter(|event| !event.anonymous)
         .collect::<Vec<_>>();
-    if anonymous_events.is_empty() {
+    if standard_events.is_empty() {
         return Ok(quote! {});
     }
 
-    let filters = anonymous_events
+    let filters = standard_events
         .iter()
         .map(|event| expand_filter(event))
         .collect::<Result<Vec<_>>>()?;
-    let builders = anonymous_events
+    let builders = standard_events
         .iter()
         .map(|event| expand_builder_type(event))
         .collect::<Result<Vec<_>>>()?;
