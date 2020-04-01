@@ -2,6 +2,7 @@
 //! emitted by a contract.
 
 use crate::errors::ExecutionError;
+use crate::future::CompatCallFuture;
 use futures::compat::{Compat01As03, Future01CompatExt, Stream01CompatExt};
 use futures::ready;
 use futures::stream::Stream;
@@ -10,7 +11,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use web3::api::{CreateFilter, FilterStream, Web3};
+use web3::api::{BaseFilter, CreateFilter, FilterStream, Web3};
 use web3::types::{Filter, Log};
 use web3::Transport;
 
@@ -31,6 +32,17 @@ pub struct LogStream<T: Transport> {
 #[pin_project]
 enum LogStreamState<T: Transport> {
     CreatingFilter(#[pin] CompatCreateFilter<T, Log>, Duration),
+    GettingPastLogs {
+        poll_interval: Duration,
+        filter: BaseFilter<T, Log>,
+        #[pin]
+        past_logs_future: CompatCallFuture<T, Vec<Log>>,
+    },
+    StreamingPastLogs {
+        poll_interval: Duration,
+        filter: BaseFilter<T, Log>,
+        past_logs: Vec<Log>,
+    },
     Streaming(#[pin] CompatFilterStream<T, Log>),
 }
 
@@ -55,12 +67,50 @@ impl<T: Transport> Stream for LogStream<T> {
             #[project]
             let next_state = match state.as_mut().project() {
                 LogStreamState::CreatingFilter(create_filter, poll_interval) => {
-                    let log_filter = match ready!(create_filter.poll(cx)) {
-                        Ok(log_filter) => log_filter,
+                    let filter = match ready!(create_filter.poll(cx)) {
+                        Ok(filter) => filter,
                         Err(err) => return Poll::Ready(Some(Err(err.into()))),
                     };
-                    let stream = log_filter.stream(*poll_interval).compat();
-                    LogStreamState::Streaming(stream)
+                    // TODO: this request can be very slow and the response very big. We might want
+                    // to be smarter about it. However, there is no way to page this request. Maybe
+                    // Set up intermediate queries to handle a limited number of blocks at a time.
+                    let past_logs_future = CompatCallFuture::<T, Vec<Log>>::new(filter.logs());
+                    LogStreamState::GettingPastLogs {
+                        poll_interval: *poll_interval,
+                        filter,
+                        past_logs_future,
+                    }
+                }
+                LogStreamState::GettingPastLogs {
+                    poll_interval,
+                    filter,
+                    past_logs_future,
+                } => {
+                    let mut past_logs = match ready!(past_logs_future.poll(cx)) {
+                        Ok(past_logs) => past_logs,
+                        Err(err) => return Poll::Ready(Some(Err(err.into()))),
+                    };
+                    // Reverse so that we can pop the oldest event from the end.
+                    past_logs.reverse();
+                    LogStreamState::StreamingPastLogs {
+                        poll_interval: *poll_interval,
+                        filter: filter.clone(),
+                        past_logs,
+                    }
+                }
+                LogStreamState::StreamingPastLogs {
+                    poll_interval,
+                    filter,
+                    past_logs,
+                } => {
+                    if let Some(log) = past_logs.pop() {
+                        return Poll::Ready(Some(Ok(log)));
+                    } else {
+                        // TODO: this could duplicate some logs if they appear in both getFilterLogs
+                        // and getFilterChanges or it could skip some events.
+                        let stream = filter.clone().stream(*poll_interval).compat();
+                        LogStreamState::Streaming(stream)
+                    }
                 }
                 LogStreamState::Streaming(stream) => {
                     return stream
@@ -112,17 +162,26 @@ mod tests {
 
         // filter created
         transport.add_response(json!("0xf0"));
+        // get past logs
+        transport.add_response(json!([generate_log("awesome0")]));
         // get logs filter
-        transport.add_response(json!([generate_log("awesome")]));
+        transport.add_response(json!([generate_log("awesome1")]));
 
-        let log = LogStream::new(web3, Default::default(), Duration::from_secs(0))
-            .next()
-            .immediate()
-            .expect("log stream did not produce any logs")
-            .expect("failed to get log from log stream");
-
-        assert_eq!(log.log_type.as_deref(), Some("awesome"));
+        let mut stream = LogStream::new(web3, Default::default(), Duration::from_secs(0));
+        let mut logs = Vec::new();
+        for _ in 0..2 {
+            let log = stream
+                .next()
+                .immediate()
+                .expect("log stream did not produce any logs")
+                .expect("failed to get log from log stream");
+            logs.push(log);
+        }
+        assert_eq!(logs.len(), 2);
+        assert_eq!(logs[0].log_type.as_deref(), Some("awesome0"));
+        assert_eq!(logs[1].log_type.as_deref(), Some("awesome1"));
         transport.assert_request("eth_newFilter", &[json!({})]);
+        transport.assert_request("eth_getFilterLogs", &[json!("0xf0")]);
         transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
         transport.assert_no_more_requests();
     }
