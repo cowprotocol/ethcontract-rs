@@ -292,14 +292,23 @@ fn expand_builder_type(event: &Event) -> Result<TokenStream> {
                 self
             }
 
-            /// The polling interval. This is used as the interval between consecutive
-            /// `eth_getFilterChanges` calls to get filter updates.
+            /// The polling interval. This is used as the interval between
+            /// consecutive `eth_getFilterChanges` calls to get filter updates.
             pub fn poll_interval(mut self, value: std::time::Duration) -> Self {
                 self.0 = (self.0).poll_interval(value);
                 self
             }
 
             #topic_filters
+
+            /// Returns a future that resolves with a collection of all existing
+            /// logs matching the builder parameters.
+            pub fn query(self) -> self::ethcontract::contract::QueryFuture<
+                self::ethcontract::dyns::DynTransport,
+                self::event_data::#event_name,
+            > {
+                (self.0).query().expect("generated event query")
+            }
 
             /// Creates an event stream from the current event builder.
             pub fn stream(self) -> self::ethcontract::contract::EventStream<
