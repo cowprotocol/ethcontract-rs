@@ -14,7 +14,7 @@ use std::num::ParseIntError;
 use thiserror::Error;
 use uint::FromDecStrErr;
 use web3::error::Error as Web3Error;
-use web3::types::H256;
+use web3::types::{TransactionReceipt, H256};
 
 /// Error that can occur while locating a deployed contract.
 #[derive(Debug, Error)]
@@ -85,8 +85,8 @@ pub enum ExecutionError {
     ConfirmTimeout,
 
     /// Transaction failure (e.g. out of gas or revert).
-    #[error("transaction failed: {0:?}")]
-    Failure(H256),
+    #[error("transaction failed: {:?}", .0.transaction_hash)]
+    Failure(Box<TransactionReceipt>),
 
     /// A call returned an unsupported token. This happens when using the
     /// experimental `ABIEncoderV2` option.
