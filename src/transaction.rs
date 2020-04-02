@@ -458,7 +458,7 @@ mod tests {
 
         assert!(
             match &result {
-                Err(ExecutionError::Failure(ref hash)) if *hash == tx_hash => true,
+                Err(ExecutionError::Failure(ref tx)) if tx.transaction_hash == tx_hash => true,
                 _ => false,
             },
             "expected transaction failure with hash {} but got {:?}",
