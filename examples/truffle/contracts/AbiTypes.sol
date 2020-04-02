@@ -84,4 +84,26 @@ contract AbiTypes {
     }
     return buf;
   }
+
+  event ValueUint(uint8, uint16, uint32, uint64, uint128, uint256 indexed value);
+  event ValueInt(int8, int16, int32, int64, int128, int256 indexed value);
+
+  event ValueBool(bool);
+
+  event ValueBytes(string id, bytes, bytes6, address whoami);
+  event ValueArray(uint64[], int32[3]);
+
+  event ValueIndexed(string indexed, uint64[] indexed);
+
+  event Values(bytes32 indexed block, address sender) anonymous;
+
+  function emitValues() public {
+    emit ValueUint(getU8(), getU16(), getU32(), getU64(), getU128(), getU256());
+    emit ValueInt(getI8(), getI16(), getI32(), getI64(), getI128(), getI256());
+    emit ValueBool(getBool());
+    emit ValueBytes(getString(), getBytes(), getFixedBytes(), getAddress());
+    emit ValueArray(getArray(), getFixedArray());
+    emit ValueIndexed(getString(), getArray());
+    emit Values(blockhash(block.number - 1), msg.sender);
+  }
 }
