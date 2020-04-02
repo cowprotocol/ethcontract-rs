@@ -19,8 +19,13 @@ async fn run() {
         .expect("contract deployment failure");
     println!("Using contract at {:?}", instance.address());
 
+    calls(&instance).await;
+    events(&instance).await;
+}
+
+async fn calls(instance: &AbiTypes) {
     macro_rules! debug_call {
-        (instance . $call:ident ()) => {{
+        (instance. $call:ident ()) => {{
             let value = instance
                 .$call()
                 .call()
@@ -58,6 +63,28 @@ async fn run() {
 
     debug_call!(instance.get_array());
     debug_call!(instance.get_fixed_array());
+}
+
+async fn events(instance: &AbiTypes) {
+    macro_rules! debug_events {
+        (instance.events(). $events:ident ()) => {{
+            let events = instance
+                .events()
+                .$events()
+                .query()
+                .await
+                .expect(concat!(stringify!($call), " failed"));
+            println!("{}()\n  ⏎ {:?}", stringify!($call), events,)
+        }};
+    }
+
+    instance
+        .emit_values()
+        .send()
+        .await
+        .expect("failed to emit value events");
+
+    debug_events!(instance.events().value_uint());
 }
 
 fn type_name_of<T>(_: &T) -> &'static str {

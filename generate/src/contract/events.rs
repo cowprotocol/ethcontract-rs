@@ -435,7 +435,7 @@ fn expand_event_parse_log(cx: &Context) -> TokenStream {
 
                 let name = Literal::string(&event.name);
                 let decode_event = quote! {
-                    log.decode(
+                    log.clone().decode(
                         &Contract::artifact()
                             .abi
                             .event(#name)
@@ -765,7 +765,7 @@ mod tests {
                         .copied()
                         .map(|topic| match topic {
                             #foo_signature => Ok(Event::Foo(
-                                log.decode(
+                                log.clone().decode(
                                     &Contract::artifact()
                                         .abi
                                         .event("Foo")
@@ -779,7 +779,7 @@ mod tests {
                         return Ok(data);
                     }
 
-                    if let Ok(data) = log.decode(
+                    if let Ok(data) = log.clone().decode(
                         &Contract::artifact()
                             .abi
                             .event("Bar")
