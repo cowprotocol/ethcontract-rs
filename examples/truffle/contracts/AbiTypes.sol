@@ -93,6 +93,8 @@ contract AbiTypes {
   event ValueBytes(string id, bytes, bytes6, address whoami);
   event ValueArray(uint64[], int32[3]);
 
+  event ValueIndexed(string indexed, uint64[] indexed);
+
   event Values(bytes32 indexed block, address sender) anonymous;
 
   function emitValues() public {
@@ -101,6 +103,7 @@ contract AbiTypes {
     emit ValueBool(getBool());
     emit ValueBytes(getString(), getBytes(), getFixedBytes(), getAddress());
     emit ValueArray(getArray(), getFixedArray());
+    emit ValueIndexed(getString(), getArray());
     emit Values(blockhash(block.number - 1), msg.sender);
   }
 }

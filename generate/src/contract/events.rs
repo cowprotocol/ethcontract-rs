@@ -1,7 +1,7 @@
 use crate::contract::{types, Context};
 use crate::util;
 use anyhow::Result;
-use ethcontract_common::abi::{Event, EventParam, Hash};
+use ethcontract_common::abi::{Event, EventParam, Hash, ParamType};
 use ethcontract_common::abiext::EventExt;
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
@@ -133,7 +133,8 @@ fn expand_params(event: &Event) -> Result<Vec<(TokenStream, TokenStream)>> {
         .map(|(i, input)| {
             // NOTE: Events can contain nameless values.
             let name = util::expand_input_name(i, &input.name);
-            let ty = types::expand(&input.kind)?;
+            let ty = expand_input_type(&input)?;
+
             Ok((name, ty))
         })
         .collect()
@@ -349,7 +350,7 @@ fn expand_builder_topic_filter(topic_index: usize, param: &EventParam) -> Result
     } else {
         util::safe_ident(&param.name.to_snake_case())
     };
-    let ty = types::expand(&param.kind)?;
+    let ty = expand_input_type(&param)?;
 
     Ok(quote! {
         #doc
@@ -512,6 +513,24 @@ fn expand_event_parse_log(cx: &Context) -> TokenStream {
             }
         }
     }
+}
+
+/// Expands an event property type.
+///
+/// Note that this is slightly different than an expanding a Solidity type as
+/// complex types like arrays and strings get emited as hashes when they are
+/// indexed.
+fn expand_input_type(input: &EventParam) -> Result<TokenStream> {
+    Ok(match (&input.kind, input.indexed) {
+        (ParamType::Array(..), true)
+        | (ParamType::Bytes, true)
+        | (ParamType::FixedArray(..), true)
+        | (ParamType::String, true)
+        | (ParamType::Tuple(..), true) => {
+            quote! { self::ethcontract::H256 }
+        }
+        (kind, _) => types::expand(kind)?,
+    })
 }
 
 /// Expands a 256-bit `Hash` into a literal representation that can be used with

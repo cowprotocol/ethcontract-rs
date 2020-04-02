@@ -95,6 +95,7 @@ async fn events(instance: &AbiTypes) {
     debug_events!(instance.events().value_bool());
     debug_events!(instance.events().value_bytes());
     debug_events!(instance.events().value_array());
+    debug_events!(instance.events().value_indexed());
 
     let all_events = instance
         .all_events()
