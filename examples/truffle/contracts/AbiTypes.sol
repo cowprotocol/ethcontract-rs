@@ -90,8 +90,8 @@ contract AbiTypes {
 
   event ValueBool(bool);
 
-  event ValueBytes(string indexed id, bytes, bytes6, address whoami);
-  event ValueArray(uint64[] indexed, int32[3] indexed);
+  event ValueBytes(string id, bytes, bytes6, address whoami);
+  event ValueArray(uint64[], int32[3]);
 
   event Values(bytes32 indexed block, address sender) anonymous;
 

@@ -73,18 +73,39 @@ async fn events(instance: &AbiTypes) {
                 .$events()
                 .query()
                 .await
-                .expect(concat!(stringify!($call), " failed"));
-            println!("{}()\n  ⏎ {:?}", stringify!($call), events,)
+                .expect(concat!(stringify!($events), " failed"));
+            let event_data = events
+                .iter()
+                .map(|event| event.inner_data())
+                .collect::<Vec<_>>();
+            println!("{}()\n  ⏎ {:?}", stringify!($events), event_data);
         }};
     }
 
     instance
         .emit_values()
+        // NOTE: Gas estimation seems to not work for this call.
+        .gas(4_712_388.into())
         .send()
         .await
         .expect("failed to emit value events");
 
     debug_events!(instance.events().value_uint());
+    debug_events!(instance.events().value_int());
+    debug_events!(instance.events().value_bool());
+    debug_events!(instance.events().value_bytes());
+    debug_events!(instance.events().value_array());
+
+    let all_events = instance
+        .all_events()
+        .query()
+        .await
+        .expect("failed to retrieve all events");
+    for event in all_events {
+        if let abi_types::Event::Values(data) = event.inner_data() {
+            println!("anonymous event\n  ⏎ {:?}", data);
+        }
+    }
 }
 
 fn type_name_of<T>(_: &T) -> &'static str {
