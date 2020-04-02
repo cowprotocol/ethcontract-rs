@@ -44,6 +44,8 @@ pub(crate) struct Args {
     deployments: HashMap<u32, Address>,
     /// Manually specified contract method aliases.
     method_aliases: HashMap<String, String>,
+    /// Derives added to event structs and enums.
+    event_derives: Vec<String>,
 }
 
 impl Args {
@@ -58,6 +60,7 @@ impl Args {
             contract_name_override: None,
             deployments: HashMap::new(),
             method_aliases: HashMap::new(),
+            event_derives: Vec::new(),
         }
     }
 }
@@ -203,6 +206,27 @@ impl Builder {
     /// unformatted code will be used.
     pub fn with_rustfmt(mut self, rustfmt: bool) -> Self {
         self.options.rustfmt = rustfmt;
+        self
+    }
+
+    /// Add a custom derive to the derives for event structs and enums.
+    ///
+    /// This makes it possible to for example derive serde::Serialize and
+    /// serde::Deserialize for events.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use ethcontract_generate::Builder;
+    /// let builder = Builder::new("path")
+    ///     .add_event_derive("serde::Serialize")
+    ///     .add_event_derive("serde::Deserialize");
+    /// ```
+    pub fn add_event_derive<S>(mut self, derive: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.args.event_derives.push(derive.into());
         self
     }
 

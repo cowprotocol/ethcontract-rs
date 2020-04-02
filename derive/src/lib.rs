@@ -13,14 +13,14 @@ use ethcontract_common::abiext::{FunctionExt, ParamTypeExt};
 use ethcontract_generate::{parse_address, Address, Builder};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::quote;
+use quote::{quote, ToTokens as _};
 use std::collections::HashSet;
 use std::error::Error;
 use syn::ext::IdentExt;
 use syn::parse::{Error as ParseError, Parse, ParseStream, Result as ParseResult};
 use syn::{
-    braced, parenthesized, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, Token,
-    Visibility,
+    braced, parenthesized, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, Path,
+    Token, Visibility,
 };
 
 /// Proc macro to generate type-safe bindings to a contract. This macro accepts
@@ -71,6 +71,8 @@ use syn::{
 ///   allowing methods names to be explicitely set for contract methods. This
 ///   also provides a workaround for generating code for contracts with multiple
 ///   methods with the same name.
+/// - `event_derives`: A list of additional derives that should be added to
+///   contract event structs and enums.
 ///
 /// Additionally, the ABI source can be preceeded by a visibility modifier such
 /// as `pub` or `pub(crate)`. This visibility modifier is applied to both the
@@ -91,6 +93,7 @@ use syn::{
 ///     methods {
 ///         myMethod(uint256,bool) as my_renamed_method;
 ///     },
+///     event_derives (serde::Deserialize, serde::Serialize),
 /// );
 /// ```
 ///
@@ -136,6 +139,9 @@ impl ContractArgs {
                 Parameter::Methods(methods) => methods.into_iter().fold(builder, |builder, m| {
                     builder.add_method_alias(m.signature, m.alias)
                 }),
+                Parameter::EventDerives(derives) => derives
+                    .into_iter()
+                    .fold(builder, |builder, derive| builder.add_event_derive(derive)),
             };
         }
 
@@ -187,6 +193,7 @@ enum Parameter {
     Crate(String),
     Deployments(Vec<Deployment>),
     Methods(Vec<Method>),
+    EventDerives(Vec<String>),
 }
 
 impl Parse for Parameter {
@@ -262,6 +269,16 @@ impl Parse for Parameter {
                 };
 
                 Parameter::Methods(methods)
+            }
+            "event_derives" => {
+                let content;
+                parenthesized!(content in input);
+                let derives = content
+                    .parse_terminated::<_, Token![,]>(Path::parse)?
+                    .into_iter()
+                    .map(|path| path.to_token_stream().to_string())
+                    .collect();
+                Parameter::EventDerives(derives)
             }
             _ => {
                 return Err(ParseError::new(
@@ -425,6 +442,7 @@ mod tests {
                 myMethod(uint256, bool) as my_renamed_method;
                 myOtherMethod() as my_other_renamed_method;
             },
+            event_derives (Asdf, a::B, a::b::c::D)
         );
         assert_eq!(
             args,
@@ -443,6 +461,11 @@ mod tests {
                         method("myMethod(uint256,bool)", "my_renamed_method"),
                         method("myOtherMethod()", "my_other_renamed_method"),
                     ]),
+                    Parameter::EventDerives(vec![
+                        "Asdf".into(),
+                        "a :: B".into(),
+                        "a :: b :: c :: D".into()
+                    ])
                 ],
             },
         );
