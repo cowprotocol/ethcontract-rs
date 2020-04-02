@@ -5,8 +5,8 @@ use ethcontract_common::abi::{Event, EventParam, Hash};
 use ethcontract_common::abiext::EventExt;
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
-use quote::{quote, ToTokens as _};
-use syn::TypePath;
+use quote::quote;
+use syn::Path;
 
 pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
     let structs_mod = expand_structs_mod(cx)?;
@@ -43,18 +43,14 @@ fn expand_structs_mod(cx: &Context) -> Result<TokenStream> {
     })
 }
 
-fn expand_derives(derives: &[TypePath]) -> TokenStream {
-    let derives = derives
-        .iter()
-        .map(|derive| derive.to_token_stream())
-        .collect::<Vec<_>>();
+fn expand_derives(derives: &[Path]) -> TokenStream {
     quote! {#(#derives),*}
 }
 
 /// Expands an ABI event into a single event data type. This can expand either
 /// into a structure or a tuple in the case where all event parameters (topics
 /// and data) are anonymous.
-fn expand_data_type(event: &Event, event_derives: &[TypePath]) -> Result<TokenStream> {
+fn expand_data_type(event: &Event, event_derives: &[Path]) -> Result<TokenStream> {
     let event_name = expand_struct_name(event);
 
     let signature = expand_hash(event.signature());
@@ -714,7 +710,7 @@ mod tests {
             );
             context.event_derives = ["Asdf", "a::B", "a::b::c::D"]
                 .iter()
-                .map(|derive| syn::parse_str::<TypePath>(derive).unwrap())
+                .map(|derive| syn::parse_str::<Path>(derive).unwrap())
                 .collect();
             context
         };

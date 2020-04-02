@@ -19,8 +19,8 @@ use std::error::Error;
 use syn::ext::IdentExt;
 use syn::parse::{Error as ParseError, Parse, ParseStream, Result as ParseResult};
 use syn::{
-    braced, parenthesized, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, Token,
-    TypePath, Visibility,
+    braced, parenthesized, parse_macro_input, Error as SynError, Ident, LitInt, LitStr, Path,
+    Token, Visibility,
 };
 
 /// Proc macro to generate type-safe bindings to a contract. This macro accepts
@@ -139,11 +139,9 @@ impl ContractArgs {
                 Parameter::Methods(methods) => methods.into_iter().fold(builder, |builder, m| {
                     builder.add_method_alias(m.signature, m.alias)
                 }),
-                Parameter::EventDerives(derives) => {
-                    derives.into_iter().fold(builder, |builder, derive| {
-                        builder.add_event_derive(derive.to_token_stream().to_string())
-                    })
-                }
+                Parameter::EventDerives(derives) => derives
+                    .into_iter()
+                    .fold(builder, |builder, derive| builder.add_event_derive(derive)),
             };
         }
 
@@ -195,7 +193,7 @@ enum Parameter {
     Crate(String),
     Deployments(Vec<Deployment>),
     Methods(Vec<Method>),
-    EventDerives(Vec<TypePath>),
+    EventDerives(Vec<String>),
 }
 
 impl Parse for Parameter {
@@ -276,9 +274,10 @@ impl Parse for Parameter {
                 let content;
                 parenthesized!(content in input);
                 let derives = content
-                    .parse_terminated::<_, Token![,]>(TypePath::parse)?
+                    .parse_terminated::<_, Token![,]>(Path::parse)?
                     .into_iter()
-                    .collect::<Vec<_>>();
+                    .map(|path| path.to_token_stream().to_string())
+                    .collect();
                 Parameter::EventDerives(derives)
             }
             _ => {
@@ -403,10 +402,6 @@ mod tests {
         }
     }
 
-    fn derive(derive: &str) -> TypePath {
-        syn::parse_str::<TypePath>(derive).unwrap()
-    }
-
     #[test]
     fn parse_contract_args() {
         let args = contract_args!("path/to/artifact.json");
@@ -467,9 +462,9 @@ mod tests {
                         method("myOtherMethod()", "my_other_renamed_method"),
                     ]),
                     Parameter::EventDerives(vec![
-                        derive("Asdf"),
-                        derive("a::B"),
-                        derive("a::b::c::D"),
+                        "Asdf".into(),
+                        "a :: B".into(),
+                        "a :: b :: c :: D".into()
                     ])
                 ],
             },
