@@ -5,7 +5,8 @@ use ethcontract_common::abi::{Event, EventParam, Hash};
 use ethcontract_common::abiext::EventExt;
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens as _};
+use syn::TypePath;
 
 pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
     let structs_mod = expand_structs_mod(cx)?;
@@ -25,7 +26,7 @@ fn expand_structs_mod(cx: &Context) -> Result<TokenStream> {
         .artifact
         .abi
         .events()
-        .map(|event| expand_data_type(event))
+        .map(|event| expand_data_type(event, &cx.event_derives))
         .collect::<Result<Vec<_>>>()?;
     if data_types.is_empty() {
         return Ok(quote! {});
@@ -42,10 +43,18 @@ fn expand_structs_mod(cx: &Context) -> Result<TokenStream> {
     })
 }
 
+fn expand_derives(derives: &[TypePath]) -> TokenStream {
+    let derives = derives
+        .iter()
+        .map(|derive| derive.to_token_stream())
+        .collect::<Vec<_>>();
+    quote! {#(#derives),*}
+}
+
 /// Expands an ABI event into a single event data type. This can expand either
 /// into a structure or a tuple in the case where all event parameters (topics
 /// and data) are anonymous.
-fn expand_data_type(event: &Event) -> Result<TokenStream> {
+fn expand_data_type(event: &Event, event_derives: &[TypePath]) -> Result<TokenStream> {
     let event_name = expand_struct_name(event);
 
     let signature = expand_hash(event.signature());
@@ -74,8 +83,10 @@ fn expand_data_type(event: &Event) -> Result<TokenStream> {
         })
         .collect::<Vec<_>>();
 
+    let derives = expand_derives(event_derives);
+
     Ok(quote! {
-        #[derive(Clone, Debug, Default, Eq, PartialEq)]
+        #[derive(Clone, Debug, Default, Eq, PartialEq, #derives)]
         pub #data_type_definition
 
         impl #event_name {
@@ -405,9 +416,11 @@ fn expand_event_enum(cx: &Context) -> TokenStream {
             .collect::<Vec<_>>()
     };
 
+    let derives = expand_derives(&cx.event_derives);
+
     quote! {
         /// A contract event.
-        #[derive(Clone, Debug, Eq, PartialEq)]
+        #[derive(Clone, Debug, Eq, PartialEq, #derives)]
         pub enum Event {
             #( #variants, )*
         }
@@ -699,12 +712,16 @@ mod tests {
                     anonymous: true,
                 }],
             );
+            context.event_derives = ["Asdf", "a::B", "a::b::c::D"]
+                .iter()
+                .map(|derive| syn::parse_str::<TypePath>(derive).unwrap())
+                .collect();
             context
         };
 
         assert_quote!(expand_event_enum(&context), {
             /// A contract event.
-            #[derive(Clone, Debug, Eq, PartialEq)]
+            #[derive(Clone, Debug, Eq, PartialEq, Asdf, a::B, a::b::c::D)]
             pub enum Event {
                 Bar(self::event_data::Bar),
                 Foo(self::event_data::Foo),

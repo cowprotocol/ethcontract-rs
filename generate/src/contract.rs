@@ -18,7 +18,7 @@ use inflector::Inflector;
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
-use syn::Visibility;
+use syn::{TypePath, Visibility};
 
 /// Internal shared context for generating smart contract bindings.
 pub(crate) struct Context {
@@ -42,6 +42,8 @@ pub(crate) struct Context {
     deployments: HashMap<u32, Address>,
     /// Manually specified method aliases.
     method_aliases: HashMap<String, Ident>,
+    /// Derives added to event structs and enums.
+    event_derives: Vec<TypePath>,
 }
 
 impl Context {
@@ -104,6 +106,13 @@ impl Context {
             }
         }
 
+        let event_derives = args
+            .event_derives
+            .iter()
+            .map(|derive| syn::parse_str::<TypePath>(derive))
+            .collect::<Result<Vec<TypePath>, syn::Error>>()
+            .context("failed to parse event derives")?;
+
         Ok(Context {
             artifact_json,
             artifact,
@@ -113,6 +122,7 @@ impl Context {
             contract_name,
             deployments: args.deployments,
             method_aliases,
+            event_derives,
         })
     }
 }
@@ -129,6 +139,7 @@ impl Default for Context {
             contract_name: util::ident("Contract"),
             deployments: HashMap::new(),
             method_aliases: HashMap::new(),
+            event_derives: Vec::new(),
         }
     }
 }
