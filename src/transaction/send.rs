@@ -108,7 +108,7 @@ impl<T: Transport> Future for SendFuture<T> {
                         let tx = result?;
                         match tx.status {
                             Some(U64([1])) => Ok(TransactionResult::Receipt(tx)),
-                            _ => Err(ExecutionError::Failure(tx.transaction_hash)),
+                            _ => Err(ExecutionError::Failure(Box::new(tx))),
                         }
                     })
                 }

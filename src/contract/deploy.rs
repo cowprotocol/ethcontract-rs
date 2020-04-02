@@ -200,9 +200,7 @@ where
         let address = match tx.contract_address {
             Some(address) => address,
             None => {
-                return Poll::Ready(Err(DeployError::Tx(ExecutionError::Failure(
-                    tx.transaction_hash,
-                ))));
+                return Poll::Ready(Err(DeployError::Tx(ExecutionError::Failure(Box::new(tx)))));
             }
         };
         let transaction_hash = tx.transaction_hash;
