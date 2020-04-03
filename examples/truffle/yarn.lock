@@ -26,10 +26,10 @@
   dependencies:
     defer-to-connect "^1.0.1"
 
-"@truffle/hdwallet-provider@^1.0.27", "@truffle/hdwallet-provider@^1.0.33":
-  version "1.0.33"
-  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-1.0.33.tgz#b037f5a7903d79a06bdcf5586e1c4a8d51fc9dfd"
-  integrity sha512-hXLZafDyTXH2s6oKnjlrvZhewriHp4NUsYaGOyaihWFpmmUAOqhQSy3vVWD7QzloNCwZZIlQZlOYudPOEyFJOw==
+"@truffle/hdwallet-provider@^1.0.27", "@truffle/hdwallet-provider@^1.0.34":
+  version "1.0.34"
+  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-1.0.34.tgz#1e642c415c28e9ae3bb8142bbdbc8506adaaa06a"
+  integrity sha512-sy7sismdclvzWQmHDjElqPGoU1+ff4w3nODKqBpauacAYpWngu865CrtgRNnETZ1c90zDElU41V6yWrUgKupAQ==
   dependencies:
     any-promise "^1.3.0"
     bindings "^1.5.0"
@@ -3852,10 +3852,10 @@ truffle-plugin-verify@^0.3.10:
     querystring "0.2.0"
     sol-merger "2.0.1"
 
-truffle@^5.1.19:
-  version "5.1.19"
-  resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.1.19.tgz#daf0aca071b9e2cdd88f456f10c1a81e840794aa"
-  integrity sha512-H4S7GbKCN56eW5ftLo+l160c+SLyF8C205hUF9VRfulxFBdXvmTIeHdRO/zcnBWiKfEbXzuHWSI9gyFkPtkvmw==
+truffle@^5.1.20:
+  version "5.1.20"
+  resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.1.20.tgz#7219d89775779c59bc28bbefd2b0a3455e86a688"
+  integrity sha512-syKTjWSQQ6J6zFu5iEKCbJCfHqIs9buRmFVyCExfMTlUrgaw9ndO0joHTfF7eKhhumRa/NRQrNkY/2AmSRh32A==
   dependencies:
     app-module-path "^2.2.0"
     mocha "5.2.0"
