@@ -205,6 +205,14 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
         self
     }
 
+    /// Limit the number of events that can be retrieved by this filter.
+    ///
+    /// Note that this parameter is non-standard.
+    pub fn limit(mut self, value: usize) -> Self {
+        self.filter = self.filter.limit(value);
+        self
+    }
+
     /// Adds a filter for the first indexed topic.
     ///
     /// This corresponds to the first indexed property, which for anonymous
@@ -465,6 +473,14 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
         self
     }
 
+    /// Limit the number of events that can be retrieved by this filter.
+    ///
+    /// Note that this parameter is non-standard.
+    pub fn limit(mut self, value: usize) -> Self {
+        self.filter = self.filter.limit(value);
+        self
+    }
+
     /// Adds a filter for the first indexed topic.
     ///
     /// For regular events, this corresponds to the event signature. For
@@ -649,6 +665,7 @@ mod tests {
         let signature = event.signature();
         let events = EventBuilder::<_, (Address, Address, U256)>::new(web3, event, address)
             .to_block(99.into())
+            .limit(1000)
             .topic1(Topic::OneOf(vec![
                 Address::repeat_byte(0x70),
                 Address::repeat_byte(0x80),
@@ -665,6 +682,7 @@ mod tests {
             &[json!({
                 "address": address,
                 "toBlock": U256::from(99),
+                "limit": 1000,
                 "topics": [
                     signature,
                     null,
