@@ -40,6 +40,7 @@ fn expand_functions(cx: &Context) -> Result<TokenStream> {
         ));
     }
 
+    let methods_attrs = quote! { #[derive(Clone)] };
     let methods_struct = quote! {
         struct Methods {
             instance: self::ethcontract::dyns::DynInstance,
@@ -51,7 +52,10 @@ fn expand_functions(cx: &Context) -> Result<TokenStream> {
         //   as it contains the the runtime instance. The code is setup this way
         //   so that the contract can implement `Deref` targetting the methods
         //   struct and, therefore, call the methods directly.
-        return Ok(quote! { #methods_struct });
+        return Ok(quote! {
+            #methods_attrs
+            #methods_struct
+        });
     }
 
     Ok(quote! {
@@ -65,8 +69,7 @@ fn expand_functions(cx: &Context) -> Result<TokenStream> {
         }
 
         /// Type containing all contract methods for generated contract type.
-        #[allow(non_camel_case_types)]
-        #[derive(Clone)]
+        #methods_attrs
         pub #methods_struct
 
         #[allow(clippy::too_many_arguments, clippy::type_complexity)]
