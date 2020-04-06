@@ -57,8 +57,9 @@ pub struct EventMetadata {
     pub transaction_index: usize,
     /// The index of the log in the block.
     pub log_index: usize,
-    /// The log index in the transaction this log belongs to.
-    pub transaction_log_index: usize,
+    /// The log index in the transaction this log belongs to. This property is
+    /// non-standard.
+    pub transaction_log_index: Option<usize>,
     /// The log type. Note that this property is non-standard but is supported
     /// by Parity nodes.
     pub log_type: Option<String>,
@@ -145,7 +146,7 @@ impl EventMetadata {
             transaction_hash: log.transaction_hash?,
             transaction_index: log.transaction_index?.as_usize(),
             log_index: log.log_index?.as_usize(),
-            transaction_log_index: log.transaction_log_index?.as_usize(),
+            transaction_log_index: log.transaction_log_index.map(|index| index.as_usize()),
             log_type: log.log_type.clone(),
         })
     }
