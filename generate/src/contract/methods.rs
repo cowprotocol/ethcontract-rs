@@ -218,7 +218,9 @@ mod tests {
 
     #[test]
     fn expand_fn_outputs_empty() {
-        assert_quote!(expand_fn_outputs(&[],).unwrap(), { () });
+        assert_quote!(expand_fn_outputs(&[],).unwrap(), {
+            self::ethcontract::Void
+        });
     }
 
     #[test]
