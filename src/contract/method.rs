@@ -30,19 +30,17 @@ pub trait Detokenizable {
     /// The output that this type detokenizes into.
     type Output;
 
-    /// Returns true if this is an empty type.
-    fn is_empty() -> bool;
-
     /// Create an instance of `Output` by decoding tokens.
     fn from_tokens(tokens: Vec<Token>) -> Result<Self::Output, ExecutionError>;
+
+    /// Returns true if this is an empty type.
+    fn is_void() -> bool {
+        false
+    }
 }
 
 impl Detokenizable for Void {
     type Output = ();
-
-    fn is_empty() -> bool {
-        true
-    }
 
     fn from_tokens(tokens: Vec<Token>) -> Result<Self::Output, ExecutionError> {
         if !tokens.is_empty() {
@@ -55,14 +53,14 @@ impl Detokenizable for Void {
 
         Ok(())
     }
+
+    fn is_void() -> bool {
+        true
+    }
 }
 
 impl<T: Detokenize> Detokenizable for T {
     type Output = Self;
-
-    fn is_empty() -> bool {
-        false
-    }
 
     fn from_tokens(tokens: Vec<Token>) -> Result<Self::Output, ExecutionError> {
         let tokens = match tokens.compat() {
@@ -376,10 +374,12 @@ fn decode_geth_call_result<R: Detokenizable>(
     if let Some(reason) = revert::decode_reason(&bytes) {
         // This is an encoded revert message from Geth nodes.
         Err(ExecutionError::Revert(Some(reason)))
-    } else if bytes.is_empty() && !R::is_empty() {
+    } else if !R::is_void() && bytes.is_empty() {
         // Geth does this on `revert()` without a message and `invalid()`,
         // just treat them all as `invalid()` as generally contracts revert
-        // with messages.
+        // with messages. Unfortunately, for methods with empty return types
+        // errors cannot be distringuished from success in this case so do not
+        // error in those cases.
         Err(ExecutionError::InvalidOpcode)
     } else {
         // just a plain ol' regular result, try and decode it
