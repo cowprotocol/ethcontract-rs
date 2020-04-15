@@ -130,6 +130,12 @@ impl<T: Transport, R> MethodBuilder<T, R> {
     pub fn send(self) -> MethodSendFuture<T> {
         MethodFuture::new(self.function, self.tx.send())
     }
+
+    /// Demotes a `MethodBuilder` into a `ViewMethodBuilder` which has a more
+    /// restricted API and cannot actually send transactions.
+    pub fn view(self) -> ViewMethodBuilder<T, R> {
+        ViewMethodBuilder::from_method(self)
+    }
 }
 
 /// Future that wraps an inner transaction execution future to add method
@@ -169,12 +175,6 @@ where
 pub type MethodSendFuture<T> = MethodFuture<SendFuture<T>>;
 
 impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
-    /// Demotes a `MethodBuilder` into a `ViewMethodBuilder` which has a more
-    /// restricted API and cannot actually send transactions.
-    pub fn view(self) -> ViewMethodBuilder<T, R> {
-        ViewMethodBuilder::from_method(self)
-    }
-
     /// Call a contract method. Contract calls do not modify the blockchain and
     /// as such do not require gas or signing. Note that doing a call with a
     /// block number requires first demoting the `MethodBuilder` into a

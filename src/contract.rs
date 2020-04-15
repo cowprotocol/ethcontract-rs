@@ -186,7 +186,6 @@ impl<T: Transport> Instance<T> {
     pub fn view_method<P, R>(&self, signature: H32, params: P) -> AbiResult<ViewMethodBuilder<T, R>>
     where
         P: Tokenize,
-        R: Detokenize,
     {
         Ok(self.method(signature, params)?.view())
     }
