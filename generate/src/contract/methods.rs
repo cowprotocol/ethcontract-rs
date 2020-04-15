@@ -144,7 +144,7 @@ pub(crate) fn expand_inputs_call_arg(inputs: &[Param]) -> TokenStream {
 
 fn expand_fn_outputs(outputs: &[Param]) -> Result<TokenStream> {
     match outputs.len() {
-        0 => Ok(quote! { () }),
+        0 => Ok(quote! { self::ethcontract::Void }),
         1 => types::expand(&outputs[0].kind),
         _ => {
             let types = outputs
@@ -169,7 +169,9 @@ fn expand_fallback(cx: &Context) -> TokenStream {
             impl Contract {
                 /// Returns a method builder to setup a call to a smart
                 /// contract's fallback function.
-                pub fn fallback<D>(&self, data: D) -> self::ethcontract::dyns::DynMethodBuilder<()>
+                pub fn fallback<D>(&self, data: D) -> self::ethcontract::dyns::DynMethodBuilder<
+                    self::ethcontract::Void,
+                >
                 where
                     D: Into<Vec<u8>>,
                 {
