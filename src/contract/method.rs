@@ -188,14 +188,14 @@ impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
 /// directly send transactions and is for read only method calls.
 #[derive(Debug, Clone)]
 #[must_use = "view methods do nothing unless you `.call()` them"]
-pub struct ViewMethodBuilder<T: Transport, R: Detokenize> {
+pub struct ViewMethodBuilder<T: Transport, R> {
     /// method parameters
     pub m: MethodBuilder<T, R>,
     /// optional block number
     pub block: Option<BlockNumber>,
 }
 
-impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
+impl<T: Transport, R> ViewMethodBuilder<T, R> {
     /// Create a new `ViewMethodBuilder` by demoting a `MethodBuilder`.
     pub fn from_method(method: MethodBuilder<T, R>) -> Self {
         ViewMethodBuilder {
@@ -243,7 +243,9 @@ impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
         self.block = Some(value);
         self
     }
+}
 
+impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
     /// Call a contract method. Contract calls do not modify the blockchain and
     /// as such do not require gas or signing.
     pub fn call(self) -> CallFuture<T, R> {
