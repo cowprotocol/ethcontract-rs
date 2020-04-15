@@ -119,7 +119,7 @@ pub mod prelude {
     //! A prelude module for importing commonly used types when interacting with
     //! generated contracts.
 
-    pub use crate::contract::{Event, EventData, EventMetadata, RawLog, Topic};
+    pub use crate::contract::{Event, EventData, EventMetadata, RawLog, Topic, Void};
     pub use crate::int::I256;
     pub use crate::secret::{Password, PrivateKey};
     pub use crate::transaction::{Account, GasPrice};

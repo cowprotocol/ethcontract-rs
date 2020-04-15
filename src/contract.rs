@@ -28,7 +28,8 @@ pub use self::event::{
     QueryAllFuture, QueryFuture, RawLog, Topic, DEFAULT_POLL_INTERVAL,
 };
 pub use self::method::{
-    CallFuture, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture, ViewMethodBuilder,
+    CallFuture, Detokenizable, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture,
+    ViewMethodBuilder, Void,
 };
 
 /// Represents a contract instance at an address. Provides methods for
@@ -159,6 +160,7 @@ impl<T: Transport> Instance<T> {
     pub fn method<P, R>(&self, signature: H32, params: P) -> AbiResult<MethodBuilder<T, R>>
     where
         P: Tokenize,
+        R: Detokenizable,
     {
         let signature = signature.as_ref();
         let function = self
@@ -186,7 +188,7 @@ impl<T: Transport> Instance<T> {
     pub fn view_method<P, R>(&self, signature: H32, params: P) -> AbiResult<ViewMethodBuilder<T, R>>
     where
         P: Tokenize,
-        R: Detokenize,
+        R: Detokenizable,
     {
         Ok(self.method(signature, params)?.view())
     }
@@ -196,7 +198,7 @@ impl<T: Transport> Instance<T> {
     ///
     /// This method will error if the ABI does not contain an entry for a
     /// fallback function.
-    pub fn fallback<D>(&self, data: D) -> AbiResult<MethodBuilder<T, ()>>
+    pub fn fallback<D>(&self, data: D) -> AbiResult<MethodBuilder<T, Void>>
     where
         D: Into<Vec<u8>>,
     {

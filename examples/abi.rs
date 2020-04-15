@@ -40,6 +40,7 @@ async fn calls(instance: &AbiTypes) {
         }};
     }
 
+    debug_call!(instance.get_void());
     debug_call!(instance.get_u8());
     debug_call!(instance.get_u16());
     debug_call!(instance.get_u32());

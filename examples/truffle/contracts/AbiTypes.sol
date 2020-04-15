@@ -4,6 +4,8 @@ pragma solidity ^0.5.0;
  * @dev Contract to illustract support for various Solidity types.
  */
 contract AbiTypes {
+  function getVoid() public pure {}
+
   function getU8() public view returns (uint8) {
     return uint8(this.getU256() & 0xff);
   }
