@@ -7,7 +7,7 @@ use crate::errors::{revert, ExecutionError, MethodError};
 use crate::future::CompatCallFuture;
 use crate::transaction::send::SendFuture;
 use crate::transaction::{Account, GasPrice, TransactionBuilder};
-use ethcontract_common::abi::Function;
+use ethcontract_common::abi::{Function, Token};
 use futures::compat::Future01CompatExt;
 use pin_project::pin_project;
 use std::future::Future;
@@ -16,8 +16,61 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use web3::api::Web3;
 use web3::contract::tokens::Detokenize;
+use web3::contract::Error as Web3ContractError;
 use web3::types::{Address, BlockNumber, Bytes, CallRequest, U256};
 use web3::Transport;
+
+/// A void type to represent methods with empty return types.
+///
+/// This is used to work around the fact that `(): !Detokenize`.
+pub struct Void(());
+
+/// Represents a type can detokenize a result.
+pub trait Detokenizable {
+    /// The output that this type detokenizes into.
+    type Output;
+
+    /// Create an instance of `Output` by decoding tokens.
+    fn from_tokens(tokens: Vec<Token>) -> Result<Self::Output, ExecutionError>;
+
+    /// Returns true if this is an empty type.
+    fn is_void() -> bool {
+        false
+    }
+}
+
+impl Detokenizable for Void {
+    type Output = ();
+
+    fn from_tokens(tokens: Vec<Token>) -> Result<Self::Output, ExecutionError> {
+        if !tokens.is_empty() {
+            return Err(Web3ContractError::InvalidOutputType(format!(
+                "Expected no elements, got tokens: {:?}",
+                tokens
+            ))
+            .into());
+        }
+
+        Ok(())
+    }
+
+    fn is_void() -> bool {
+        true
+    }
+}
+
+impl<T: Detokenize> Detokenizable for T {
+    type Output = Self;
+
+    fn from_tokens(tokens: Vec<Token>) -> Result<Self::Output, ExecutionError> {
+        let tokens = match tokens.compat() {
+            Some(tokens) => tokens,
+            None => return Err(ExecutionError::UnsupportedToken),
+        };
+        let result = <T as Detokenize>::from_tokens(tokens)?;
+        Ok(result)
+    }
+}
 
 /// Default options to be applied to `MethodBuilder` or `ViewMethodBuilder`.
 #[derive(Clone, Debug, Default)]
@@ -35,7 +88,7 @@ pub struct MethodDefaults {
 /// transactions. This is useful when dealing with view functions.
 #[derive(Debug, Clone)]
 #[must_use = "methods do nothing unless you `.call()` or `.send()` them"]
-pub struct MethodBuilder<T: Transport, R> {
+pub struct MethodBuilder<T: Transport, R: Detokenizable> {
     web3: Web3<T>,
     function: Function,
     /// transaction parameters
@@ -43,7 +96,7 @@ pub struct MethodBuilder<T: Transport, R> {
     _result: PhantomData<R>,
 }
 
-impl<T: Transport> MethodBuilder<T, ()> {
+impl<T: Transport> MethodBuilder<T, Void> {
     /// Creates a new builder for a transaction invoking the fallback method.
     pub fn fallback(web3: Web3<T>, address: Address, data: Bytes) -> Self {
         // NOTE: We create a fake `Function` entry for the fallback method. This
@@ -58,7 +111,7 @@ impl<T: Transport> MethodBuilder<T, ()> {
     }
 }
 
-impl<T: Transport, R> MethodBuilder<T, R> {
+impl<T: Transport, R: Detokenizable> MethodBuilder<T, R> {
     /// Creates a new builder for a transaction.
     pub fn new(web3: Web3<T>, function: Function, address: Address, data: Bytes) -> Self {
         MethodBuilder {
@@ -130,6 +183,20 @@ impl<T: Transport, R> MethodBuilder<T, R> {
     pub fn send(self) -> MethodSendFuture<T> {
         MethodFuture::new(self.function, self.tx.send())
     }
+
+    /// Demotes a `MethodBuilder` into a `ViewMethodBuilder` which has a more
+    /// restricted API and cannot actually send transactions.
+    pub fn view(self) -> ViewMethodBuilder<T, R> {
+        ViewMethodBuilder::from_method(self)
+    }
+
+    /// Call a contract method. Contract calls do not modify the blockchain and
+    /// as such do not require gas or signing. Note that doing a call with a
+    /// block number requires first demoting the `MethodBuilder` into a
+    /// `ViewMethodBuilder` and setting the block number for the call.
+    pub fn call(self) -> CallFuture<T, R> {
+        self.view().call()
+    }
 }
 
 /// Future that wraps an inner transaction execution future to add method
@@ -168,34 +235,18 @@ where
 /// A type alias for a `MethodFuture` wrapped `SendFuture`.
 pub type MethodSendFuture<T> = MethodFuture<SendFuture<T>>;
 
-impl<T: Transport, R: Detokenize> MethodBuilder<T, R> {
-    /// Demotes a `MethodBuilder` into a `ViewMethodBuilder` which has a more
-    /// restricted API and cannot actually send transactions.
-    pub fn view(self) -> ViewMethodBuilder<T, R> {
-        ViewMethodBuilder::from_method(self)
-    }
-
-    /// Call a contract method. Contract calls do not modify the blockchain and
-    /// as such do not require gas or signing. Note that doing a call with a
-    /// block number requires first demoting the `MethodBuilder` into a
-    /// `ViewMethodBuilder` and setting the block number for the call.
-    pub fn call(self) -> CallFuture<T, R> {
-        self.view().call()
-    }
-}
-
 /// Data used for building a contract method call. The view method builder can't
 /// directly send transactions and is for read only method calls.
 #[derive(Debug, Clone)]
 #[must_use = "view methods do nothing unless you `.call()` them"]
-pub struct ViewMethodBuilder<T: Transport, R: Detokenize> {
+pub struct ViewMethodBuilder<T: Transport, R: Detokenizable> {
     /// method parameters
     pub m: MethodBuilder<T, R>,
     /// optional block number
     pub block: Option<BlockNumber>,
 }
 
-impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
+impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
     /// Create a new `ViewMethodBuilder` by demoting a `MethodBuilder`.
     pub fn from_method(method: MethodBuilder<T, R>) -> Self {
         ViewMethodBuilder {
@@ -243,7 +294,9 @@ impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
         self.block = Some(value);
         self
     }
+}
 
+impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
     /// Call a contract method. Contract calls do not modify the blockchain and
     /// as such do not require gas or signing.
     pub fn call(self) -> CallFuture<T, R> {
@@ -255,14 +308,14 @@ impl<T: Transport, R: Detokenize> ViewMethodBuilder<T, R> {
 /// the call completes.
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 #[pin_project]
-pub struct CallFuture<T: Transport, R: Detokenize> {
+pub struct CallFuture<T: Transport, R: Detokenizable> {
     function: Function,
     #[pin]
     call: CompatCallFuture<T, Bytes>,
     _result: PhantomData<Box<R>>,
 }
 
-impl<T: Transport, R: Detokenize> CallFuture<T, R> {
+impl<T: Transport, R: Detokenizable> CallFuture<T, R> {
     /// Construct a new `CallFuture` from a `ViewMethodBuilder`.
     fn from_builder(builder: ViewMethodBuilder<T, R>) -> Self {
         CallFuture {
@@ -292,15 +345,15 @@ impl<T: Transport, R: Detokenize> CallFuture<T, R> {
     }
 }
 
-impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
-    type Output = Result<R, MethodError>;
+impl<T: Transport, R: Detokenizable> Future for CallFuture<T, R> {
+    type Output = Result<R::Output, MethodError>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let mut this = self.project();
         this.call.as_mut().poll(cx).map(|result| {
             result
                 .map_err(ExecutionError::from)
-                .and_then(|bytes| decode_geth_call_result(&this.function, bytes.0))
+                .and_then(|bytes| decode_geth_call_result::<R>(&this.function, bytes.0))
                 .map_err(|err| MethodError::new(&this.function, err))
         })
     }
@@ -314,24 +367,23 @@ impl<T: Transport, R: Detokenize> Future for CallFuture<T, R> {
 /// encode this information in a JSON RPC error. On a revert or invalid opcode,
 /// the result is `0x` (empty data), while on a revert with message, it is an
 /// ABI encoded `Error(string)` function call data.
-fn decode_geth_call_result<R: Detokenize>(
+fn decode_geth_call_result<R: Detokenizable>(
     function: &Function,
     bytes: Vec<u8>,
-) -> Result<R, ExecutionError> {
+) -> Result<R::Output, ExecutionError> {
     if let Some(reason) = revert::decode_reason(&bytes) {
         // This is an encoded revert message from Geth nodes.
         Err(ExecutionError::Revert(Some(reason)))
-    } else if bytes.is_empty() {
+    } else if !R::is_void() && bytes.is_empty() {
         // Geth does this on `revert()` without a message and `invalid()`,
         // just treat them all as `invalid()` as generally contracts revert
-        // with messages.
+        // with messages. Unfortunately, for methods with empty return types
+        // errors cannot be distringuished from success in this case so do not
+        // error in those cases.
         Err(ExecutionError::InvalidOpcode)
     } else {
         // just a plain ol' regular result, try and decode it
-        let tokens = match function.decode_output(&bytes)?.compat() {
-            Some(tokens) => tokens,
-            None => return Err(ExecutionError::UnsupportedToken),
-        };
+        let tokens = function.decode_output(&bytes)?;
         let result = R::from_tokens(tokens)?;
         Ok(result)
     }

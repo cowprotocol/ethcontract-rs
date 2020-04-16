@@ -19,8 +19,13 @@ async fn run() {
         .expect("contract deployment failure");
     println!("Using contract at {:?}", instance.address());
 
+    calls(&instance).await;
+    events(&instance).await;
+}
+
+async fn calls(instance: &AbiTypes) {
     macro_rules! debug_call {
-        (instance . $call:ident ()) => {{
+        (instance. $call:ident ()) => {{
             let value = instance
                 .$call()
                 .call()
@@ -35,6 +40,7 @@ async fn run() {
         }};
     }
 
+    debug_call!(instance.get_void());
     debug_call!(instance.get_u8());
     debug_call!(instance.get_u16());
     debug_call!(instance.get_u32());
@@ -58,6 +64,50 @@ async fn run() {
 
     debug_call!(instance.get_array());
     debug_call!(instance.get_fixed_array());
+}
+
+async fn events(instance: &AbiTypes) {
+    macro_rules! debug_events {
+        (instance.events(). $events:ident ()) => {{
+            let events = instance
+                .events()
+                .$events()
+                .query()
+                .await
+                .expect(concat!(stringify!($events), " failed"));
+            let event_data = events
+                .iter()
+                .map(|event| event.inner_data())
+                .collect::<Vec<_>>();
+            println!("{}()\n  ⏎ {:?}", stringify!($events), event_data);
+        }};
+    }
+
+    instance
+        .emit_values()
+        // NOTE: Gas estimation seems to not work for this call.
+        .gas(4_712_388.into())
+        .send()
+        .await
+        .expect("failed to emit value events");
+
+    debug_events!(instance.events().value_uint());
+    debug_events!(instance.events().value_int());
+    debug_events!(instance.events().value_bool());
+    debug_events!(instance.events().value_bytes());
+    debug_events!(instance.events().value_array());
+    debug_events!(instance.events().value_indexed());
+
+    let all_events = instance
+        .all_events()
+        .query()
+        .await
+        .expect("failed to retrieve all events");
+    for event in all_events {
+        if let abi_types::Event::Values(data) = event.inner_data() {
+            println!("anonymous event\n  ⏎ {:?}", data);
+        }
+    }
 }
 
 fn type_name_of<T>(_: &T) -> &'static str {
