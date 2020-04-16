@@ -56,7 +56,9 @@ function cargo_publish {
 	# NOTE(nlordell): For some reason, the next publish fails on not being able
 	#   to find the new version; maybe it takes a second for crates.io to update
 	#   its index
-	sleep 10
+	if [[ "$1" != "." ]]; then
+		sleep 20
+	fi
 }
 
 cargo_publish common
