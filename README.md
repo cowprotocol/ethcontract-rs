@@ -41,7 +41,7 @@ found in the `ethcontract-generate` [README](generate/README.md).
 ## Running the Examples
 
 In order to run local examples you will additionally need:
-- NodeJS
+- NodeJS LTS
 - Yarn
 
 For all examples, the smart contracts must first be built:
