@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.6.0;
 
 /**
  * @dev Simple contract with lots of documentation
@@ -21,7 +21,7 @@ contract DocumentedContract {
   /*
    * @dev Documented fallback function that does nothing.
    */
-  function () external { }
+  fallback() external { }
 
   /*
    * @dev Documented function that emits an event.
