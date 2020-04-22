@@ -398,7 +398,7 @@ impl RawLog {
         D: Detokenize,
     {
         let event_log = event.parse_log(AbiRawLog {
-            topics: self.topics,
+            topics: self.topics.compat(),
             data: self.data,
         })?;
 
@@ -487,25 +487,25 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// For regular events, this corresponds to the event signature. For
     /// anonymous events, this is the first indexed property.
     pub fn topic0(mut self, topic: Topic<H256>) -> Self {
-        self.topics.topic0 = topic;
+        self.topics.topic0 = topic.map(H256::compat);
         self
     }
 
     /// Adds a filter for the second indexed topic.
     pub fn topic1(mut self, topic: Topic<H256>) -> Self {
-        self.topics.topic1 = topic;
+        self.topics.topic1 = topic.map(H256::compat);
         self
     }
 
     /// Adds a filter for the third indexed topic.
     pub fn topic2(mut self, topic: Topic<H256>) -> Self {
-        self.topics.topic2 = topic;
+        self.topics.topic2 = topic.map(H256::compat);
         self
     }
 
     /// Adds a filter for the third indexed topic.
     pub fn topic3(mut self, topic: Topic<H256>) -> Self {
-        self.topics.topic2 = topic;
+        self.topics.topic2 = topic.map(H256::compat);
         self
     }
 
@@ -754,10 +754,10 @@ mod tests {
         transport.add_response(json!([log]));
 
         let address = Address::repeat_byte(0x01);
-        let signature = event.signature();
+        let signature = event.signature().compat();
         let raw_events = AllEventsBuilder::<_, RawLog>::new(web3, address)
             .to_block(99.into())
-            .topic0(Topic::This(event.signature()))
+            .topic0(Topic::This(signature))
             .topic2(Topic::OneOf(vec![
                 Address::repeat_byte(0x70).into(),
                 Address::repeat_byte(0x80).into(),
@@ -812,10 +812,10 @@ mod tests {
         transport.add_response(json!([log]));
 
         let address = Address::repeat_byte(0x01);
-        let signature = event.signature();
+        let signature = event.signature().compat();
         let raw_event = AllEventsBuilder::<_, RawLog>::new(web3, address)
             .to_block(99.into())
-            .topic0(Topic::This(event.signature()))
+            .topic0(Topic::This(signature))
             .topic2(Topic::OneOf(vec![
                 Address::repeat_byte(0x70).into(),
                 Address::repeat_byte(0x80).into(),
