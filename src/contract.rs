@@ -77,7 +77,7 @@ impl<T: Transport> Instance<T> {
         transaction_hash: Option<H256>,
     ) -> Self {
         let methods = create_mapping(&abi.functions, |function| function.selector());
-        let events = create_mapping(&abi.events, |event| event.signature());
+        let events = create_mapping(&abi.events, |event| event.signature().compat());
 
         Instance {
             web3,
