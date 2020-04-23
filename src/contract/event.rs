@@ -264,12 +264,6 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
     pub fn stream(self) -> Result<EventStream<T, E>, EventError> {
         EventStream::from_builder(self)
     }
-
-    /// Creates an event stream from the current event builder that first emits
-    /// past events and then continues streaming new events.
-    pub fn stream_with_past_events(self) -> Result<(), EventError> {
-        todo!()
-    }
 }
 
 /// Converts a tokenizable topic into a raw topic for filtering.
@@ -463,7 +457,9 @@ pub struct AllEventsBuilder<T: Transport, E: ParseLog> {
     /// includes the transaction hash, then this property will be automatically
     /// set.
     pub deployment_transaction: Option<H256>,
-    /// The block page size to use when doing a paginated query on past events.
+    /// The page size in blocks to use when doing a paginated query on past
+    /// events. This provides no guarantee in how many events will be returned
+    /// per page, but used to limit the block range for the query.
     pub block_page_size: Option<u64>,
     _events: PhantomData<E>,
 }
@@ -580,7 +576,9 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
             None | Some(BlockNumber::Earliest) => 0,
             Some(BlockNumber::Number(value)) => value.as_u64(),
             Some(BlockNumber::Latest) | Some(BlockNumber::Pending) => {
-                panic!("invalid from block value 'latest' or 'pending'")
+                // NOTE: Query doesn't really make sense, let the node deal with
+                //   it.
+                return self.query().await;
             }
         };
         if let Some(deployment_tx) = self.deployment_transaction {
@@ -592,15 +590,26 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
 
         let end_block = match self.to_block {
             None | Some(BlockNumber::Latest) | Some(BlockNumber::Pending) => {
+                // NOTE: For latest and pending blocks, we need to set a target
+                //   for the pagination, the last query will use "latest" or
+                //   "paginated" ensuring that all expected events are produced.
                 self.web3.eth().block_number().compat().await?.as_u64()
             }
             Some(BlockNumber::Number(value)) => value.as_u64(),
-            Some(BlockNumber::Earliest) => panic!("invalid to block value 'earliest'"),
+            Some(BlockNumber::Earliest) => {
+                // NOTE: Query doesn't really make sense, let the node deal with
+                //   it.
+                return self.query().await;
+            }
         };
+
+        if start_block > end_block {
+            return Ok(Vec::new());
+        }
+
         let page_size = self.block_page_size.unwrap_or(DEFAULT_BLOCK_PAGE_SIZE);
         let (web3, filter) = self.prepare();
 
-        let mut current_block = start_block;
         let mut events = Vec::new();
         let mut append_events = |logs: Vec<Log>| -> Result<(), ExecutionError> {
             events.reserve(logs.len());
@@ -611,8 +620,10 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
             Ok(())
         };
 
-        // NOTE: Query only until the last page, since it is handled a little
-        //   differently to deal with "latest" and "pending" to blocks.
+        // NOTE: Query only until the page right before the last one, since it
+        //   is handled a little differently to deal with "latest" and "pending"
+        //   to blocks.
+        let mut current_block = start_block;
         while current_block + page_size <= end_block {
             let filter = filter
                 .clone()
@@ -625,18 +636,15 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
             current_block += page_size;
         }
 
-        // NOTE: In case this was called with a from block of "latest" or
-        //   "pending" we want to make sure that the last call includes blocks
-        //   that have been added since the start of the call. To do this, we
-        //   just omit the `to_block` from the `filter` since it was already
-        //   specified in the `prepare` method. In the case a block number was
-        //   specified, this call is still correct as the filter's `to_block`
-        //   will be set to that block number.
-        if start_block > end_block {
-            let filter = filter.from_block(current_block.into()).build();
-            let event_page = web3.eth().logs(filter).compat().await?;
-            append_events(event_page)?;
-        }
+        // NOTE: The last page is handled a bit differently by using the
+        //   `to_block` that was originally specified to the builder and is set
+        //   in the `filter` (from the call to `prepare`). This is done in case
+        //   the to block was "latest" or "pending", where we want to make sure
+        //   that the last call includes blocks that have been added since the
+        //   start of the paginated query.
+        let filter = filter.from_block(current_block.into()).build();
+        let event_page = web3.eth().logs(filter).compat().await?;
+        append_events(event_page)?;
 
         Ok(events)
     }
