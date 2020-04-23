@@ -156,6 +156,9 @@ cargo run --example sources
 This example retrieves the entire event history of token OWL contract and prints
 the total number of events since deployment.
 
+Note the special handling of the `tokenOWLProxy` contract and how it is cast into
+a `tokenOWL` instance using Contract's `with_transaction` feature.
+
 ```sh
 export INFURA_PROJECT_ID="Infura project ID"
 cargo run --example past_events
