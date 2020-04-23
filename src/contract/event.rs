@@ -272,50 +272,6 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
     }
 }
 
-/*
-
-enum CompleteEventStream<T: Transport, E: Tokenizable> {
-    Init {
-        web3: Web3<T>,
-        builder: EventBuilder<T, E>,
-        tx_hash: H256,
-    },
-    Streaming {
-        web3: Web3<T>,
-        builder: EventBuilder<T, E>,
-        query: QueryFuture<T, E>,
-        start_block: u64,
-        current_block: u64,
-        stream: EventStream<T, E>,
-        streamed_events: Event<E>,
-    },
-}
-
-async fn complete_event_stream_step<T: Transport, E: Tokenizable>(
-    mut stream: CompleteEventStream<T, E>,
-) -> Result<Option<(Event<E>, CompleteEventStream<T, E>)>, ExecutionError> {
-    loop {
-        stream = match stream {
-            CompleteEventStream::Init { web3, tx_hash, builder } => {
-                let start_block = block_number_from_transaction_hash(web3, tx_hash).await?;
-                let current_block = web3.eth().block_number().compat().await?;
-
-                let query = builder.clone()
-                    .from_block(start_block)
-                    .to_block(start_block + BLOCK_PAGE_SIZE)
-                    query();
-                let stream = builder.clone().stream();
-
-                CompleteEventStream::Streaming {
-                    web3,
-                    query
-                }
-            }
-        }
-    }
-}
-*/
-
 /// Converts a tokenizable topic into a raw topic for filtering.
 fn tokenize_topic<P>(topic: Topic<P>) -> Topic<Token>
 where
