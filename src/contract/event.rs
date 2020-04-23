@@ -432,6 +432,9 @@ impl ParseLog for RawLog {
     }
 }
 
+/// The default block page size used for querying past events.
+pub const DEFAULT_BLOCK_PAGE_SIZE: u64 = 10_000;
+
 /// A builder for creating a filtered stream for any contract event.
 #[must_use = "event builders do nothing unless you stream them"]
 pub struct AllEventsBuilder<T: Transport, E: ParseLog> {
@@ -540,6 +543,13 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
         self
     }
 
+    /// The page size in blocks to use when doing a paginated query on past
+    /// events.
+    pub fn block_page_size(mut self, value: u64) -> Self {
+        self.block_page_size = Some(value);
+        self
+    }
+
     /// Returns a web3 provider and filter needed for querying and streaming
     /// events.
     fn prepare(self) -> (Web3<T>, FilterBuilder) {
@@ -566,18 +576,14 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// smaller block ranges specified by `block_page_size` instead of using a
     /// single query.
     ///
-    /// # Panics
-    ///
-    /// If the block range is invalid for querying past events:
-    /// - the from block is "latest" or "pending"
-    /// - the to block is "earliest"
+    /// Note that if the block range is inconsistent (for example from block is
+    /// after the to block, or querying until the earliest block), then the
+    /// query will be forwarded to the node as is.
     pub async fn query_past_events_paginated(self) -> Result<Vec<Event<E>>, ExecutionError> {
         let mut start_block = match self.from_block {
             None | Some(BlockNumber::Earliest) => 0,
             Some(BlockNumber::Number(value)) => value.as_u64(),
             Some(BlockNumber::Latest) | Some(BlockNumber::Pending) => {
-                // NOTE: Query doesn't really make sense, let the node deal with
-                //   it.
                 return self.query().await;
             }
         };
@@ -590,61 +596,52 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
 
         let end_block = match self.to_block {
             None | Some(BlockNumber::Latest) | Some(BlockNumber::Pending) => {
-                // NOTE: For latest and pending blocks, we need to set a target
-                //   for the pagination, the last query will use "latest" or
-                //   "paginated" ensuring that all expected events are produced.
                 self.web3.eth().block_number().compat().await?.as_u64()
             }
             Some(BlockNumber::Number(value)) => value.as_u64(),
             Some(BlockNumber::Earliest) => {
-                // NOTE: Query doesn't really make sense, let the node deal with
-                //   it.
                 return self.query().await;
             }
         };
 
+        // NOTE: If the range is invalid, forward the request to the node to the
+        //   node to make sure we behave consistently for these edge cases.
         if start_block > end_block {
-            return Ok(Vec::new());
+            return self.query().await;
         }
 
         let page_size = self.block_page_size.unwrap_or(DEFAULT_BLOCK_PAGE_SIZE);
         let (web3, filter) = self.prepare();
 
         let mut events = Vec::new();
-        let mut append_events = |logs: Vec<Log>| -> Result<(), ExecutionError> {
-            events.reserve(logs.len());
-            for log in logs {
+        let mut current_block = start_block;
+        while current_block <= end_block {
+            let filter = {
+                let mut filter = filter.clone().from_block(current_block.into());
+
+                // NOTE: The last page is handled a bit differently by using the
+                //   `to_block` that was originally specified to the builder and
+                //   is set in the `filter` (from the call to `prepare`). This
+                //   is done in case the to block was "latest" or "pending",
+                //   where we want to make sure that the last call includes
+                //   blocks that have been added since the start of the
+                //   paginated query.
+                if current_block + page_size <= end_block {
+                    filter = filter.to_block((current_block + page_size - 1).into());
+                }
+
+                filter.build()
+            };
+
+            let log_page = web3.eth().logs(filter).compat().await?;
+            events.reserve(log_page.len());
+            for log in log_page {
                 let event = Event::from_log(log, E::parse_log)?;
                 events.push(event);
             }
-            Ok(())
-        };
-
-        // NOTE: Query only until the page right before the last one, since it
-        //   is handled a little differently to deal with "latest" and "pending"
-        //   to blocks.
-        let mut current_block = start_block;
-        while current_block + page_size <= end_block {
-            let filter = filter
-                .clone()
-                .from_block(current_block.into())
-                .to_block((current_block + page_size - 1).into())
-                .build();
-            let event_page = web3.eth().logs(filter).compat().await?;
-            append_events(event_page)?;
 
             current_block += page_size;
         }
-
-        // NOTE: The last page is handled a bit differently by using the
-        //   `to_block` that was originally specified to the builder and is set
-        //   in the `filter` (from the call to `prepare`). This is done in case
-        //   the to block was "latest" or "pending", where we want to make sure
-        //   that the last call includes blocks that have been added since the
-        //   start of the paginated query.
-        let filter = filter.from_block(current_block.into()).build();
-        let event_page = web3.eth().logs(filter).compat().await?;
-        append_events(event_page)?;
 
         Ok(events)
     }
@@ -653,6 +650,23 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     pub fn stream(self) -> AllEventsStream<T, E> {
         AllEventsStream::from_builder(self)
     }
+}
+
+/// Retrieves a block number for the specified transaction hash.
+async fn block_number_from_transaction_hash<T: Transport>(
+    web3: Web3<T>,
+    tx_hash: H256,
+) -> Result<u64, ExecutionError> {
+    let tx_receipt = web3
+        .eth()
+        .transaction_receipt(tx_hash)
+        .compat()
+        .await?
+        .ok_or(ExecutionError::MissingTransaction(tx_hash))?;
+    Ok(tx_receipt
+        .block_number
+        .ok_or(ExecutionError::PendingTransaction(tx_hash))?
+        .as_u64())
 }
 
 /// A future for querying all contract events based on a log filter.
@@ -688,26 +702,6 @@ impl<T: Transport, E: ParseLog> Future for QueryAllFuture<T, E> {
                 .collect::<Result<Vec<_>, ExecutionError>>()
         })
     }
-}
-
-/// The default block page size used for querying past events.
-pub const DEFAULT_BLOCK_PAGE_SIZE: u64 = 10_000;
-
-/// Retrieves a block number for the specified transaction hash.
-async fn block_number_from_transaction_hash<T: Transport>(
-    web3: Web3<T>,
-    tx_hash: H256,
-) -> Result<u64, ExecutionError> {
-    let tx_receipt = web3
-        .eth()
-        .transaction_receipt(tx_hash)
-        .compat()
-        .await?
-        .ok_or(ExecutionError::MissingTransaction(tx_hash))?;
-    Ok(tx_receipt
-        .block_number
-        .ok_or(ExecutionError::PendingTransaction(tx_hash))?
-        .as_u64())
 }
 
 /// An event stream for all contract events.
@@ -752,7 +746,7 @@ mod tests {
     use ethcontract_common::abi::{EventParam, ParamType};
     use futures::stream::StreamExt;
     use serde_json::Value;
-    use web3::types::{Address, H256, U256};
+    use web3::types::{Address, H2048, H256, U256, U64};
 
     fn test_abi_event() -> (AbiEvent, Value) {
         let event = AbiEvent {
@@ -939,6 +933,76 @@ mod tests {
                         H256::from(Address::repeat_byte(0x80)),
                     ],
                 ],
+            })],
+        );
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn all_events_query_paginated() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+        let (event, log) = test_abi_event();
+
+        let address = Address::repeat_byte(0x01);
+        let deployment = H256::repeat_byte(0x42);
+        let signature = event.signature().compat();
+
+        // get tx receipt for past blocks
+        transport.add_response(json!({
+            "transactionHash": deployment,
+            "transactionIndex": "0x1",
+            "blockNumber": U64::from(10),
+            "blockHash": H256::zero(),
+            "cumulativeGasUsed": "0x1337",
+            "gasUsed": "0x1337",
+            "logsBloom": H2048::zero(),
+            "logs": [],
+        }));
+        // get latest block
+        transport.add_response(json!(U64::from(20)));
+        // get logs pages
+        transport.add_response(json!([log]));
+        transport.add_response(json!([]));
+        transport.add_response(json!([log, log]));
+
+        let raw_events = AllEventsBuilder::<_, RawLog>::new(web3, address, Some(deployment))
+            .from_block(5.into())
+            .to_block(BlockNumber::Pending)
+            .topic0(Topic::This(signature))
+            .block_page_size(5)
+            .query_past_events_paginated()
+            .immediate()
+            .expect("failed to get logs");
+
+        assert_eq!(raw_events.len(), 3);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(deployment)]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request(
+            "eth_getLogs",
+            &[json!({
+                "address": address,
+                "fromBlock": U64::from(10),
+                "toBlock": U64::from(14),
+                "topics": [signature],
+            })],
+        );
+        transport.assert_request(
+            "eth_getLogs",
+            &[json!({
+                "address": address,
+                "fromBlock": U64::from(15),
+                "toBlock": U64::from(19),
+                "topics": [signature],
+            })],
+        );
+        transport.assert_request(
+            "eth_getLogs",
+            &[json!({
+                "address": address,
+                "fromBlock": U64::from(20),
+                "toBlock": "pending",
+                "topics": [signature],
             })],
         );
         transport.assert_no_more_requests();
