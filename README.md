@@ -61,46 +61,64 @@ cd examples/truffle
 yarn start
 ```
 
-- The `abi` example deploys a simple contract and performs various `eth_call`s
-  to illustrate how Solidity types are mapped to Rust types by `ethcontract`.
-  ```sh
-  cargo run --example abi
-  ```
+#### ABI:
 
-- The `async` example deploys an ERC20 token and interacts with the contract
-  with various accounts.
-  ```sh
-  cargo run --example async
-  ```
+The `abi` example deploys a simple contract and performs various `eth_call`s
+to illustrate how Solidity types are mapped to Rust types by `ethcontract`.
 
-- The `deployments` example illustrates how the `deployments` parameter can be
-  specified when generating a contract with the `ethcontract::contract!` macro.
-  This can be useful for specifying addresses in testing environments that are
-  deterministic but either not included, or inacurate in the artifact's
-  `networks` property (when for example the contract is developed upstream, but
-  a separte testnet deployment wants to be used).
-  ```sh
-  cargo run --example deployments
-  ```
+```sh
+cargo run --example abi
+```
 
-- The `events` example illustrates how to listen to logs emitted by smart
-  contract events.
-  ```sh
-  cargo run --example events
-  ```
+#### Async/Await:
 
-- The `generator` example (actually a separate crate to be able to have a build
-  script) demonstrates how the generator API can be used for creating type-safe
-  bindings to a smart contract with a `build.rs` build script.
-  ```sh
-  cargo run --package examples-generate
-  ```
+The `async` example deploys an ERC20 token and interacts with the contract
+with various accounts.
 
-- The `linked` example deploys a library and a contract that links to it and
-  makes a method call.
-  ```sh
-  cargo run --example linked
-  ```
+```sh
+cargo run --example async
+```
+
+#### Manual Deployments:
+
+The `deployments` example illustrates how the `deployments` parameter can be
+specified when generating a contract with the `ethcontract::contract!` macro.
+This can be useful for specifying addresses in testing environments that are
+deterministic but either not included, or inaccurate in the artifact's
+`networks` property (when for example the contract is developed upstream, but
+a separate testnet deployment wants to be used).
+
+```sh
+cargo run --example deployments
+```
+
+#### Events:
+
+The `events` example illustrates how to listen to logs emitted by smart
+contract events.
+
+```sh
+cargo run --example events
+```
+
+#### Generator API (with `build.rs` script):
+
+The `generator` example (actually a separate crate to be able to have a build
+script) demonstrates how the generator API can be used for creating type-safe
+bindings to a smart contract with a `build.rs` build script.
+
+```sh
+cargo run --package examples-generate
+```
+
+#### Contract Linking:
+
+The `linked` example deploys a library and a contract that links to it then
+makes a method call.
+
+```sh
+cargo run --example linked
+```
 
 ### Rinkeby Example
 
@@ -116,10 +134,12 @@ export INFURA_PROJECT_ID="Infura project ID"
 cargo run --example rinkeby
 ```
 
-### Sources Example
+### Mainnet Examples
+
+#### Sources:
 
 This example generates contract bindings from online sources:
-- A verfied contract on Etherscan
+- A verified contract on Etherscan
 - An npmjs contract
 
 It also queries some contract state with Infura. Running this example requires
@@ -129,6 +149,19 @@ the example by environment variables:
 ```sh
 export INFURA_PROJECT_ID="Infura project ID"
 cargo run --example sources
+```
+
+#### Past Events:
+
+This example retrieves the entire event history of token OWL contract and prints
+the total number of events since deployment.
+
+Note the special handling of the `tokenOWLProxy` contract and how it is cast into
+a `tokenOWL` instance using Contract's `with_transaction` feature.
+
+```sh
+export INFURA_PROJECT_ID="Infura project ID"
+cargo run --example past_events
 ```
 
 ## Sample Contracts Documentation

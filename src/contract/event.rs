@@ -12,6 +12,7 @@ use ethcontract_common::abi::{
 use futures::compat::Future01CompatExt;
 use futures::stream::Stream;
 use pin_project::{pin_project, project};
+use std::cmp;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -258,7 +259,8 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
         QueryFuture::from_builder(self)
     }
 
-    /// Creates an event stream from the current event builder.
+    /// Creates an event stream from the current event builder that emits new
+    /// events.
     pub fn stream(self) -> Result<EventStream<T, E>, EventError> {
         EventStream::from_builder(self)
     }
@@ -430,6 +432,9 @@ impl ParseLog for RawLog {
     }
 }
 
+/// The default block page size used for querying past events.
+pub const DEFAULT_BLOCK_PAGE_SIZE: u64 = 10_000;
+
 /// A builder for creating a filtered stream for any contract event.
 #[must_use = "event builders do nothing unless you stream them"]
 pub struct AllEventsBuilder<T: Transport, E: ParseLog> {
@@ -437,21 +442,43 @@ pub struct AllEventsBuilder<T: Transport, E: ParseLog> {
     web3: Web3<T>,
     /// The web3 filter builder used for creating a log filter.
     filter: FilterBuilder,
+    /// The block to start retrieving logs from.
+    ///
+    /// This needs to be stored to work around the fact that the web3 filter
+    /// does not allow access to these values once stored.
+    pub from_block: Option<BlockNumber>,
+    /// The last block to retrieve logs for.
+    pub to_block: Option<BlockNumber>,
     /// The topic filters that are encoded based on the event ABI.
     pub topics: TopicFilter,
     /// The polling interval for querying the node for more events.
     pub poll_interval: Option<Duration>,
+    /// The contract deployment transaction hash. Specifying this can increase
+    /// the performance of the paginated events query.
+    ///
+    /// Note that if the contract was created from an existing deployment that
+    /// includes the transaction hash, then this property will be automatically
+    /// set.
+    pub deployment_transaction: Option<H256>,
+    /// The page size in blocks to use when doing a paginated query on past
+    /// events. This provides no guarantee in how many events will be returned
+    /// per page, but used to limit the block range for the query.
+    pub block_page_size: Option<u64>,
     _events: PhantomData<E>,
 }
 
 impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// Creates a new all events builder from a web3 provider and and address.
-    pub fn new(web3: Web3<T>, address: Address) -> Self {
+    pub fn new(web3: Web3<T>, address: Address, deployment_transaction: Option<H256>) -> Self {
         AllEventsBuilder {
             web3,
             filter: FilterBuilder::default().address(vec![address]),
+            from_block: None,
+            to_block: None,
             topics: TopicFilter::default(),
             poll_interval: None,
+            deployment_transaction,
+            block_page_size: None,
             _events: PhantomData,
         }
     }
@@ -461,7 +488,7 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// If left unset defaults to the latest block.
     #[allow(clippy::wrong_self_convention)]
     pub fn from_block(mut self, block: BlockNumber) -> Self {
-        self.filter = self.filter.from_block(block);
+        self.from_block = Some(block);
         self
     }
 
@@ -470,7 +497,7 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// If left unset defaults to the streaming until the end of days.
     #[allow(clippy::wrong_self_convention)]
     pub fn to_block(mut self, block: BlockNumber) -> Self {
-        self.filter = self.filter.to_block(block);
+        self.to_block = Some(block);
         self
     }
 
@@ -516,16 +543,130 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
         self
     }
 
+    /// The page size in blocks to use when doing a paginated query on past
+    /// events.
+    pub fn block_page_size(mut self, value: u64) -> Self {
+        self.block_page_size = Some(value);
+        self
+    }
+
+    /// Returns a web3 provider and filter needed for querying and streaming
+    /// events.
+    fn prepare(self) -> (Web3<T>, FilterBuilder) {
+        let mut filter_builder = self.filter.topic_filter(self.topics.compat());
+        if let Some(from_block) = self.from_block {
+            filter_builder = filter_builder.from_block(from_block);
+        }
+        if let Some(to_block) = self.to_block {
+            filter_builder = filter_builder.to_block(to_block);
+        }
+
+        (self.web3, filter_builder)
+    }
+
     /// Returns a future that resolves into a collection of events matching the
     /// event builder's parameters.
     pub fn query(self) -> QueryAllFuture<T, E> {
         QueryAllFuture::from_builder(self)
     }
 
+    /// Returns a future that resolves into a collection of events matching the
+    /// event builder's parameters. This method is similar to `query` with the
+    /// notable difference that the logs are fetched in pages by querying
+    /// smaller block ranges specified by `block_page_size` instead of using a
+    /// single query.
+    ///
+    /// Note that if the block range is inconsistent (for example from block is
+    /// after the to block, or querying until the earliest block), then the
+    /// query will be forwarded to the node as is.
+    pub async fn query_past_events_paginated(self) -> Result<Vec<Event<E>>, ExecutionError> {
+        let mut start_block = match self.from_block {
+            None | Some(BlockNumber::Earliest) => 0,
+            Some(BlockNumber::Number(value)) => value.as_u64(),
+            Some(BlockNumber::Latest) | Some(BlockNumber::Pending) => {
+                return self.query().await;
+            }
+        };
+        if let Some(deployment_tx) = self.deployment_transaction {
+            start_block = cmp::max(
+                start_block,
+                block_number_from_transaction_hash(self.web3.clone(), deployment_tx).await?,
+            );
+        }
+
+        let end_block = match self.to_block {
+            None | Some(BlockNumber::Latest) | Some(BlockNumber::Pending) => {
+                self.web3.eth().block_number().compat().await?.as_u64()
+            }
+            Some(BlockNumber::Number(value)) => value.as_u64(),
+            Some(BlockNumber::Earliest) => {
+                return self.query().await;
+            }
+        };
+
+        // NOTE: If the range is invalid, forward the request to the node to the
+        //   node to make sure we behave consistently for these edge cases.
+        if start_block > end_block {
+            return self.query().await;
+        }
+
+        let page_size = self.block_page_size.unwrap_or(DEFAULT_BLOCK_PAGE_SIZE);
+        let (web3, filter) = self.prepare();
+
+        let mut events = Vec::new();
+        let mut current_block = start_block;
+        while current_block <= end_block {
+            let filter = {
+                let mut filter = filter.clone().from_block(current_block.into());
+
+                // NOTE: The last page is handled a bit differently by using the
+                //   `to_block` that was originally specified to the builder and
+                //   is set in the `filter` (from the call to `prepare`). This
+                //   is done in case the to block was "latest" or "pending",
+                //   where we want to make sure that the last call includes
+                //   blocks that have been added since the start of the
+                //   paginated query.
+                if current_block + page_size <= end_block {
+                    filter = filter.to_block((current_block + page_size - 1).into());
+                }
+
+                filter.build()
+            };
+
+            let log_page = web3.eth().logs(filter).compat().await?;
+            events.reserve(log_page.len());
+            for log in log_page {
+                let event = Event::from_log(log, E::parse_log)?;
+                events.push(event);
+            }
+
+            current_block += page_size;
+        }
+
+        Ok(events)
+    }
+
     /// Creates an event stream from the current event builder.
     pub fn stream(self) -> AllEventsStream<T, E> {
         AllEventsStream::from_builder(self)
     }
+}
+
+/// Retrieves a block number for the specified transaction hash.
+async fn block_number_from_transaction_hash<T: Transport>(
+    web3: Web3<T>,
+    tx_hash: H256,
+) -> Result<u64, ExecutionError> {
+    let tx_receipt = web3
+        .eth()
+        .transaction_receipt(tx_hash)
+        .compat()
+        .await?
+        .ok_or(ExecutionError::MissingTransaction(tx_hash))?;
+    Ok(tx_receipt
+        .block_number
+        .ok_or(ExecutionError::PendingTransaction(tx_hash))?
+        .as_u64())
 }
 
 /// A future for querying all contract events based on a log filter.
@@ -540,10 +681,8 @@ pub struct QueryAllFuture<T: Transport, E: ParseLog> {
 impl<T: Transport, E: ParseLog> QueryAllFuture<T, E> {
     /// Create a new query future from event builder parameters.
     pub fn from_builder(builder: AllEventsBuilder<T, E>) -> Self {
-        let web3 = builder.web3;
-        let filter = builder.filter.topic_filter(builder.topics.compat()).build();
-
-        let inner = web3.eth().logs(filter).compat();
+        let (web3, filter) = builder.prepare();
+        let inner = web3.eth().logs(filter.build()).compat();
 
         QueryAllFuture {
             inner,
@@ -578,10 +717,9 @@ impl<T: Transport, E: ParseLog> AllEventsStream<T, E> {
     /// Create a new log stream from a given web3 provider, filter and polling
     /// parameters.
     pub fn from_builder(builder: AllEventsBuilder<T, E>) -> Self {
-        let web3 = builder.web3;
-        let filter = builder.filter.topic_filter(builder.topics.compat()).build();
         let poll_interval = builder.poll_interval.unwrap_or(DEFAULT_POLL_INTERVAL);
-        let inner = LogStream::new(web3, filter, poll_interval);
+        let (web3, filter) = builder.prepare();
+        let inner = LogStream::new(web3, filter.build(), poll_interval);
 
         AllEventsStream {
             inner,
@@ -608,7 +746,7 @@ mod tests {
     use ethcontract_common::abi::{EventParam, ParamType};
     use futures::stream::StreamExt;
     use serde_json::Value;
-    use web3::types::{Address, H256, U256};
+    use web3::types::{Address, H2048, H256, U256, U64};
 
     fn test_abi_event() -> (AbiEvent, Value) {
         let event = AbiEvent {
@@ -755,7 +893,7 @@ mod tests {
 
         let address = Address::repeat_byte(0x01);
         let signature = event.signature().compat();
-        let raw_events = AllEventsBuilder::<_, RawLog>::new(web3, address)
+        let raw_events = AllEventsBuilder::<_, RawLog>::new(web3, address, None)
             .to_block(99.into())
             .topic0(Topic::This(signature))
             .topic2(Topic::OneOf(vec![
@@ -801,6 +939,76 @@ mod tests {
     }
 
     #[test]
+    fn all_events_query_paginated() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+        let (event, log) = test_abi_event();
+
+        let address = Address::repeat_byte(0x01);
+        let deployment = H256::repeat_byte(0x42);
+        let signature = event.signature().compat();
+
+        // get tx receipt for past blocks
+        transport.add_response(json!({
+            "transactionHash": deployment,
+            "transactionIndex": "0x1",
+            "blockNumber": U64::from(10),
+            "blockHash": H256::zero(),
+            "cumulativeGasUsed": "0x1337",
+            "gasUsed": "0x1337",
+            "logsBloom": H2048::zero(),
+            "logs": [],
+        }));
+        // get latest block
+        transport.add_response(json!(U64::from(20)));
+        // get logs pages
+        transport.add_response(json!([log]));
+        transport.add_response(json!([]));
+        transport.add_response(json!([log, log]));
+
+        let raw_events = AllEventsBuilder::<_, RawLog>::new(web3, address, Some(deployment))
+            .from_block(5.into())
+            .to_block(BlockNumber::Pending)
+            .topic0(Topic::This(signature))
+            .block_page_size(5)
+            .query_past_events_paginated()
+            .immediate()
+            .expect("failed to get logs");
+
+        assert_eq!(raw_events.len(), 3);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(deployment)]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request(
+            "eth_getLogs",
+            &[json!({
+                "address": address,
+                "fromBlock": U64::from(10),
+                "toBlock": U64::from(14),
+                "topics": [signature],
+            })],
+        );
+        transport.assert_request(
+            "eth_getLogs",
+            &[json!({
+                "address": address,
+                "fromBlock": U64::from(15),
+                "toBlock": U64::from(19),
+                "topics": [signature],
+            })],
+        );
+        transport.assert_request(
+            "eth_getLogs",
+            &[json!({
+                "address": address,
+                "fromBlock": U64::from(20),
+                "toBlock": "pending",
+                "topics": [signature],
+            })],
+        );
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
     fn all_events_stream_next_event() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
@@ -813,7 +1021,7 @@ mod tests {
 
         let address = Address::repeat_byte(0x01);
         let signature = event.signature().compat();
-        let raw_event = AllEventsBuilder::<_, RawLog>::new(web3, address)
+        let raw_event = AllEventsBuilder::<_, RawLog>::new(web3, address, None)
             .to_block(99.into())
             .topic0(Topic::This(signature))
             .topic2(Topic::OneOf(vec![
