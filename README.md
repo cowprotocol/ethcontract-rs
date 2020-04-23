@@ -76,9 +76,9 @@ yarn start
 - The `deployments` example illustrates how the `deployments` parameter can be
   specified when generating a contract with the `ethcontract::contract!` macro.
   This can be useful for specifying addresses in testing environments that are
-  deterministic but either not included, or inacurate in the artifact's
+  deterministic but either not included, or inaccurate in the artifact's
   `networks` property (when for example the contract is developed upstream, but
-  a separte testnet deployment wants to be used).
+  a separate testnet deployment wants to be used).
   ```sh
   cargo run --example deployments
   ```
@@ -96,7 +96,7 @@ yarn start
   cargo run --package examples-generate
   ```
 
-- The `linked` example deploys a library and a contract that links to it and
+- The `linked` example deploys a library and a contract that links to it then
   makes a method call.
   ```sh
   cargo run --example linked
@@ -116,10 +116,11 @@ export INFURA_PROJECT_ID="Infura project ID"
 cargo run --example rinkeby
 ```
 
-### Sources Example
+### Mainnet Examples
 
+### Sources: 
 This example generates contract bindings from online sources:
-- A verfied contract on Etherscan
+- A verified contract on Etherscan
 - An npmjs contract
 
 It also queries some contract state with Infura. Running this example requires
@@ -129,6 +130,16 @@ the example by environment variables:
 ```sh
 export INFURA_PROJECT_ID="Infura project ID"
 cargo run --example sources
+```
+
+#### Past Events:
+
+This example retrieves the entire event history of token OWL contract and prints
+the total number of events since deployment.
+ 
+```sh
+export INFURA_PROJECT_ID="Infura project ID"
+`cargo run --example past_events`
 ```
 
 ## Sample Contracts Documentation
