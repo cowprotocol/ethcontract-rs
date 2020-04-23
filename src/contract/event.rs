@@ -463,6 +463,8 @@ pub struct AllEventsBuilder<T: Transport, E: ParseLog> {
     /// includes the transaction hash, then this property will be automatically
     /// set.
     pub deployment_transaction: Option<H256>,
+    /// The block page size to use when doing a paginated query on past events.
+    pub block_page_size: Option<u64>,
     _events: PhantomData<E>,
 }
 
@@ -477,6 +479,7 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
             topics: TopicFilter::default(),
             poll_interval: None,
             deployment_transaction,
+            block_page_size: None,
             _events: PhantomData,
         }
     }
@@ -572,10 +575,7 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// If the block range is invalid for querying past events:
     /// - the from block is "latest" or "pending"
     /// - the to block is "earliest"
-    pub async fn query_past_events_paginated(
-        self,
-        block_page_size: Option<u64>,
-    ) -> Result<Vec<Event<E>>, ExecutionError> {
+    pub async fn query_past_events_paginated(self) -> Result<Vec<Event<E>>, ExecutionError> {
         let mut start_block = match self.from_block {
             None | Some(BlockNumber::Earliest) => 0,
             Some(BlockNumber::Number(value)) => value.as_u64(),
@@ -597,7 +597,7 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
             Some(BlockNumber::Number(value)) => value.as_u64(),
             Some(BlockNumber::Earliest) => panic!("invalid to block value 'earliest'"),
         };
-        let page_size = block_page_size.unwrap_or(DEFAULT_BLOCK_PAGE_SIZE);
+        let page_size = self.block_page_size.unwrap_or(DEFAULT_BLOCK_PAGE_SIZE);
         let (web3, filter) = self.prepare();
 
         let mut current_block = start_block;
