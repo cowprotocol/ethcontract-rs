@@ -264,12 +264,6 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
     pub fn stream(self) -> Result<EventStream<T, E>, EventError> {
         EventStream::from_builder(self)
     }
-
-    /// Creates an event stream from the current event builder that first emits
-    /// past events and then continues streaming new events.
-    pub fn stream_with_past_events(self) -> Result<(), EventError> {
-        todo!()
-    }
 }
 
 /// Converts a tokenizable topic into a raw topic for filtering.
