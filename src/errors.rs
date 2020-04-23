@@ -94,6 +94,15 @@ pub enum ExecutionError {
     /// This is intended to be implemented in future version of `ethcontract`.
     #[error("unsupported ABI token")]
     UnsupportedToken,
+
+    /// Failed to find a transaction by hash.
+    #[error("missing transaction {0:?}")]
+    MissingTransaction(H256),
+
+    /// Failed to get a block for a pending transaction that has not yet been
+    /// mined.
+    #[error("pending transaction {0:?}, not yet part of a block")]
+    PendingTransaction(H256),
 }
 
 impl From<Web3Error> for ExecutionError {

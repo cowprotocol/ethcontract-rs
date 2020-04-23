@@ -235,7 +235,7 @@ impl<T: Transport> Instance<T> {
     /// Returns a log stream that emits a log for every new event emitted after
     /// the stream was created for this contract instance.
     pub fn all_events(&self) -> AllEventsBuilder<T, RawLog> {
-        AllEventsBuilder::new(self.web3(), self.address())
+        AllEventsBuilder::new(self.web3(), self.address(), self.transaction_hash())
     }
 }
 
