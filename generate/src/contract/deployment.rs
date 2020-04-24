@@ -73,6 +73,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                 _: Self::Context,
             ) -> Option<Self> {
                 let artifact = Self::artifact();
+                #[allow(clippy::match_single_binding)]
                 let network = match network_id {
                     #( #deployments )*
                     _ => artifact.networks.get(network_id)?.clone(),
