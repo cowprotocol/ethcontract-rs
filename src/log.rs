@@ -81,6 +81,53 @@ type CompatFilterStream<T, R> = Compat01As03<FilterStream<T, R>>;
 /// that can be queried in order to stream logs.
 type CompatCreateFilter<T, R> = Compat01As03<CreateFilter<T, R>>;
 
+/// A log filter.
+///
+/// Note this type is similar to `web3::types::Filter` with the notable
+/// exception that it has public access to fields so that they can be inspected
+/// and used during streaming. In fact, they are currently needed for spliting
+/// the queried block range into pages to allow for 
+pub struct LogFilter {
+    /// The block to start streaming logs from.
+    pub from_block: Option<BlockNumber>,
+    /// The block to stop streaming logs from.
+    pub to_block: Option<BlockNumber>,
+    /// The contract addresses to filter logs for.
+    pub address: Vec<Address>,
+    /// Topic filters used for filtering logs based on indexed topics.
+    pub topics: TopicFilter,
+}
+
+/// A log stream that emits logs matching a certain filter.
+///
+/// Note that when creating a log stream that is only valid until a certain
+/// block number, the `Stream` implementation will currently remain in the
+/// pending state indefinitely.
+#[must_use = "streams do nothing unless you poll them"]
+#[pin_project]
+pub struct LogStream2<T: Transport> {
+    #[pin]
+    state: LogStreamState<T>,
+}
+
+/// The state of the log stream. It can either be creating a new log filter for
+/// retrieving new logs or streaming logs from the created filter.
+#[pin_project]
+enum LogStreamState<T: Transport> {
+    CreatingFilter(#[pin] CompatCreateFilter<T, Log>, Duration),
+    Streaming(#[pin] CompatFilterStream<T, Log>),
+}
+
+impl<T: Transport> LogStream<T> {
+    /// Create a new log stream from a given web3 provider, filter and polling
+    /// parameters.
+    pub fn new(web3: Web3<T>, filter: Filter, poll_interval: Duration) -> Self {
+        let create_filter = web3.eth_filter().create_logs_filter(filter).compat();
+        let state = LogStreamState::CreatingFilter(create_filter, poll_interval);
+        LogStream { state }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
