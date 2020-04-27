@@ -22,17 +22,29 @@ fn expand_deployed(cx: &Context) -> TokenStream {
         return quote! {};
     }
 
-    let deployments = cx.deployments.iter().map(|(network_id, address)| {
-        let network_id = Literal::string(&network_id.to_string());
-        let address = expand_address(*address);
+    let artifact_network = quote! { artifact.networks.get(network_id)?  };
+    let network = if cx.deployments.is_empty() {
+        artifact_network
+    } else {
+        let deployments = cx.deployments.iter().map(|(network_id, address)| {
+            let network_id = Literal::string(&network_id.to_string());
+            let address = expand_address(*address);
+
+            quote! {
+                #network_id => self::ethcontract::common::truffle::Network {
+                    address: #address,
+                    transaction_hash: None,
+                },
+            }
+        });
 
         quote! {
-            #network_id => self::ethcontract::common::truffle::Network {
-                address: #address,
-                transaction_hash: None,
-            },
+            match network_id {
+                #( #deployments )*
+                _ => #artifact_network.clone(),
+            };
         }
-    });
+    };
 
     quote! {
         impl Contract {
@@ -73,10 +85,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                 _: Self::Context,
             ) -> Option<Self> {
                 let artifact = Self::artifact();
-                let network = match network_id {
-                    #( #deployments )*
-                    _ => artifact.networks.get(network_id)?.clone(),
-                };
+                let network = #network;
 
                 Some(Self::with_transaction(
                     &web3,

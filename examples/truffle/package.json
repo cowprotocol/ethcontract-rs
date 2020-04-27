@@ -1,6 +1,6 @@
 {
   "name": "ethcontract-contracts",
-  "version": "0.6.1",
+  "version": "0.7.1",
   "private": "true",
   "description": "Test contracts for ethcontract-rs runtime and proc macro.",
   "scripts": {
@@ -25,7 +25,7 @@
     "@gnosis.pm/util-contracts": "^2.0.6",
     "@openzeppelin/contracts": "^3.0.0",
     "@truffle/hdwallet-provider": "^1.0.34",
-    "truffle": "^5.1.22",
+    "truffle": "^5.1.23",
     "truffle-plugin-verify": "^0.3.10"
   }
 }
