@@ -55,9 +55,15 @@ function cargo_publish {
 
 	# NOTE(nlordell): For some reason, the next publish fails on not being able
 	#   to find the new version; maybe it takes a second for crates.io to update
-	#   its index
-	if [[ "$1" != "." ]]; then
-		sleep 20
+	#   its index. To make the deployment script more robust wait until the
+	#   crate is available on `crates.io` by polling its download link.
+	if [[ $1 != "." ]]; then
+		retries=15
+		url="https://crates.io/api/v1/crates/ethcontract-$(basename $1)/${tag/#v/}/download"
+		until [[ $retries -le 0 ]] || curl -Ifs "$url" > /dev/null; do
+			retries=$(($retries - 1))
+			sleep 10
+		done
 	fi
 }
 
