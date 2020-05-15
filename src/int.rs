@@ -695,7 +695,6 @@ impl I256 {
         if self == Self::MIN && rhs == Self::from(-1) {
             (Self::zero(), true)
         } else {
-            // Already handled overflow.
             let div_res = self / rhs;
             (self - div_res * rhs, false)
         }
