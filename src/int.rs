@@ -675,7 +675,7 @@ impl I256 {
         }
     }
 
-    /// Division which saturates at the maximum value..
+    /// Division which saturates at the maximum value.
     pub fn saturating_div(self, rhs: Self) -> Self {
         // There is only one overflow (I256::MIN / -1 = I256::MAX)
         self.checked_div(rhs).unwrap_or(I256::MAX)
