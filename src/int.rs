@@ -656,7 +656,7 @@ impl I256 {
     /// whether an arithmetic overflow would occur. If an overflow would have
     /// occurred then the wrapped value is returned.
     pub fn overflowing_div(self, rhs: Self) -> (Self, bool) {
-        // Panic early when getting sign because of division by zero.
+        // Panic early when with division by zero while evaluating sign.
         let sign = Sign::from_signum64(self.signum64() / rhs.signum64());
         // Note, signed division can't overflow!
         let unsigned = self.abs_unsigned() / rhs.abs_unsigned();
@@ -677,12 +677,8 @@ impl I256 {
 
     /// Division which saturates at the maximum value..
     pub fn saturating_div(self, rhs: Self) -> Self {
-        self.checked_div(rhs).unwrap_or_else(|| {
-            match Sign::from_signum64(self.signum64() * rhs.signum64()) {
-                Sign::Positive => I256::MAX,
-                Sign::Negative => I256::MIN,
-            }
-        })
+        // There is only one overflow (I256::MIN / -1 = I256::MAX)
+        self.checked_div(rhs).unwrap_or_else(I256::MAX)
     }
 
     /// Wrapping division.
