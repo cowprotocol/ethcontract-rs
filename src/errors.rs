@@ -3,9 +3,7 @@
 mod ganache;
 mod parity;
 pub(crate) mod revert;
-mod web3contract;
 
-pub use self::web3contract::Web3ContractError;
 use ethcontract_common::abi::{Error as AbiError, Event, Function};
 use ethcontract_common::abiext::EventExt;
 pub use ethcontract_common::errors::*;
@@ -14,6 +12,7 @@ use std::num::ParseIntError;
 use thiserror::Error;
 use uint::FromDecStrErr;
 use web3::error::Error as Web3Error;
+use web3::contract::Error as Web3ContractError;
 use web3::types::{TransactionReceipt, H256};
 
 /// Error that can occur while locating a deployed contract.
@@ -117,12 +116,6 @@ impl From<Web3Error> for ExecutionError {
         }
 
         ExecutionError::Web3(err)
-    }
-}
-
-impl From<web3::contract::Error> for ExecutionError {
-    fn from(err: web3::contract::Error) -> Self {
-        ExecutionError::AbiDecode(err.into())
     }
 }
 

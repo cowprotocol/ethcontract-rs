@@ -30,7 +30,6 @@ members = [
 ]
 
 [dependencies]
-ethabi_9_0 = { package = "ethabi", version = "9.0" }
 ethcontract-common = { version = "0.7.2", path = "./common" }
 ethcontract-derive = { version = "0.7.2", path = "./derive", optional = true}
 futures = { version = "0.3", features = ["compat"] }

@@ -7,7 +7,6 @@ mod deployed;
 mod event;
 mod method;
 
-use crate::abicompat::AbiCompat;
 use crate::errors::{DeployError, LinkError};
 use ethcontract_common::abi::{Error as AbiError, Result as AbiResult};
 use ethcontract_common::abiext::FunctionExt;
@@ -77,7 +76,7 @@ impl<T: Transport> Instance<T> {
         transaction_hash: Option<H256>,
     ) -> Self {
         let methods = create_mapping(&abi.functions, |function| function.selector());
-        let events = create_mapping(&abi.events, |event| event.signature().compat());
+        let events = create_mapping(&abi.events, |event| event.signature());
 
         Instance {
             web3,
@@ -168,7 +167,7 @@ impl<T: Transport> Instance<T> {
             .get(signature)
             .map(|(name, index)| &self.abi.functions[name][*index])
             .ok_or_else(|| AbiError::InvalidName(hex::encode(&signature)))?;
-        let data = function.encode_input(&params.into_tokens().compat())?;
+        let data = function.encode_input(&params.into_tokens())?;
 
         // take ownership here as it greatly simplifies dealing with futures
         // lifetime as it would require the contract Instance to live until

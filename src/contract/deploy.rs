@@ -1,7 +1,6 @@
 //! Implementation for creating instances for deployed contracts and deploying
 //! new contracts.
 
-use crate::abicompat::AbiCompat;
 use crate::errors::{DeployError, ExecutionError};
 use crate::transaction::send::SendFuture;
 use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
@@ -81,7 +80,7 @@ where
         }
 
         let code = bytecode.to_bytes()?;
-        let params = params.into_tokens().compat();
+        let params = params.into_tokens();
         let data = match (I::abi(&context).constructor(), params.is_empty()) {
             (None, false) => return Err(AbiError::InvalidData.into()),
             (None, true) => code,
