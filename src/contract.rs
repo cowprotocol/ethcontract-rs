@@ -3,7 +3,6 @@
 //! state.
 
 mod deploy;
-mod deployed;
 mod event;
 mod method;
 
@@ -22,7 +21,6 @@ use web3::types::{Address, Bytes, H256};
 use web3::Transport;
 
 pub use self::deploy::{Deploy, DeployBuilder, DeployFuture};
-pub use self::deployed::{DeployedFuture, FromNetwork};
 pub use self::event::{
     AllEventsBuilder, Event, EventBuilder, EventData, EventMetadata, EventStream, ParseLog,
     QueryAllFuture, QueryFuture, RawLog, Topic, DEFAULT_POLL_INTERVAL,
@@ -95,7 +93,7 @@ impl<T: Transport> Instance<T> {
     ///
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
-    pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, Self> {
+    pub async fn deployed(web3: Web3<T>, artifact: Artifact) -> Result<Self, DeployError> {
         DeployedFuture::new(web3, Deployments::new(artifact))
     }
 
@@ -236,39 +234,6 @@ impl<T: Transport> Instance<T> {
     /// the stream was created for this contract instance.
     pub fn all_events(&self) -> AllEventsBuilder<T, RawLog> {
         AllEventsBuilder::new(self.web3(), self.address(), self.transaction_hash())
-    }
-}
-
-/// Deployment information for for an `Instance`. This includes the contract ABI
-/// and the known addresses of contracts for network IDs.
-/// be used directly but rather through the `Instance::deployed` API.
-#[derive(Debug, Clone)]
-pub struct Deployments {
-    abi: Abi,
-    networks: HashMap<String, Network>,
-}
-
-impl Deployments {
-    /// Create a new `Deployments` instanced for a contract artifact.
-    pub fn new(artifact: Artifact) -> Self {
-        Deployments {
-            abi: artifact.abi,
-            networks: artifact.networks,
-        }
-    }
-}
-
-impl<T: Transport> FromNetwork<T> for Instance<T> {
-    type Context = Deployments;
-
-    fn from_network(web3: Web3<T>, network_id: &str, cx: Self::Context) -> Option<Self> {
-        let network = cx.networks.get(network_id)?;
-        Some(Instance::with_transaction(
-            web3,
-            cx.abi,
-            network.address,
-            network.transaction_hash,
-        ))
     }
 }
 
