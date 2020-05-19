@@ -19,7 +19,7 @@ use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes, H256};
 use web3::Transport;
 
-pub use self::deploy::{Deploy, DeployBuilder, DeployFuture};
+pub use self::deploy::{Deploy, DeployBuilder};
 pub use self::event::{
     AllEventsBuilder, Event, EventBuilder, EventData, EventMetadata, EventStream, ParseLog,
     QueryAllFuture, QueryFuture, RawLog, Topic, DEFAULT_POLL_INTERVAL,

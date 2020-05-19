@@ -2,16 +2,10 @@
 //! new contracts.
 
 use crate::errors::{DeployError, ExecutionError};
-use crate::transaction::send::SendFuture;
 use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
 use ethcontract_common::abi::Error as AbiError;
 use ethcontract_common::{Abi, Bytecode};
-use futures::ready;
-use pin_project::pin_project;
-use std::future::Future;
 use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use web3::api::Web3;
 use web3::contract::tokens::Tokenize;
 use web3::types::{Address, Bytes, H256, U256};
@@ -146,72 +140,23 @@ where
 
     /// Sign (if required) and execute the transaction. Returns the transaction
     /// hash that can be used to retrieve transaction information.
-    pub fn deploy(self) -> DeployFuture<T, I> {
-        DeployFuture::from_builder(self)
-    }
-}
-
-/// Future for deploying a contract instance.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct DeployFuture<T, I>
-where
-    T: Transport,
-    I: Deploy<T>,
-{
-    /// The deployment args
-    args: Option<(Web3<T>, I::Context)>,
-    /// The future resolved when the deploy transaction is complete.
-    #[pin]
-    send: SendFuture<T>,
-    _instance: PhantomData<Box<I>>,
-}
-
-impl<T, I> DeployFuture<T, I>
-where
-    T: Transport,
-    I: Deploy<T>,
-{
-    /// Create an instance from a `DeployBuilder`.
-    pub fn from_builder(builder: DeployBuilder<T, I>) -> Self {
-        DeployFuture {
-            args: Some((builder.web3, builder.context)),
-            send: builder.tx.send(),
-            _instance: PhantomData,
-        }
-    }
-}
-
-impl<T, I> Future for DeployFuture<T, I>
-where
-    T: Transport,
-    I: Deploy<T>,
-{
-    type Output = Result<I, DeployError>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let tx = match ready!(self.as_mut().project().send.poll(cx)) {
-            Ok(TransactionResult::Receipt(tx)) => tx,
-            Ok(TransactionResult::Hash(tx)) => return Poll::Ready(Err(DeployError::Pending(tx))),
-            Err(err) => return Poll::Ready(Err(err.into())),
+    pub async fn deploy(self) -> Result<I, DeployError> {
+        let tx = match self.tx.send().await? {
+            TransactionResult::Receipt(tx) => tx,
+            TransactionResult::Hash(tx) => return Err(DeployError::Pending(tx)),
         };
 
-        let address = match tx.contract_address {
-            Some(address) => address,
-            None => {
-                return Poll::Ready(Err(DeployError::Tx(ExecutionError::Failure(Box::new(tx)))));
-            }
-        };
         let transaction_hash = tx.transaction_hash;
+        let address = tx
+            .contract_address
+            .ok_or_else(|| ExecutionError::Failure(Box::new(tx)))?;
 
-        let (web3, context) = self.args.take().expect("called more than once");
-
-        Poll::Ready(Ok(I::from_deployment(
-            web3,
+        Ok(I::from_deployment(
+            self.web3,
             address,
             transaction_hash,
-            context,
-        )))
+            self.context,
+        ))
     }
 }
 
