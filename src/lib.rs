@@ -134,8 +134,7 @@ pub mod dyns {
     //! generated code.
 
     use crate::contract::{
-        AllEventsBuilder, DeployBuilder, DeployedFuture, EventBuilder, Instance, MethodBuilder,
-        ViewMethodBuilder,
+        AllEventsBuilder, DeployBuilder, EventBuilder, Instance, MethodBuilder, ViewMethodBuilder,
     };
     pub use crate::transport::DynTransport;
     use web3::api::Web3;
@@ -145,9 +144,6 @@ pub mod dyns {
 
     /// Type alias for an `Instance` with an underlying `DynTransport`.
     pub type DynInstance = Instance<DynTransport>;
-
-    /// Type alias for a `DeployedFuture` with an underlying `DynTransport`.
-    pub type DynDeployedFuture<D> = DeployedFuture<DynTransport, D>;
 
     /// Type alias for a `DeployBuilder` with an underlying `DynTransport`.
     pub type DynDeployBuilder<D> = DeployBuilder<DynTransport, D>;
