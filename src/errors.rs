@@ -87,13 +87,6 @@ pub enum ExecutionError {
     #[error("transaction failed: {:?}", .0.transaction_hash)]
     Failure(Box<TransactionReceipt>),
 
-    /// A call returned an unsupported token. This happens when using the
-    /// experimental `ABIEncoderV2` option.
-    ///
-    /// This is intended to be implemented in future version of `ethcontract`.
-    #[error("unsupported ABI token")]
-    UnsupportedToken,
-
     /// Failed to find a transaction by hash.
     #[error("missing transaction {0:?}")]
     MissingTransaction(H256),
