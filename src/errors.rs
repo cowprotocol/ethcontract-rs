@@ -3,9 +3,7 @@
 mod ganache;
 mod parity;
 pub(crate) mod revert;
-mod web3contract;
 
-pub use self::web3contract::Web3ContractError;
 use ethcontract_common::abi::{Error as AbiError, Event, Function};
 use ethcontract_common::abiext::EventExt;
 pub use ethcontract_common::errors::*;
@@ -13,6 +11,7 @@ use secp256k1::Error as Secp256k1Error;
 use std::num::ParseIntError;
 use thiserror::Error;
 use uint::FromDecStrErr;
+use web3::contract::Error as Web3ContractError;
 use web3::error::Error as Web3Error;
 use web3::types::{TransactionReceipt, H256};
 
@@ -88,13 +87,6 @@ pub enum ExecutionError {
     #[error("transaction failed: {:?}", .0.transaction_hash)]
     Failure(Box<TransactionReceipt>),
 
-    /// A call returned an unsupported token. This happens when using the
-    /// experimental `ABIEncoderV2` option.
-    ///
-    /// This is intended to be implemented in future version of `ethcontract`.
-    #[error("unsupported ABI token")]
-    UnsupportedToken,
-
     /// Failed to find a transaction by hash.
     #[error("missing transaction {0:?}")]
     MissingTransaction(H256),
@@ -117,12 +109,6 @@ impl From<Web3Error> for ExecutionError {
         }
 
         ExecutionError::Web3(err)
-    }
-}
-
-impl From<web3::contract::Error> for ExecutionError {
-    fn from(err: web3::contract::Error) -> Self {
-        ExecutionError::AbiDecode(err.into())
     }
 }
 

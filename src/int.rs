@@ -1,5 +1,6 @@
 //! This module contains an 256-bit signed integer implementation.
 
+use crate::common::abi::Token;
 use crate::errors::{ParseI256Error, TryFromBigIntError};
 use serde::{Deserialize, Serialize};
 use std::cmp;
@@ -1113,14 +1114,14 @@ impl iter::Product for I256 {
 }
 
 impl tokens::Tokenizable for I256 {
-    fn from_token(token: ethabi_9_0::Token) -> Result<Self, contract::Error> {
+    fn from_token(token: Token) -> Result<Self, contract::Error> {
         // NOTE: U256 accepts both `Int` and `Uint` kind tokens. In fact, all
         //   integer types are expected to accept both.
         Ok(I256(U256::from_token(token)?))
     }
 
-    fn into_token(self) -> ethabi_9_0::Token {
-        ethabi_9_0::Token::Int(self.0)
+    fn into_token(self) -> Token {
+        Token::Int(self.0)
     }
 }
 
@@ -1532,10 +1533,7 @@ mod tests {
         assert_eq!(json!(I256::minus_one()), json!(U256::MAX));
 
         assert_eq!(I256::from(42).into_token(), 42i32.into_token());
-        assert_eq!(
-            I256::minus_one().into_token(),
-            ethabi_9_0::Token::Int(U256::MAX),
-        );
+        assert_eq!(I256::minus_one().into_token(), Token::Int(U256::MAX),);
 
         assert_eq!(
             I256::from_token(42i32.into_token()).unwrap(),

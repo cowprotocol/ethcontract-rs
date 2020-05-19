@@ -30,7 +30,6 @@ members = [
 ]
 
 [dependencies]
-ethabi_9_0 = { package = "ethabi", version = "9.0" }
 ethcontract-common = { version = "0.7.2", path = "./common" }
 ethcontract-derive = { version = "0.7.2", path = "./derive", optional = true}
 futures = { version = "0.3", features = ["compat"] }
@@ -45,5 +44,5 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 uint = "0.8"
-web3 = "0.10"
+web3 = "0.11"
 zeroize = "1.1"
