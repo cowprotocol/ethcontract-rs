@@ -1,7 +1,6 @@
 //! Module implements type-safe event streams from an ABI event definition with
 //! detokenization of the data included in the log.
 
-use crate::abicompat::AbiCompat;
 use crate::errors::{EventError, ExecutionError};
 use crate::future::CompatCallFuture;
 use crate::log::LogStream;
@@ -271,7 +270,7 @@ fn tokenize_topic<P>(topic: Topic<P>) -> Topic<Token>
 where
     P: Tokenizable,
 {
-    topic.map(|parameter| parameter.into_token().compat())
+    topic.map(|parameter| parameter.into_token())
 }
 
 /// A future for querying events based on a log filter.
@@ -294,7 +293,7 @@ impl<T: Transport, E: Detokenize> QueryFuture<T, E> {
             let abi_filter = event
                 .filter(builder.topics)
                 .map_err(|err| EventError::new(&event, err))?;
-            builder.filter.topic_filter(abi_filter.compat()).build()
+            builder.filter.topic_filter(abi_filter).build()
         };
 
         let inner = web3.eth().logs(filter).compat();
@@ -348,7 +347,7 @@ impl<T: Transport, E: Detokenize> EventStream<T, E> {
             let abi_filter = event
                 .filter(builder.topics)
                 .map_err(|err| EventError::new(&event, err))?;
-            builder.filter.topic_filter(abi_filter.compat()).build()
+            builder.filter.topic_filter(abi_filter).build()
         };
 
         let poll_interval = builder.poll_interval.unwrap_or(DEFAULT_POLL_INTERVAL);
@@ -400,7 +399,7 @@ impl RawLog {
         D: Detokenize,
     {
         let event_log = event.parse_log(AbiRawLog {
-            topics: self.topics.compat(),
+            topics: self.topics,
             data: self.data,
         })?;
 
@@ -408,9 +407,7 @@ impl RawLog {
             .params
             .into_iter()
             .map(|param| param.value)
-            .collect::<Vec<_>>()
-            .compat()
-            .ok_or(ExecutionError::UnsupportedToken)?;
+            .collect::<Vec<_>>();
         let data = D::from_tokens(tokens)?;
 
         Ok(data)
@@ -514,25 +511,25 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// For regular events, this corresponds to the event signature. For
     /// anonymous events, this is the first indexed property.
     pub fn topic0(mut self, topic: Topic<H256>) -> Self {
-        self.topics.topic0 = topic.map(H256::compat);
+        self.topics.topic0 = topic;
         self
     }
 
     /// Adds a filter for the second indexed topic.
     pub fn topic1(mut self, topic: Topic<H256>) -> Self {
-        self.topics.topic1 = topic.map(H256::compat);
+        self.topics.topic1 = topic;
         self
     }
 
     /// Adds a filter for the third indexed topic.
     pub fn topic2(mut self, topic: Topic<H256>) -> Self {
-        self.topics.topic2 = topic.map(H256::compat);
+        self.topics.topic2 = topic;
         self
     }
 
     /// Adds a filter for the third indexed topic.
     pub fn topic3(mut self, topic: Topic<H256>) -> Self {
-        self.topics.topic2 = topic.map(H256::compat);
+        self.topics.topic2 = topic;
         self
     }
 
@@ -553,7 +550,7 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// Returns a web3 provider and filter needed for querying and streaming
     /// events.
     fn prepare(self) -> (Web3<T>, FilterBuilder) {
-        let mut filter_builder = self.filter.topic_filter(self.topics.compat());
+        let mut filter_builder = self.filter.topic_filter(self.topics);
         if let Some(from_block) = self.from_block {
             filter_builder = filter_builder.from_block(from_block);
         }
@@ -892,7 +889,7 @@ mod tests {
         transport.add_response(json!([log]));
 
         let address = Address::repeat_byte(0x01);
-        let signature = event.signature().compat();
+        let signature = event.signature();
         let raw_events = AllEventsBuilder::<_, RawLog>::new(web3, address, None)
             .to_block(99.into())
             .topic0(Topic::This(signature))
@@ -946,7 +943,7 @@ mod tests {
 
         let address = Address::repeat_byte(0x01);
         let deployment = H256::repeat_byte(0x42);
-        let signature = event.signature().compat();
+        let signature = event.signature();
 
         // get tx receipt for past blocks
         transport.add_response(json!({
@@ -1020,7 +1017,7 @@ mod tests {
         transport.add_response(json!([log]));
 
         let address = Address::repeat_byte(0x01);
-        let signature = event.signature().compat();
+        let signature = event.signature();
         let raw_event = AllEventsBuilder::<_, RawLog>::new(web3, address, None)
             .to_block(99.into())
             .topic0(Topic::This(signature))

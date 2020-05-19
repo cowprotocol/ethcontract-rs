@@ -2,7 +2,6 @@
 //! intended to be used directly but to be used by a contract `Instance` with
 //! [Instance::method](ethcontract::contract::Instance::method).
 
-use crate::abicompat::AbiCompat;
 use crate::errors::{revert, ExecutionError, MethodError};
 use crate::future::CompatCallFuture;
 use crate::transaction::send::SendFuture;
@@ -17,7 +16,7 @@ use std::task::{Context, Poll};
 use web3::api::Web3;
 use web3::contract::tokens::Detokenize;
 use web3::contract::Error as Web3ContractError;
-use web3::types::{Address, BlockNumber, Bytes, CallRequest, U256};
+use web3::types::{Address, BlockId, Bytes, CallRequest, U256};
 use web3::Transport;
 
 /// A void type to represent methods with empty return types.
@@ -63,10 +62,6 @@ impl<T: Detokenize> Detokenizable for T {
     type Output = Self;
 
     fn from_tokens(tokens: Vec<Token>) -> Result<Self::Output, ExecutionError> {
-        let tokens = match tokens.compat() {
-            Some(tokens) => tokens,
-            None => return Err(ExecutionError::UnsupportedToken),
-        };
         let result = <T as Detokenize>::from_tokens(tokens)?;
         Ok(result)
     }
@@ -243,7 +238,7 @@ pub struct ViewMethodBuilder<T: Transport, R: Detokenizable> {
     /// method parameters
     pub m: MethodBuilder<T, R>,
     /// optional block number
-    pub block: Option<BlockNumber>,
+    pub block: Option<BlockId>,
 }
 
 impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
@@ -290,7 +285,7 @@ impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
 
     /// Specify the nonce for the transation, if not specified will use the
     /// current transaction count for the signing account.
-    pub fn block(mut self, value: BlockNumber) -> Self {
+    pub fn block(mut self, value: BlockId) -> Self {
         self.block = Some(value);
         self
     }
@@ -456,7 +451,7 @@ mod tests {
         .gas(1.into())
         .gas_price(2.into())
         .value(28.into())
-        .block(BlockNumber::Number(100.into()));
+        .block(BlockId::Number(100.into()));
 
         transport.add_response(json!(
             "0x000000000000000000000000000000000000000000000000000000000000002a"
