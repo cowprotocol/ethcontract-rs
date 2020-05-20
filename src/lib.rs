@@ -13,7 +13,7 @@
 //! builder pattern is used for configuring transactions.
 //!
 //! ```text
-//! pragma solidity ^0.5.0;
+//! pragma solidity ^0.6.0;
 //!
 //! contract MyContract {
 //!   function my_view_function(uint64 some_val) public view returns (string) {
