@@ -41,6 +41,7 @@ jobs:
         - kill %1
 
     - stage: "Deploy"
+      if: tag is present
       name: "crates.io"
       rust: stable
       env:
