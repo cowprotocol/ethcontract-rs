@@ -1,5 +1,5 @@
 status = [
-  "continuous-integration/travis-ci/pull"
+  "continuous-integration/travis-ci/push"
 ]
 required-approvals = 1
 use-squash-merge = true
