@@ -9,8 +9,6 @@ dist: bionic
 language: rust
 
 jobs:
-  allow_failures:
-    - rust: nightly
   fast_finish: true
   include:
     - stage: "Build and Test"
@@ -22,7 +20,7 @@ jobs:
       rust: beta
     - name: "Rust: nightly"
       rust: nightly
-      allow_failures: true
+      allow_failure: true
     - name: "Rust: stable - Examples"
       rust: stable
       script:
