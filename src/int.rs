@@ -1,5 +1,6 @@
 //! This module contains an 256-bit signed integer implementation.
 
+use crate::common::abi::Token;
 use crate::errors::{ParseI256Error, TryFromBigIntError};
 use serde::{Deserialize, Serialize};
 use std::cmp;
@@ -650,6 +651,72 @@ impl I256 {
         result
     }
 
+    /// Calculates `self` / `rhs`
+    ///
+    /// Returns a tuple of the division along with a boolean indicating
+    /// whether an arithmetic overflow would occur. If an overflow would have
+    /// occurred then the wrapped value is returned.
+    pub fn overflowing_div(self, rhs: Self) -> (Self, bool) {
+        // Panic early when with division by zero while evaluating sign.
+        let sign = Sign::from_signum64(self.signum64() / rhs.signum64());
+        // Note, signed division can't overflow!
+        let unsigned = self.abs_unsigned() / rhs.abs_unsigned();
+        let (result, overflow_conv) = I256::overflowing_from_sign_and_abs(sign, unsigned);
+
+        (result, overflow_conv && !result.is_zero())
+    }
+
+    /// Checked division. Returns None if overflow occurred.
+    pub fn checked_div(self, other: Self) -> Option<Self> {
+        let (result, overflow) = self.overflowing_div(other);
+        if overflow {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    /// Division which saturates at the maximum value.
+    pub fn saturating_div(self, rhs: Self) -> Self {
+        // There is only one overflow (I256::MIN / -1 = I256::MAX)
+        self.checked_div(rhs).unwrap_or(I256::MAX)
+    }
+
+    /// Wrapping division.
+    pub fn wrapping_div(self, rhs: Self) -> Self {
+        self.overflowing_div(rhs).0
+    }
+
+    /// Calculates `self` % `rhs`
+    ///
+    /// Returns a tuple of the remainder along with a boolean indicating
+    /// whether an arithmetic overflow would occur. If an overflow would have
+    /// occurred then the wrapped value is returned.
+    pub fn overflowing_rem(self, rhs: Self) -> (Self, bool) {
+        if self == Self::MIN && rhs == Self::from(-1) {
+            (Self::zero(), true)
+        } else {
+            let div_res = self / rhs;
+            (self - div_res * rhs, false)
+        }
+    }
+
+    /// Checked remainder. Returns None if overflow occurred.
+    pub fn checked_rem(self, other: Self) -> Option<Self> {
+        let (result, overflow) = self.overflowing_rem(other);
+        if overflow {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    /// Wrapping remainder. Returns the result of the operation %
+    /// regardless of whether or not the division overflowed.
+    pub fn wrapping_rem(self, rhs: Self) -> Self {
+        self.overflowing_rem(rhs).0
+    }
+
     /// Returns the sign of `self` to the exponent `exp`.
     ///
     /// Note that this method does not actually try to compute the `self` to the
@@ -1000,6 +1067,34 @@ impl ops::MulAssign for I256 {
     }
 }
 
+impl ops::Div for I256 {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        handle_overflow(self.overflowing_div(rhs))
+    }
+}
+
+impl ops::DivAssign for I256 {
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self / rhs;
+    }
+}
+
+impl ops::Rem for I256 {
+    type Output = Self;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        handle_overflow(self.overflowing_rem(rhs))
+    }
+}
+
+impl ops::RemAssign for I256 {
+    fn rem_assign(&mut self, rhs: Self) {
+        *self = *self % rhs;
+    }
+}
+
 impl iter::Sum for I256 {
     fn sum<I>(iter: I) -> Self
     where
@@ -1019,14 +1114,14 @@ impl iter::Product for I256 {
 }
 
 impl tokens::Tokenizable for I256 {
-    fn from_token(token: ethabi_9_0::Token) -> Result<Self, contract::Error> {
+    fn from_token(token: Token) -> Result<Self, contract::Error> {
         // NOTE: U256 accepts both `Int` and `Uint` kind tokens. In fact, all
         //   integer types are expected to accept both.
         Ok(I256(U256::from_token(token)?))
     }
 
-    fn into_token(self) -> ethabi_9_0::Token {
-        ethabi_9_0::Token::Int(self.0)
+    fn into_token(self) -> Token {
+        Token::Int(self.0)
     }
 }
 
@@ -1369,6 +1464,52 @@ mod tests {
     }
 
     #[test]
+    fn division() {
+        // The only case for overflow.
+        assert_eq!(I256::MIN.overflowing_div(I256::from(-1)), (I256::MIN, true));
+
+        assert_eq!(I256::MIN / I256::MAX, I256::from(-1));
+        assert_eq!(I256::MAX / I256::MIN, I256::zero());
+
+        assert_eq!(I256::MIN / I256::one(), I256::MIN);
+        assert_eq!(I256::from(-42) / I256::from(-21), I256::from(2));
+        assert_eq!(I256::from(-42) / I256::from(2), I256::from(-21));
+        assert_eq!(I256::from(42) / I256::from(-21), I256::from(-2));
+        assert_eq!(I256::from(42) / I256::from(21), I256::from(2));
+
+        // The only saturating corner case.
+        assert_eq!(I256::MIN.saturating_div(I256::from(-1)), I256::MAX);
+    }
+
+    #[test]
+    #[should_panic]
+    fn division_by_zero() {
+        let _ = I256::one() / I256::zero();
+    }
+
+    #[test]
+    #[should_panic]
+    fn mod_by_zero() {
+        let _ = I256::one() % I256::zero();
+    }
+
+    #[test]
+    fn remainder() {
+        // The only case for overflow.
+        assert_eq!(
+            I256::MIN.overflowing_rem(I256::from(-1)),
+            (I256::zero(), true)
+        );
+        assert_eq!(I256::from(-5) % I256::from(-2), I256::from(-1));
+        assert_eq!(I256::from(5) % I256::from(-2), I256::one());
+        assert_eq!(I256::from(-5) % I256::from(2), I256::from(-1));
+        assert_eq!(I256::from(5) % I256::from(2), I256::one());
+
+        assert_eq!(I256::MIN.checked_rem(I256::from(-1)), None);
+        assert_eq!(I256::one().checked_rem(I256::one()), Some(I256::zero()));
+    }
+
+    #[test]
     fn exponentiation() {
         assert_eq!(I256::from(1000).saturating_pow(1000), I256::MAX);
         assert_eq!(I256::from(-1000).saturating_pow(1001), I256::MIN);
@@ -1392,10 +1533,7 @@ mod tests {
         assert_eq!(json!(I256::minus_one()), json!(U256::MAX));
 
         assert_eq!(I256::from(42).into_token(), 42i32.into_token());
-        assert_eq!(
-            I256::minus_one().into_token(),
-            ethabi_9_0::Token::Int(U256::MAX),
-        );
+        assert_eq!(I256::minus_one().into_token(), Token::Int(U256::MAX),);
 
         assert_eq!(
             I256::from_token(42i32.into_token()).unwrap(),

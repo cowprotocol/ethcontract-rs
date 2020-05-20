@@ -26,10 +26,10 @@
   dependencies:
     defer-to-connect "^1.0.1"
 
-"@truffle/hdwallet-provider@^1.0.27", "@truffle/hdwallet-provider@^1.0.34":
-  version "1.0.34"
-  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-1.0.34.tgz#1e642c415c28e9ae3bb8142bbdbc8506adaaa06a"
-  integrity sha512-sy7sismdclvzWQmHDjElqPGoU1+ff4w3nODKqBpauacAYpWngu865CrtgRNnETZ1c90zDElU41V6yWrUgKupAQ==
+"@truffle/hdwallet-provider@^1.0.27", "@truffle/hdwallet-provider@^1.0.35":
+  version "1.0.35"
+  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-1.0.35.tgz#9b65c7a53e748183908982e2f922290516a1125a"
+  integrity sha512-Jn/aAy4A2ulWpVPPBEhXjWIifosfLdjqhMwlEs8PgWLdhf3kOCfKYchqoOYZvMJ+PjO8qQ7q9NyfrQPJHZegrA==
   dependencies:
     any-promise "^1.3.0"
     bindings "^1.5.0"
@@ -38,9 +38,9 @@
     ethereumjs-tx "^1.0.0"
     ethereumjs-util "^6.1.0"
     ethereumjs-wallet "^0.6.3"
-    source-map-support "^0.5.16"
+    source-map-support "^0.5.19"
     web3 "1.2.1"
-    web3-provider-engine "https://github.com/trufflesuite/provider-engine#web3-one"
+    web3-provider-engine "git+https://github.com/trufflesuite/provider-engine.git#web3-one"
 
 "@types/bn.js@^4.11.3":
   version "4.11.6"
@@ -3672,10 +3672,10 @@ source-map-support@^0.4.15:
   dependencies:
     source-map "^0.5.6"
 
-source-map-support@^0.5.16:
-  version "0.5.16"
-  resolved "https://registry.yarnpkg.com/source-map-support/-/source-map-support-0.5.16.tgz#0ae069e7fe3ba7538c64c98515e35339eac5a042"
-  integrity sha512-efyLRJDr68D9hBBNIPWFjhpFzURh+KJykQwvMyW5UiZzYwoF6l4YMMDIJJEyFWxWCqfyxLzz6tSfUFR+kXXsVQ==
+source-map-support@^0.5.19:
+  version "0.5.19"
+  resolved "https://registry.yarnpkg.com/source-map-support/-/source-map-support-0.5.19.tgz#a98b62f86dcaf4f67399648c085291ab9e8fed61"
+  integrity sha512-Wonm7zOCIJzBGQdB+thsPar0kYuCIzYvxZwlBa87yi/Mdjv7Tip2cyVbLj5o0cFPN4EVkuTwb3GDDyUx2DGnGw==
   dependencies:
     buffer-from "^1.0.0"
     source-map "^0.6.0"
@@ -3943,10 +3943,10 @@ truffle-plugin-verify@^0.3.10:
     querystring "0.2.0"
     sol-merger "2.0.1"
 
-truffle@^5.1.23:
-  version "5.1.23"
-  resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.1.23.tgz#6c48b5921ae937cfbf2a6f5d5e593bf177b8b86c"
-  integrity sha512-ovdkrAgF/6cGiVtoiGzSTUheEBowoFcBuPY3wOjdlICW8VsASuT+kYuWLG/bPAJSg9QFrFLwqgUcnA9MOwi6yg==
+truffle@^5.1.26:
+  version "5.1.26"
+  resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.1.26.tgz#296791bd5e827474a560f870886e2c45f1e5c1e1"
+  integrity sha512-zmE4GSy1SI4Dp4DcJU/jiDT0i1C/O57C0JP+oEGUP5bT1H+ax4pqvkbpeRyhvZLCv4swzLLxqrB0Z7CbYhFhrg==
   dependencies:
     app-module-path "^2.2.0"
     mocha "5.2.0"
@@ -4270,10 +4270,10 @@ web3-net@1.2.1:
     web3-core-method "1.2.1"
     web3-utils "1.2.1"
 
-"web3-provider-engine@https://github.com/trufflesuite/provider-engine#web3-one":
+"web3-provider-engine@git+https://github.com/trufflesuite/provider-engine.git#web3-one":
   version "14.0.6"
   uid "3538c60bc4836b73ccae1ac3f64c8fed8ef19c1a"
-  resolved "https://github.com/trufflesuite/provider-engine#3538c60bc4836b73ccae1ac3f64c8fed8ef19c1a"
+  resolved "git+https://github.com/trufflesuite/provider-engine.git#3538c60bc4836b73ccae1ac3f64c8fed8ef19c1a"
   dependencies:
     async "^2.5.0"
     backoff "^2.5.0"

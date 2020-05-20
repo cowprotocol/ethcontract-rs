@@ -1,7 +1,6 @@
 use crate::contract::{methods, Context};
 use crate::util;
 use anyhow::{Context as _, Result};
-use ethcontract_common::Address;
 use inflector::Inflector;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
@@ -22,30 +21,6 @@ fn expand_deployed(cx: &Context) -> TokenStream {
         return quote! {};
     }
 
-    let artifact_network = quote! { artifact.networks.get(network_id)?  };
-    let network = if cx.deployments.is_empty() {
-        artifact_network
-    } else {
-        let deployments = cx.deployments.iter().map(|(network_id, address)| {
-            let network_id = Literal::string(&network_id.to_string());
-            let address = expand_address(*address);
-
-            quote! {
-                #network_id => self::ethcontract::common::truffle::Network {
-                    address: #address,
-                    transaction_hash: None,
-                },
-            }
-        });
-
-        quote! {
-            match network_id {
-                #( #deployments )*
-                _ => #artifact_network.clone(),
-            };
-        }
-    };
-
     quote! {
         impl Contract {
             /// Locates a deployed contract based on the current network ID
@@ -53,9 +28,9 @@ fn expand_deployed(cx: &Context) -> TokenStream {
             ///
             /// Note that this does not verify that a contract with a maching
             /// `Abi` is actually deployed at the given address.
-            pub fn deployed<F, T>(
+            pub async fn deployed<F, T>(
                 web3: &self::ethcontract::web3::api::Web3<T>,
-            ) -> self::ethcontract::dyns::DynDeployedFuture<Self>
+            ) -> Result<Self, self::ethcontract::errors::DeployError>
             where
                 F: self::ethcontract::web3::futures::Future<
                     Item = self::ethcontract::json::Value,
@@ -63,35 +38,14 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                 > + Send + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
-                use self::ethcontract::contract::DeployedFuture;
+                use self::ethcontract::{Instance, Web3};
                 use self::ethcontract::transport::DynTransport;
-                use self::ethcontract::web3::api::Web3;
 
                 let transport = DynTransport::new(web3.transport().clone());
                 let web3 = Web3::new(transport);
+                let instance = Instance::deployed(web3, Contract::artifact().clone()).await?;
 
-                DeployedFuture::new(web3, ())
-            }
-        }
-
-        impl self::ethcontract::contract::FromNetwork<self::ethcontract::dyns::DynTransport>
-            for Contract
-        {
-            type Context = ();
-
-            fn from_network(
-                web3: self::ethcontract::dyns::DynWeb3,
-                network_id: &str,
-                _: Self::Context,
-            ) -> Option<Self> {
-                let artifact = Self::artifact();
-                let network = #network;
-
-                Some(Self::with_transaction(
-                    &web3,
-                    network.address,
-                    network.transaction_hash,
-                ))
+                Ok(Contract::from_raw(instance))
             }
         }
     }
@@ -210,41 +164,4 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             }
         }
     })
-}
-
-/// Expands an `Address` into a literal representation that can be used with
-/// quasi-quoting for code generation.
-fn expand_address(address: Address) -> TokenStream {
-    let bytes = address
-        .as_bytes()
-        .iter()
-        .copied()
-        .map(Literal::u8_unsuffixed);
-
-    quote! {
-        self::ethcontract::Address::from([#( #bytes ),*])
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    #[rustfmt::skip]
-    fn expand_address_value() {
-        assert_quote!(
-            expand_address(Address::zero()),
-            {
-                self::ethcontract::Address::from([ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ])
-            },
-        );
-
-        assert_quote!(
-            expand_address("000102030405060708090a0b0c0d0e0f10111213".parse().unwrap()),
-            {
-                self::ethcontract::Address::from([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
-            },
-        );
-    }
 }

@@ -104,7 +104,7 @@ fn expand_data_type(event: &Event, event_derives: &[Path]) -> Result<TokenStream
 
         impl self::ethcontract::web3::contract::tokens::Detokenize for #event_name {
             fn from_tokens(
-                tokens: Vec<self::ethcontract::private::ethabi_9_0::Token>,
+                tokens: Vec<self::ethcontract::common::abi::Token>,
             ) -> Result<Self, self::ethcontract::web3::contract::Error> {
                 if tokens.len() != #params_len {
                     return Err(self::ethcontract::web3::contract::Error::InvalidOutputType(format!(
