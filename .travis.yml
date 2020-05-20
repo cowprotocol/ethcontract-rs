@@ -1,27 +1,28 @@
-if: (branch = master) OR (type = pull_request) OR (tag IS present)
-stages:
-  - name: "Build and Test"
-  - name: "Deploy"
-    if: tag IS present
+branches:
+  only:
+    - staging
+    - trying
+    - master
 
-stage: "Build and Test"
+os: linux
+dist: bionic
 language: rust
-rust:
-  - 1.42.0
-  - stable
-  - beta
-  - nightly
-env:
-  global:
-    - SCCACHE_VERSION=0.2.12
-    - SCCACHE=$HOME/.sccache/bin/sccache
-    - RUSTC_WRAPPER=$SCCACHE
 
 jobs:
   allow_failures:
     - rust: nightly
   fast_finish: true
   include:
+    - stage: "Build and Test"
+      name: "Rust: 1.42.0"
+      rust: 1.42.0
+    - name: "Rust: stable"
+      rust: stable
+    - name: "Rust: beta"
+      rust: beta
+    - name: "Rust: nightly"
+      rust: nightly
+      allow_failures: true
     - name: "Rust: stable - Examples"
       rust: stable
       script:
@@ -53,6 +54,12 @@ jobs:
         on:
           tags: true
 
+env:
+  global:
+    - SCCACHE_VERSION=0.2.13
+    - SCCACHE=$HOME/.sccache/bin/sccache
+    - RUSTC_WRAPPER=$SCCACHE
+
 cache:
   directories:
     - $HOME/.cache/sccache
@@ -72,7 +79,7 @@ before_install:
     tar -C bin -xvf sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz --wildcards '*/sccache' --strip 1
     popd
   - $SCCACHE --version
-  - nvm install --lts && nvm alias default 'lts/*'
+  - nvm use 12 && nvm alias default 12
   - node --version
   - npm install -g yarn@latest
   - yarn --version
@@ -81,10 +88,10 @@ before_script:
   - (cd examples/truffle; yarn --frozen-lockfile && yarn build)
 
 script:
-  - cargo build --workspace --all-features --verbose
-  - cargo test --workspace --all-features --verbose
   - cargo fmt -- --check
   - cargo clippy --workspace --all-features --all-targets -- -D warnings
+  - cargo build --workspace --all-features --verbose
+  - cargo test --workspace --all-features --verbose
 
 before_cache:
   - rm -rf "$TRAVIS_HOME/.cargo/registry"
