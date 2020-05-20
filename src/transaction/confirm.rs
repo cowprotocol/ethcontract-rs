@@ -115,7 +115,7 @@ enum ConfirmState<T: Transport> {
     CreatingFilter(#[pin] CompatCreateFilter<T, H256>, U64, u64),
     /// The future is waiting for new blocks to be mined and added to the chain
     /// so that the transaction can be confirmed the desired number of blocks.
-    WaitingForBlocks(#[pin] CompatFilterFuture<T, H256>),
+    WaitingForBlocks(#[pin] CompatFilterFuture<T, H256>, U64),
     /// The future is waiting for a poll timeout. This state happens when the
     /// node does not support block filters for the given transport (like Infura
     /// over HTTPS) so we need to fallback to polling.
@@ -207,6 +207,7 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                                 .skip(*count - 1)
                                 .into_future()
                                 .compat(),
+                            *target_block_num,
                         ),
                         Err(_) => {
                             // NOTE: In the case we fail to create a filter
@@ -217,10 +218,17 @@ impl<T: Transport> Future for ConfirmFuture<T> {
                         }
                     }
                 }
-                ConfirmState::WaitingForBlocks(wait) => match ready!(wait.poll(cx)) {
-                    Ok(_) => ConfirmState::Check,
-                    Err((err, _)) => return Poll::Ready(Err(err.into())),
-                },
+                ConfirmState::WaitingForBlocks(wait, target_block_num) => {
+                    match ready!(wait.poll(cx)) {
+                        Ok(_) => ConfirmState::Check,
+                        Err(_) => {
+                            // NOTE: In the case we fail to query the filter
+                            //   (node is behind a load balancer or cleaned up
+                            //   the filter) then also fall back to polling.
+                            ConfirmState::PollDelay(delay(params.poll_interval), *target_block_num)
+                        }
+                    }
+                }
                 ConfirmState::PollDelay(delay, target_block_num) => {
                     ready!(delay.poll(cx));
                     ConfirmState::PollCheckingBlockNumber(
@@ -258,7 +266,9 @@ impl<T: Transport> Debug for ConfirmState<T> {
             ConfirmState::CreatingFilter(_, t, c) => {
                 f.debug_tuple("CreatingFilter").field(t).field(c).finish()
             }
-            ConfirmState::WaitingForBlocks(_) => f.debug_tuple("WaitingForBlocks").finish(),
+            ConfirmState::WaitingForBlocks(_, t) => {
+                f.debug_tuple("WaitingForBlocks").field(t).finish()
+            }
             ConfirmState::PollDelay(d, t) => f.debug_tuple("PollDelay").field(d).field(t).finish(),
             ConfirmState::PollCheckingBlockNumber(_, t) => {
                 f.debug_tuple("PollCheckingBlockNumber").field(t).finish()
@@ -451,6 +461,48 @@ mod tests {
         transport.assert_request("eth_newBlockFilter", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn confirmations_with_polling_on_filter_error() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let hash = H256::repeat_byte(0xff);
+
+        // transaction pending
+        transport.add_response(json!("0x1"));
+        transport.add_response(json!(null));
+        // filter created
+        transport.add_response(json!("0xf0"));
+        // polled block filter until failure
+        transport.add_response(json!([H256::repeat_byte(2)]));
+        transport.add_response(json!({ "error": "filter not found" }));
+        // poll block number until new block is found
+        transport.add_response(json!("0x2"));
+        transport.add_response(json!("0x2"));
+        transport.add_response(json!("0x2"));
+        transport.add_response(json!("0x3"));
+        // check transaction was mined - note that the block number doesn't get
+        // re-queried and is re-used from the polling loop.
+        transport.add_response(generate_tx_receipt(hash, 2));
+
+        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(1))
+            .immediate()
+            .expect("transaction confirmation failed");
+
+        assert_eq!(confirm.transaction_hash, hash);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_request("eth_newBlockFilter", &[]);
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);

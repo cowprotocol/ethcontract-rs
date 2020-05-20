@@ -3,17 +3,15 @@
 //! state.
 
 mod deploy;
-mod deployed;
 mod event;
 mod method;
 
-use crate::abicompat::AbiCompat;
 use crate::errors::{DeployError, LinkError};
 use ethcontract_common::abi::{Error as AbiError, Result as AbiResult};
 use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::hash::H32;
-use ethcontract_common::truffle::Network;
 use ethcontract_common::{Abi, Artifact, Bytecode};
+use futures::compat::Future01CompatExt;
 use std::collections::HashMap;
 use std::hash::Hash;
 use web3::api::Web3;
@@ -21,8 +19,7 @@ use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes, H256};
 use web3::Transport;
 
-pub use self::deploy::{Deploy, DeployBuilder, DeployFuture};
-pub use self::deployed::{DeployedFuture, FromNetwork};
+pub use self::deploy::{Deploy, DeployBuilder};
 pub use self::event::{
     AllEventsBuilder, Event, EventBuilder, EventData, EventMetadata, EventStream, ParseLog,
     QueryAllFuture, QueryFuture, RawLog, Topic, DEFAULT_POLL_INTERVAL,
@@ -77,7 +74,7 @@ impl<T: Transport> Instance<T> {
         transaction_hash: Option<H256>,
     ) -> Self {
         let methods = create_mapping(&abi.functions, |function| function.selector());
-        let events = create_mapping(&abi.events, |event| event.signature().compat());
+        let events = create_mapping(&abi.events, |event| event.signature());
 
         Instance {
             web3,
@@ -95,8 +92,19 @@ impl<T: Transport> Instance<T> {
     ///
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
-    pub fn deployed(web3: Web3<T>, artifact: Artifact) -> DeployedFuture<T, Self> {
-        DeployedFuture::new(web3, Deployments::new(artifact))
+    pub async fn deployed(web3: Web3<T>, artifact: Artifact) -> Result<Self, DeployError> {
+        let network_id = web3.net().version().compat().await?;
+        let network = artifact
+            .networks
+            .get(&network_id)
+            .ok_or(DeployError::NotFound(network_id))?;
+
+        Ok(Instance::with_transaction(
+            web3,
+            artifact.abi,
+            network.address,
+            network.transaction_hash,
+        ))
     }
 
     /// Creates a contract builder with the specified `web3` provider and the
@@ -168,7 +176,7 @@ impl<T: Transport> Instance<T> {
             .get(signature)
             .map(|(name, index)| &self.abi.functions[name][*index])
             .ok_or_else(|| AbiError::InvalidName(hex::encode(&signature)))?;
-        let data = function.encode_input(&params.into_tokens().compat())?;
+        let data = function.encode_input(&params.into_tokens())?;
 
         // take ownership here as it greatly simplifies dealing with futures
         // lifetime as it would require the contract Instance to live until
@@ -236,39 +244,6 @@ impl<T: Transport> Instance<T> {
     /// the stream was created for this contract instance.
     pub fn all_events(&self) -> AllEventsBuilder<T, RawLog> {
         AllEventsBuilder::new(self.web3(), self.address(), self.transaction_hash())
-    }
-}
-
-/// Deployment information for for an `Instance`. This includes the contract ABI
-/// and the known addresses of contracts for network IDs.
-/// be used directly but rather through the `Instance::deployed` API.
-#[derive(Debug, Clone)]
-pub struct Deployments {
-    abi: Abi,
-    networks: HashMap<String, Network>,
-}
-
-impl Deployments {
-    /// Create a new `Deployments` instanced for a contract artifact.
-    pub fn new(artifact: Artifact) -> Self {
-        Deployments {
-            abi: artifact.abi,
-            networks: artifact.networks,
-        }
-    }
-}
-
-impl<T: Transport> FromNetwork<T> for Instance<T> {
-    type Context = Deployments;
-
-    fn from_network(web3: Web3<T>, network_id: &str, cx: Self::Context) -> Option<Self> {
-        let network = cx.networks.get(network_id)?;
-        Some(Instance::with_transaction(
-            web3,
-            cx.abi,
-            network.address,
-            network.transaction_hash,
-        ))
     }
 }
 
@@ -362,4 +337,71 @@ where
                 .map(move |(index, element)| (signature(element), (name.to_owned(), index)))
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test::prelude::*;
+    use ethcontract_common::truffle::Network;
+    use ethcontract_common::Artifact;
+    use web3::types::H256;
+
+    #[test]
+    fn deployed() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let network_id = "42";
+        let address = addr!("0x0102030405060708091011121314151617181920");
+        let transaction_hash = Some(H256::repeat_byte(0x42));
+        let artifact = {
+            let mut artifact = Artifact::empty();
+            artifact.networks.insert(
+                network_id.to_string(),
+                Network {
+                    address,
+                    transaction_hash,
+                },
+            );
+            artifact
+        };
+
+        transport.add_response(json!(network_id)); // get network ID response
+        let instance = Instance::deployed(web3, artifact)
+            .immediate()
+            .expect("successful deployment");
+
+        transport.assert_request("net_version", &[]);
+        transport.assert_no_more_requests();
+
+        assert_eq!(instance.address(), address);
+        assert_eq!(instance.transaction_hash(), transaction_hash);
+    }
+
+    #[test]
+    fn deployed_not_found() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let network_id = "42";
+
+        transport.add_response(json!(network_id)); // get network ID response
+        let err = Instance::deployed(web3, Artifact::empty())
+            .immediate()
+            .expect_err("unexpected success getting deployed contract");
+
+        transport.assert_request("net_version", &[]);
+        transport.assert_no_more_requests();
+
+        assert!(
+            match &err {
+                DeployError::NotFound(id) => id == network_id,
+                _ => false,
+            },
+            "expected network {} not found error but got '{:?}'",
+            network_id,
+            err
+        );
+    }
 }
