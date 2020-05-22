@@ -9,6 +9,7 @@ use futures::ready;
 use futures::stream::{self, Stream, TryStreamExt};
 use pin_project::{pin_project, project};
 use std::future::Future;
+use std::num::NonZeroU64;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -104,8 +105,12 @@ pub struct LogFilterBuilder<T: Transport> {
     /// The underlying web3 provider used for retrieving logs.
     web3: Web3<T>,
     /// The block to start streaming logs from.
+    ///
+    /// See [`web3::types::BlockNumber`] for more details on possible values.
     pub from_block: Option<BlockNumber>,
     /// The block to stop streaming logs from.
+    ///
+    /// See [`web3::types::BlockNumber`] for more details on possible values.
     pub to_block: Option<BlockNumber>,
     /// The contract addresses to filter logs for.
     pub address: Vec<Address>,
@@ -115,7 +120,7 @@ pub struct LogFilterBuilder<T: Transport> {
     /// The page size in blocks to use when doing a paginated query on past
     /// logs. This provides no guarantee in how many logs will be returned per
     /// page, but used to limit the block range for the query.
-    pub block_page_size: Option<u64>,
+    pub block_page_size: Option<NonZeroU64>,
     /// The number of blocks to confirm the logs with. This is the number of
     /// blocks mined on top of the block where the log was emitted for it to be
     /// considered confirmed.
@@ -197,8 +202,12 @@ impl<T: Transport> LogFilterBuilder<T> {
 
     /// The page size in blocks to use when doing a paginated query on past
     /// events.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a block page size of 0 is specified.
     pub fn block_page_size(mut self, value: u64) -> Self {
-        self.block_page_size = Some(value);
+        self.block_page_size = Some(NonZeroU64::new(value).expect("block page size cannot be 0"));
         self
     }
 
@@ -281,7 +290,10 @@ impl<T: Transport> PastLogsStream<T> {
         let to_block = builder.to_block.unwrap_or(BlockNumber::Latest);
 
         let web3 = builder.web3.clone();
-        let block_page_size = builder.block_page_size.unwrap_or(DEFAULT_BLOCK_PAGE_SIZE);
+        let block_page_size = builder
+            .block_page_size
+            .map(|size| size.get())
+            .unwrap_or(DEFAULT_BLOCK_PAGE_SIZE);
         let filter = builder.into_filter();
 
         let start_block = match from_block {
@@ -341,6 +353,11 @@ struct PastLogsPager<T: Transport> {
 
 impl<T: Transport> PastLogsPager<T> {
     async fn next_page(&mut self) -> Result<Option<Vec<Log>>, ExecutionError> {
+        debug_assert!(
+            self.block_page_size != 0,
+            "pager should never be constructed with 0 block page size",
+        );
+
         while self.page_block <= self.end_block {
             // NOTE: Log block ranges are inclusive.
             let page_end = self.page_block + self.block_page_size - 1;
