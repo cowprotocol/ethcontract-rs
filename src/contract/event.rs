@@ -157,6 +157,7 @@ where
 }
 
 /// A builder for creating a filtered stream for any contract event.
+#[derive(Debug)]
 #[must_use = "event builders do nothing unless you stream them"]
 pub struct AllEventsBuilder<T: Transport, E: ParseLog> {
     web3: Web3<T>,
