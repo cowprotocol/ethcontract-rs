@@ -716,11 +716,12 @@ impl I256 {
     }
 
     /// Calculates the quotient of Euclidean division of self by rhs.
-    /// This computes the integer n such that self = n * rhs + self.rem_euclid(rhs),
-    /// with 0 <= self.rem_euclid(rhs) < rhs.
-    /// In other words, the result is self / rhs rounded to the integer n such that self >= n * rhs.
-    /// If self > 0, this is equal to round towards zero (the default in Rust);
-    /// if self < 0, this is equal to round towards +/- infinity.
+    ///
+    /// This computes the integer `n` such that `self = n * rhs + self.rem_euclid(rhs)`,
+    /// with `0 <= self.rem_euclid(rhs) < rhs`.
+    /// In other words, the result is `self / rhs` rounded to the integer `n` such that `self >= n * rhs`:
+    /// * If `self > 0`, this is equal to round towards zero (the default in Rust);
+    /// * If `self < 0`, this is equal to round towards +/- infinity.
     pub fn div_euclid(self, rhs: Self) -> Self {
         let q = self / rhs;
         if (self % rhs).is_negative() {
