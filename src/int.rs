@@ -666,13 +666,12 @@ impl I256 {
         (result, overflow_conv && !result.is_zero())
     }
 
-    /// Checked division. Returns None if overflow occurred.
-    pub fn checked_div(self, other: Self) -> Option<Self> {
-        let (result, overflow) = self.overflowing_div(other);
-        if overflow {
+    /// Checked division. Returns None if overflow occurred or if rhs == 0.
+    pub fn checked_div(self, rhs: Self) -> Option<Self> {
+        if rhs == I256::zero() || (self == Self::min_value() && rhs == -I256::one()) {
             None
         } else {
-            Some(result)
+            Some(self.overflowing_div(rhs).0)
         }
     }
 
@@ -701,13 +700,12 @@ impl I256 {
         }
     }
 
-    /// Checked remainder. Returns None if overflow occurred.
-    pub fn checked_rem(self, other: Self) -> Option<Self> {
-        let (result, overflow) = self.overflowing_rem(other);
-        if overflow {
+    /// Checked remainder. Returns None if overflow occurred or rhs == 0
+    pub fn checked_rem(self, rhs: Self) -> Option<Self> {
+        if rhs == I256::zero() || (self == Self::min_value() && rhs == -I256::one()) {
             None
         } else {
-            Some(result)
+            Some(self.overflowing_rem(rhs).0)
         }
     }
 
@@ -726,12 +724,45 @@ impl I256 {
     pub fn div_euclid(self, rhs: Self) -> Self {
         let q = self / rhs;
         if (self % rhs).is_negative() {
-            return if rhs.is_positive() { q - I256::one() } else { q + I256::one() }
+            return if rhs.is_positive() {
+                q - I256::one()
+            } else {
+                q + I256::one()
+            };
         }
         q
     }
 
+    /// Calculates the quotient of Euclidean division self.div_euclid(rhs).
+    /// Returns a tuple of the divisor along with a boolean indicating whether an arithmetic
+    /// overflow would occur. If an overflow would occur then self is returned.
+    pub fn overflowing_div_euclid(self, rhs: Self) -> (Self, bool) {
+        if self == Self::min_value() && rhs == -I256::one() {
+            (self, true)
+        } else {
+            (self.div_euclid(rhs), false)
+        }
+    }
 
+    /// Checked Euclidean division. Computes self.div_euclid(rhs),
+    /// returning None if rhs == 0 or the division results in overflow.
+    pub fn checked_div_euclid(self, rhs: Self) -> Option<Self> {
+        if rhs == I256::zero() || (self == Self::min_value() && rhs == -I256::one()) {
+            None
+        } else {
+            Some(self.div_euclid(rhs))
+        }
+    }
+
+    /// Wrapping Euclidean division.
+    /// Computes self.div_euclid(rhs), wrapping around at the boundary of the type.
+    /// Wrapping only occurs in MIN / -1 on a signed type
+    /// (where MIN is the negative minimal value for the type).
+    /// This is equivalent to -MIN, a positive value that is too large to represent in the type.
+    /// In this case, this method returns MIN itself.
+    pub fn wrapping_div_euclid(self, rhs: Self) -> Self {
+        self.overflowing_div_euclid(rhs).0
+    }
 
     /// Returns the sign of `self` to the exponent `exp`.
     ///
@@ -1512,6 +1543,17 @@ mod tests {
         assert_eq!(a.div_euclid(-b), -I256::one()); // 7 >= -4 * -1
         assert_eq!((-a).div_euclid(b), -I256::from(2)); // -7 >= 4 * -2
         assert_eq!((-a).div_euclid(-b), I256::from(2)); // -7 >= -4 * 2
+
+        // Overflowing
+        assert_eq!(
+            I256::MIN.overflowing_div_euclid(-I256::one()),
+            (I256::MIN, true)
+        );
+        // Wrapping
+        assert_eq!(I256::MIN.wrapping_div_euclid(-I256::one()), I256::MIN);
+        // // Checked
+        assert_eq!(I256::MIN.checked_div_euclid(-I256::one()), None);
+        assert_eq!(I256::one().checked_div_euclid(I256::zero()), None);
     }
 
     #[test]
@@ -1526,7 +1568,6 @@ mod tests {
     fn div_euclid_overflow() {
         I256::MIN.div_euclid(-I256::one());
     }
-
 
     #[test]
     #[should_panic]
