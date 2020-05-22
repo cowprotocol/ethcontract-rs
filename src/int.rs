@@ -733,6 +733,23 @@ impl I256 {
         q
     }
 
+    /// Calculates the least non-negative remainder of self (mod rhs).
+    /// This is done as if by the Euclidean division algorithm
+    /// given r = self.rem_euclid(rhs),
+    /// self = rhs * self.div_euclid(rhs) + r, and 0 <= r < abs(rhs).
+    pub fn rem_euclid(self, rhs: Self) -> Self {
+        let r = self % rhs;
+        if r < Self::zero() {
+            if rhs < Self::zero() {
+                r - rhs
+            } else {
+                r + rhs
+            }
+        } else {
+            r
+        }
+    }
+
     /// Calculates the quotient of Euclidean division self.div_euclid(rhs).
     /// Returns a tuple of the divisor along with a boolean indicating whether an arithmetic
     /// overflow would occur. If an overflow would occur then self is returned.
@@ -762,6 +779,38 @@ impl I256 {
     /// In this case, this method returns MIN itself.
     pub fn wrapping_div_euclid(self, rhs: Self) -> Self {
         self.overflowing_div_euclid(rhs).0
+    }
+
+    /// Overflowing Euclidean remainder. Calculates self.rem_euclid(rhs).
+    /// Returns a tuple of the remainder after dividing along with a boolean indicating whether
+    /// an arithmetic overflow would occur. If an overflow would occur then 0 is returned.
+    /// Panics if rhs == 0
+    pub fn overflowing_rem_euclid(self, rhs: Self) -> (Self, bool) {
+        if self == Self::min_value() && rhs == -Self::one() {
+            (Self::zero(), true)
+        } else {
+            (self.rem_euclid(rhs), false)
+        }
+    }
+
+    /// Wrapping Euclidean remainder.
+    /// Computes self.rem_euclid(rhs), wrapping around at the boundary of the type.
+    /// Wrapping will only occur in MIN % -1 on a signed type
+    /// (where MIN is the negative minimal value for the type).
+    /// In this case, this method returns 0.
+    /// Panics when rhs == 0
+    pub fn wrapping_rem_euclid(self, rhs: Self) -> Self {
+        self.overflowing_rem_euclid(rhs).0
+    }
+
+    /// Checked Euclidean remainder. Computes self.rem_euclid(rhs),
+    /// returning None if rhs == 0 or the division results in overflow.
+    pub fn checked_rem_euclid(self, rhs: Self) -> Option<Self> {
+        if rhs == I256::zero() || (self == Self::min_value() && rhs == -I256::one()) {
+            None
+        } else {
+            Some(self.rem_euclid(rhs))
+        }
     }
 
     /// Returns the sign of `self` to the exponent `exp`.
@@ -1554,6 +1603,30 @@ mod tests {
         // // Checked
         assert_eq!(I256::MIN.checked_div_euclid(-I256::one()), None);
         assert_eq!(I256::one().checked_div_euclid(I256::zero()), None);
+    }
+
+    #[test]
+    fn rem_euclid() {
+        let a = I256::from(7); // or any other integer type
+        let b = I256::from(4);
+
+        assert_eq!(a.rem_euclid(b), I256::from(3));
+        assert_eq!((-a).rem_euclid(b), I256::one());
+        assert_eq!(a.rem_euclid(-b), I256::from(3));
+        assert_eq!((-a).rem_euclid(-b), I256::one());
+
+        // Overflowing
+        assert_eq!(a.overflowing_rem_euclid(b), (I256::from(3), false));
+        assert_eq!(I256::min_value().overflowing_rem_euclid(-I256::one()), (I256::zero(), true));
+
+        // Wrapping
+        assert_eq!(I256::from(100).wrapping_rem_euclid(I256::from(10)), I256::zero());
+        assert_eq!(I256::min_value().wrapping_rem_euclid(-I256::one()), I256::zero());
+
+        // Checked
+        assert_eq!(a.checked_rem_euclid(b), Some(I256::from(3)));
+        assert_eq!(a.checked_rem_euclid(I256::zero()), None);
+        assert_eq!(I256::min_value().checked_rem_euclid(-I256::one()), None);
     }
 
     #[test]
