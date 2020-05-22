@@ -4,8 +4,9 @@
 use crate::errors::ExecutionError;
 use ethcontract_common::abi::{Topic, TopicFilter};
 use futures::compat::{Compat01As03, Future01CompatExt, Stream01CompatExt};
+use futures::future;
 use futures::ready;
-use futures::stream::{self, BoxStream, Stream, StreamExt};
+use futures::stream::{self, Stream, TryStreamExt};
 use pin_project::{pin_project, project};
 use std::future::Future;
 use std::pin::Pin;
@@ -233,25 +234,83 @@ impl<T: Transport> LogFilterBuilder<T> {
 
         filter
     }
-}
 
-impl<'t, T> LogFilterBuilder<T>
-where
-    T: Transport + Send + Sync + 't,
-    T::Out: Send,
-{
     /// Returns a stream that resolves into a page of logs matching the filter
     /// builder's parameters.
-    ///
-    /// Note this is a failure tolerant stream in that when a failure is
-    /// encountered and `Some(Err(_))` is yielded, polling the stream again will
-    /// resume from the last error and will not return `None`.
-    pub fn past_logs(self) -> BoxStream<'t, Result<Vec<Log>, ExecutionError>> {
-        stream::unfold(PastLogsPager::from_builder(self), |mut pager| async move {
-            let page = pager.next_page().await.transpose()?;
-            Some((page, pager))
-        })
-        .boxed()
+    pub fn past_logs_pages(self) -> impl Stream<Item = Result<Vec<Log>, ExecutionError>> {
+        stream::try_unfold(PastLogsStream::Init(self), PastLogsStream::next)
+            .try_filter(|logs| future::ready(!logs.is_empty()))
+    }
+}
+
+/// Internal unfold context for creating a `past_logs` `Stream`.
+enum PastLogsStream<T: Transport> {
+    Init(LogFilterBuilder<T>),
+    Done,
+    Paging(PastLogsPager<T>),
+    Querying(Web3<T>, Filter),
+}
+
+impl<T: Transport> PastLogsStream<T> {
+    async fn next(mut self) -> Result<Option<(Vec<Log>, Self)>, ExecutionError> {
+        loop {
+            let (logs, next) = match self {
+                PastLogsStream::Init(builder) => {
+                    self = PastLogsStream::init(builder).await?;
+                    continue;
+                }
+                PastLogsStream::Done => return Ok(None),
+                PastLogsStream::Paging(mut pager) => {
+                    let logs = match pager.next_page().await? {
+                        Some(logs) => logs,
+                        None => return Ok(None),
+                    };
+                    (logs, PastLogsStream::Paging(pager))
+                }
+                PastLogsStream::Querying(web3, filter) => {
+                    let logs = web3.eth().logs(filter.clone()).compat().await?;
+                    (logs, PastLogsStream::Done)
+                }
+            };
+            return Ok(Some((logs, next)));
+        }
+    }
+
+    async fn init(builder: LogFilterBuilder<T>) -> Result<Self, ExecutionError> {
+        let from_block = builder.from_block.unwrap_or(BlockNumber::Latest);
+        let to_block = builder.to_block.unwrap_or(BlockNumber::Latest);
+
+        let web3 = builder.web3.clone();
+        let block_page_size = builder.block_page_size.unwrap_or(DEFAULT_BLOCK_PAGE_SIZE);
+        let filter = builder.into_filter();
+
+        let start_block = match from_block {
+            BlockNumber::Earliest => Some(0),
+            BlockNumber::Number(value) => Some(value.as_u64()),
+            BlockNumber::Latest | BlockNumber::Pending => None,
+        };
+        let end_block = match to_block {
+            BlockNumber::Earliest => None,
+            BlockNumber::Number(value) => Some(value.as_u64()),
+            BlockNumber::Latest | BlockNumber::Pending => {
+                let latest_block = web3.eth().block_number().compat().await?;
+                Some(latest_block.as_u64())
+            }
+        };
+
+        let next = match (start_block, end_block) {
+            (Some(page_block), Some(end_block)) => PastLogsStream::Paging(PastLogsPager {
+                web3,
+                to_block,
+                block_page_size,
+                filter,
+                page_block,
+                end_block,
+            }),
+            _ => PastLogsStream::Querying(web3, filter.build()),
+        };
+
+        Ok(next)
     }
 }
 
@@ -270,92 +329,30 @@ struct PastLogsPager<T: Transport> {
     ///
     /// This value can be `None` if it `from_block` was specified as `Latest` or
     /// `Pending`.
-    page_block: Option<u64>,
+    page_block: u64,
     /// The last block used for pagination. This is slightly different than
     /// `to_block` as this must be a concrete block number (and can't be block
     /// aliases such as `Earliest` or `Latest`).
     ///
     /// This has a value of `None` if it has not yet been retrieved (in case
     /// `to_block` is `Latest` or `Pending`).
-    end_block: Option<u64>,
+    end_block: u64,
 }
 
 impl<T: Transport> PastLogsPager<T> {
-    fn from_builder(builder: LogFilterBuilder<T>) -> Self {
-        let web3 = builder.web3.clone();
-        let to_block = builder.to_block.unwrap_or(BlockNumber::Latest);
-        let block_page_size = builder.block_page_size.unwrap_or(DEFAULT_BLOCK_PAGE_SIZE);
-
-        let page_block = match builder.from_block.unwrap_or(BlockNumber::Latest) {
-            BlockNumber::Earliest => Some(0),
-            BlockNumber::Number(value) => Some(value.as_u64()),
-            BlockNumber::Latest | BlockNumber::Pending => None,
-        };
-        let end_block = match to_block {
-            BlockNumber::Earliest => Some(0),
-            BlockNumber::Number(value) => Some(value.as_u64()),
-            BlockNumber::Latest | BlockNumber::Pending => None,
-        };
-
-        let filter = builder.into_filter();
-
-        PastLogsPager {
-            web3,
-            to_block,
-            block_page_size,
-            filter,
-            page_block,
-            end_block,
-        }
-    }
-
     async fn next_page(&mut self) -> Result<Option<Vec<Log>>, ExecutionError> {
-        let mut page_block = match self.page_block {
-            Some(value) => value,
-            None => {
-                // NOTE: This means the `from_block` is `Latest` or `Pending, so
-                //   just do a single query.
-                let page = self
-                    .web3
-                    .eth()
-                    .logs(self.filter.clone().build())
-                    .compat()
-                    .await?;
-
-                // Ensure that subsequent calls to `next_page` return `None`.
-                self.page_block = Some(1);
-                self.end_block = Some(0);
-
-                if page.is_empty() {
-                    return Ok(None);
-                } else {
-                    return Ok(Some(page));
-                }
-            }
-        };
-
-        let end_block = match self.end_block {
-            Some(value) => value,
-            None => {
-                let latest_block = self.web3.eth().block_number().compat().await?.as_u64();
-                self.end_block = Some(latest_block);
-                latest_block
-            }
-        };
-
-        while page_block <= end_block {
+        while self.page_block <= self.end_block {
             // NOTE: Log block ranges are inclusive.
-            let page_end = page_block + self.block_page_size - 1;
-            let page_to_block = if page_end < end_block {
+            let page_end = self.page_block + self.block_page_size - 1;
+            let page_to_block = if page_end < self.end_block {
                 BlockNumber::Number(page_end.into())
             } else {
-                // NOTE: The last page is handled a bit differently
-                //   by using the `to_block` that was originally
-                //   specified to the builder. This is done in case
-                //   the to block was "latest" or "pending", where
-                //   we want to make sure that the last call
-                //   includes blocks that have been added since the
-                //   start of the paginated stream.
+                // NOTE: The last page is handled a bit differently by using the
+                //   `to_block` that was originally specified to the builder.
+                //   This is done because the `end_block` is determined when the
+                //   pager is created, and it is possible that the `to_block`
+                //   was specified as "latest" or "pending" which may have
+                //   changed since the paging started.
                 self.to_block
             };
 
@@ -365,16 +362,14 @@ impl<T: Transport> PastLogsPager<T> {
                 .logs(
                     self.filter
                         .clone()
-                        .from_block(page_block.into())
+                        .from_block(self.page_block.into())
                         .to_block(page_to_block)
                         .build(),
                 )
                 .compat()
                 .await?;
 
-            page_block = page_end + 1;
-            self.page_block = Some(page_block);
-
+            self.page_block = page_end + 1;
             if page.is_empty() {
                 continue;
             }
@@ -390,6 +385,7 @@ impl<T: Transport> PastLogsPager<T> {
 mod tests {
     use super::*;
     use crate::test::prelude::*;
+    use futures::stream::StreamExt;
     use serde_json::Value;
     use web3::types::U64;
 
@@ -453,7 +449,8 @@ mod tests {
             .address(vec![address])
             .topic0(Topic::This(topic))
             .block_page_size(5)
-            .past_logs();
+            .past_logs_pages()
+            .boxed();
 
         let next = raw_events.next().immediate();
         assert!(
@@ -502,72 +499,6 @@ mod tests {
                 "fromBlock": U64::from(20),
                 "toBlock": "pending",
                 "topics": [topic],
-            })],
-        );
-        transport.assert_no_more_requests();
-    }
-
-    #[test]
-    fn past_log_stream_continues_on_errors() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let log = generate_log("awesome");
-
-        // get latest block
-        transport.add_response(json!("invalid response"));
-        transport.add_response(json!(U64::from(5)));
-        // get logs pages
-        transport.add_response(json!("invalid response"));
-        transport.add_response(json!([log]));
-
-        let mut raw_events = LogFilterBuilder::new(web3)
-            .from_block(0.into())
-            .block_page_size(100)
-            .past_logs();
-
-        let next = raw_events.next().immediate();
-        assert!(
-            matches!(&next, Some(Err(_))),
-            "expected error but got {:?}",
-            next,
-        );
-
-        let next = raw_events.next().immediate();
-        assert!(
-            matches!(&next, Some(Err(_))),
-            "expected error but got {:?}",
-            next,
-        );
-
-        let next = raw_events.next().immediate();
-        assert!(
-            matches!(&next, Some(Ok(_))),
-            "expected logs page but got {:?}",
-            next,
-        );
-
-        let next = raw_events.next().immediate();
-        assert!(
-            next.is_none(),
-            "expected stream to be complete but got {:?}",
-            next,
-        );
-
-        transport.assert_request("eth_blockNumber", &[]);
-        transport.assert_request("eth_blockNumber", &[]);
-        transport.assert_request(
-            "eth_getLogs",
-            &[json!({
-                "fromBlock": U64::from(0),
-                "toBlock": "latest",
-            })],
-        );
-        transport.assert_request(
-            "eth_getLogs",
-            &[json!({
-                "fromBlock": U64::from(0),
-                "toBlock": "latest",
             })],
         );
         transport.assert_no_more_requests();
