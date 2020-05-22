@@ -717,6 +717,22 @@ impl I256 {
         self.overflowing_rem(rhs).0
     }
 
+    /// Calculates the quotient of Euclidean division of self by rhs.
+    /// This computes the integer n such that self = n * rhs + self.rem_euclid(rhs),
+    /// with 0 <= self.rem_euclid(rhs) < rhs.
+    /// In other words, the result is self / rhs rounded to the integer n such that self >= n * rhs.
+    /// If self > 0, this is equal to round towards zero (the default in Rust);
+    /// if self < 0, this is equal to round towards +/- infinity.
+    pub fn div_euclid(self, rhs: Self) -> Self {
+        let q = self / rhs;
+        if (self % rhs).is_negative() {
+            return if rhs.is_positive() { q - I256::one() } else { q + I256::one() }
+        }
+        q
+    }
+
+
+
     /// Returns the sign of `self` to the exponent `exp`.
     ///
     /// Note that this method does not actually try to compute the `self` to the
@@ -1486,6 +1502,31 @@ mod tests {
     fn division_by_zero() {
         let _ = I256::one() / I256::zero();
     }
+
+    #[test]
+    fn div_euclid() {
+        let a = I256::from(7);
+        let b = I256::from(4);
+
+        assert_eq!(a.div_euclid(b), I256::one()); // 7 >= 4 * 1
+        assert_eq!(a.div_euclid(-b), -I256::one()); // 7 >= -4 * -1
+        assert_eq!((-a).div_euclid(b), -I256::from(2)); // -7 >= 4 * -2
+        assert_eq!((-a).div_euclid(-b), I256::from(2)); // -7 >= -4 * 2
+    }
+
+    #[test]
+    #[should_panic]
+    fn div_euclid_by_zero() {
+        let _ = I256::one().div_euclid(I256::zero());
+        assert_eq!(I256::MIN.div_euclid(-I256::one()), I256::MAX);
+    }
+
+    #[test]
+    #[should_panic]
+    fn div_euclid_overflow() {
+        I256::MIN.div_euclid(-I256::one());
+    }
+
 
     #[test]
     #[should_panic]
