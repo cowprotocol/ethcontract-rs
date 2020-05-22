@@ -350,48 +350,6 @@ impl<T: Transport> LogStream<T> {
     }
 }
 
-/*
- * -impl<T: Transport> LogStream<T> {
--    /// Create a new log stream from a given web3 provider, filter and polling
--    /// parameters.
--    pub fn new(web3: Web3<T>, filter: Filter, poll_interval: Duration) -> Self {
--        let create_filter = web3.eth_filter().create_logs_filter(filter).compat();
--        let state = LogStreamState::CreatingFilter(create_filter, poll_interval);
--        LogStream { state }
--    }
--}
--
--impl<T: Transport> Stream for LogStream<T> {
--    type Item = Result<Log, ExecutionError>;
--
--    #[project]
--    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
--        loop {
--            let mut state = self.as_mut().project().state;
--
--            #[project]
--            let next_state = match state.as_mut().project() {
--                LogStreamState::CreatingFilter(create_filter, poll_interval) => {
--                    let log_filter = match ready!(create_filter.poll(cx)) {
--                        Ok(log_filter) => log_filter,
--                        Err(err) => return Poll::Ready(Some(Err(err.into()))),
--                    };
--                    let stream = log_filter.stream(*poll_interval).compat();
--                    LogStreamState::Streaming(stream)
--                }
--                LogStreamState::Streaming(stream) => {
--                    return stream
--                        .poll_next(cx)
--                        .map(|result| result.map(|log| Ok(log?)))
--                }
--            };
--
--            *state = next_state;
--        }
--    }
--
-*/
-
 #[cfg(test)]
 mod tests {
     use super::*;
