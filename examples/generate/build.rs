@@ -5,7 +5,6 @@ use std::path::Path;
 fn main() {
     let dest = env::var("OUT_DIR").unwrap();
     Builder::new("../truffle/build/contracts/RustCoin.json")
-        .with_rustfmt(true)
         .generate()
         .unwrap()
         .write_to_file(Path::new(&dest).join("rust_coin.rs"))
