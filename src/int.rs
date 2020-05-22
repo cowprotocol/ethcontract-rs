@@ -735,9 +735,8 @@ impl I256 {
     }
 
     /// Calculates the least non-negative remainder of self (mod rhs).
-    /// This is done as if by the Euclidean division algorithm
-    /// given r = self.rem_euclid(rhs),
-    /// self = rhs * self.div_euclid(rhs) + r, and 0 <= r < abs(rhs).
+    /// This is done as if by the _Euclidean division algorithm_
+    /// given `r = self.rem_euclid(rhs)`, `self = rhs * self.div_euclid(rhs) + r, and 0 <= r < abs(rhs)`.
     pub fn rem_euclid(self, rhs: Self) -> Self {
         let r = self % rhs;
         if r < Self::zero() {
@@ -751,9 +750,9 @@ impl I256 {
         }
     }
 
-    /// Calculates the quotient of Euclidean division self.div_euclid(rhs).
+    /// Calculates the quotient of Euclidean division `self.div_euclid(rhs)`.
     /// Returns a tuple of the divisor along with a boolean indicating whether an arithmetic
-    /// overflow would occur. If an overflow would occur then self is returned.
+    /// overflow would occur. If an overflow would occur then `self` is returned.
     pub fn overflowing_div_euclid(self, rhs: Self) -> (Self, bool) {
         if self == Self::min_value() && rhs == -I256::one() {
             (self, true)
@@ -762,8 +761,8 @@ impl I256 {
         }
     }
 
-    /// Checked Euclidean division. Computes self.div_euclid(rhs),
-    /// returning None if rhs == 0 or the division results in overflow.
+    /// Checked Euclidean division. Computes `self.div_euclid(rhs)`,
+    /// returning None if `rhs == 0` or the division results in overflow.
     pub fn checked_div_euclid(self, rhs: Self) -> Option<Self> {
         if rhs == I256::zero() || (self == Self::min_value() && rhs == -I256::one()) {
             None
@@ -773,19 +772,19 @@ impl I256 {
     }
 
     /// Wrapping Euclidean division.
-    /// Computes self.div_euclid(rhs), wrapping around at the boundary of the type.
-    /// Wrapping only occurs in MIN / -1 on a signed type
-    /// (where MIN is the negative minimal value for the type).
-    /// This is equivalent to -MIN, a positive value that is too large to represent in the type.
-    /// In this case, this method returns MIN itself.
+    /// Computes `self.div_euclid(rhs)`, wrapping around at the boundary of the type.
+    /// Wrapping only occurs in `MIN / -1` on a signed type
+    /// (where `MIN` is the negative minimal value for the type).
+    /// This is equivalent to `-MIN`, a positive value that is too large to represent in the type.
+    /// In this case, this method returns `MIN` itself.
     pub fn wrapping_div_euclid(self, rhs: Self) -> Self {
         self.overflowing_div_euclid(rhs).0
     }
 
-    /// Overflowing Euclidean remainder. Calculates self.rem_euclid(rhs).
+    /// Overflowing Euclidean remainder. Calculates `self.rem_euclid(rhs)`.
     /// Returns a tuple of the remainder after dividing along with a boolean indicating whether
-    /// an arithmetic overflow would occur. If an overflow would occur then 0 is returned.
-    /// Panics if rhs == 0
+    /// an arithmetic overflow would occur. If an overflow would occur then `0` is returned.
+    /// Panics if `rhs == 0`
     pub fn overflowing_rem_euclid(self, rhs: Self) -> (Self, bool) {
         if self == Self::min_value() && rhs == -Self::one() {
             (Self::zero(), true)
@@ -795,17 +794,17 @@ impl I256 {
     }
 
     /// Wrapping Euclidean remainder.
-    /// Computes self.rem_euclid(rhs), wrapping around at the boundary of the type.
-    /// Wrapping will only occur in MIN % -1 on a signed type
-    /// (where MIN is the negative minimal value for the type).
-    /// In this case, this method returns 0.
-    /// Panics when rhs == 0
+    /// Computes `self.rem_euclid(rhs)`, wrapping around at the boundary of the type.
+    /// Wrapping will only occur in `MIN % -1` on a signed type
+    /// (where `MIN` is the negative minimal value for the type).
+    /// In this case, this method returns `0`.
+    /// Panics when `rhs == 0`
     pub fn wrapping_rem_euclid(self, rhs: Self) -> Self {
         self.overflowing_rem_euclid(rhs).0
     }
 
-    /// Checked Euclidean remainder. Computes self.rem_euclid(rhs),
-    /// returning None if rhs == 0 or the division results in overflow.
+    /// Checked Euclidean remainder. Computes `self.rem_euclid(rhs)`,
+    /// returning `None` if `rhs == 0` or the division results in overflow.
     pub fn checked_rem_euclid(self, rhs: Self) -> Option<Self> {
         if rhs == I256::zero() || (self == Self::min_value() && rhs == -I256::one()) {
             None
