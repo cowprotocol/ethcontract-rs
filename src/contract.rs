@@ -22,7 +22,7 @@ use web3::Transport;
 pub use self::deploy::{Deploy, DeployBuilder};
 pub use self::event::{
     AllEventsBuilder, Event, EventBuilder, EventData, EventMetadata, EventStream, ParseLog,
-    QueryAllFuture, QueryFuture, RawLog, Topic, DEFAULT_POLL_INTERVAL,
+    QueryFuture, RawLog, Topic, DEFAULT_POLL_INTERVAL,
 };
 pub use self::method::{
     CallFuture, Detokenizable, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture,
