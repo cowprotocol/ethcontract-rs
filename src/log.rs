@@ -349,16 +349,10 @@ struct PastLogsPager<T: Transport> {
     filter: FilterBuilder,
 
     /// The block number for the next page.
-    ///
-    /// This value can be `None` if it `from_block` was specified as `Latest` or
-    /// `Pending`.
     page_block: u64,
     /// The last block used for pagination. This is slightly different than
     /// `to_block` as this must be a concrete block number (and can't be block
     /// aliases such as `Earliest` or `Latest`).
-    ///
-    /// This has a value of `None` if it has not yet been retrieved (in case
-    /// `to_block` is `Latest` or `Pending`).
     end_block: u64,
 }
 

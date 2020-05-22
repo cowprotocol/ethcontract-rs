@@ -1,27 +1,28 @@
-if: (branch = master) OR (type = pull_request) OR (tag IS present)
-stages:
-  - name: "Build and Test"
-  - name: "Deploy"
-    if: tag IS present
+branches:
+  only:
+    # NOTE: The `staging` and `trying` branches are used by bors for performing
+    #   continuous integration checks.
+    - staging
+    - trying
+    - master
 
-stage: "Build and Test"
+os: linux
+dist: bionic
 language: rust
-rust:
-  - 1.42.0
-  - stable
-  - beta
-  - nightly
-env:
-  global:
-    - SCCACHE_VERSION=0.2.12
-    - SCCACHE=$HOME/.sccache/bin/sccache
-    - RUSTC_WRAPPER=$SCCACHE
 
 jobs:
-  allow_failures:
-    - rust: nightly
   fast_finish: true
   include:
+    - stage: "Build and Test"
+      name: "Rust: 1.42.0"
+      rust: 1.42.0
+    - name: "Rust: stable"
+      rust: stable
+    - name: "Rust: beta"
+      rust: beta
+    - name: "Rust: nightly"
+      rust: nightly
+      allow_failure: true
     - name: "Rust: stable - Examples"
       rust: stable
       script:
@@ -40,6 +41,7 @@ jobs:
         - kill %1
 
     - stage: "Deploy"
+      if: tag is present
       name: "crates.io"
       rust: stable
       env:
@@ -50,8 +52,12 @@ jobs:
       deploy:
         provider: script
         script: bash ci/deploy.sh
-        on:
-          tags: true
+
+env:
+  global:
+    - SCCACHE_VERSION=0.2.13
+    - SCCACHE=$HOME/.sccache/bin/sccache
+    - RUSTC_WRAPPER=$SCCACHE
 
 cache:
   directories:
@@ -81,10 +87,10 @@ before_script:
   - (cd examples/truffle; yarn --frozen-lockfile && yarn build)
 
 script:
-  - cargo build --workspace --all-features --verbose
-  - cargo test --workspace --all-features --verbose
   - cargo fmt -- --check
   - cargo clippy --workspace --all-features --all-targets -- -D warnings
+  - cargo build --workspace --all-features --verbose
+  - cargo test --workspace --all-features --verbose
 
 before_cache:
   - rm -rf "$TRAVIS_HOME/.cargo/registry"
