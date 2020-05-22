@@ -1617,11 +1617,20 @@ mod tests {
 
         // Overflowing
         assert_eq!(a.overflowing_rem_euclid(b), (I256::from(3), false));
-        assert_eq!(I256::min_value().overflowing_rem_euclid(-I256::one()), (I256::zero(), true));
+        assert_eq!(
+            I256::min_value().overflowing_rem_euclid(-I256::one()),
+            (I256::zero(), true)
+        );
 
         // Wrapping
-        assert_eq!(I256::from(100).wrapping_rem_euclid(I256::from(10)), I256::zero());
-        assert_eq!(I256::min_value().wrapping_rem_euclid(-I256::one()), I256::zero());
+        assert_eq!(
+            I256::from(100).wrapping_rem_euclid(I256::from(10)),
+            I256::zero()
+        );
+        assert_eq!(
+            I256::min_value().wrapping_rem_euclid(-I256::one()),
+            I256::zero()
+        );
 
         // Checked
         assert_eq!(a.checked_rem_euclid(b), Some(I256::from(3)));
