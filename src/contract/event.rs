@@ -5,31 +5,21 @@ mod data;
 
 pub use self::data::{Event, EventMetadata, EventStatus, ParseLog, RawLog, StreamEvent};
 use crate::errors::{EventError, ExecutionError};
-use crate::future::CompatCallFuture;
-use crate::log::{LogFilterBuilder, LogStream};
+use crate::log::LogFilterBuilder;
 pub use ethcontract_common::abi::Topic;
 use ethcontract_common::abi::{Event as AbiEvent, RawTopicFilter, Token};
 use futures::compat::Future01CompatExt;
 use futures::stream::{Stream, TryStreamExt};
-use pin_project::{pin_project, project};
 use std::cmp;
-use std::future::Future;
 use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
 use web3::api::Web3;
 use web3::contract::tokens::{Detokenize, Tokenizable};
-use web3::types::{Address, BlockNumber, FilterBuilder, Log, H256};
+use web3::types::{Address, BlockNumber, H256};
 use web3::Transport;
 
-/// The default poll interval to use for polling logs from the block chain.
-#[cfg(not(test))]
-pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(5);
-#[cfg(test)]
-pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(0);
-
 /// A builder for creating a filtered stream of contract events that are
+#[derive(Debug)]
 #[must_use = "event builders do nothing unless you stream them"]
 pub struct EventBuilder<T: Transport, E: Detokenize> {
     /// The underlying web3 instance.
@@ -37,11 +27,9 @@ pub struct EventBuilder<T: Transport, E: Detokenize> {
     /// The event ABI data for encoding topic filters and decoding logs.
     event: AbiEvent,
     /// The web3 filter builder used for creating a log filter.
-    filter: FilterBuilder,
+    pub filter: LogFilterBuilder<T>,
     /// The topic filters that are encoded based on the event ABI.
     pub topics: RawTopicFilter,
-    /// The polling interval for querying the node for more events.
-    pub poll_interval: Option<Duration>,
     _event: PhantomData<E>,
 }
 
@@ -50,11 +38,10 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
     /// and address.
     pub fn new(web3: Web3<T>, event: AbiEvent, address: Address) -> Self {
         EventBuilder {
-            web3,
+            web3: web3.clone(),
             event,
-            filter: FilterBuilder::default().address(vec![address]),
+            filter: LogFilterBuilder::new(web3).address(vec![address]),
             topics: RawTopicFilter::default(),
-            poll_interval: None,
             _event: PhantomData,
         }
     }
@@ -74,14 +61,6 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
     #[allow(clippy::wrong_self_convention)]
     pub fn to_block(mut self, block: BlockNumber) -> Self {
         self.filter = self.filter.to_block(block);
-        self
-    }
-
-    /// Limit the number of events that can be retrieved by this filter.
-    ///
-    /// Note that this parameter is non-standard.
-    pub fn limit(mut self, value: usize) -> Self {
-        self.filter = self.filter.limit(value);
         self
     }
 
@@ -119,20 +98,42 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
     /// The polling interval. This is used as the interval between consecutive
     /// `eth_getFilterChanges` calls to get filter updates.
     pub fn poll_interval(mut self, value: Duration) -> Self {
-        self.poll_interval = Some(value);
+        self.filter = self.filter.poll_interval(value);
         self
     }
 
     /// Returns a future that resolves with a collection of all existing logs
     /// matching the builder parameters.
-    pub fn query(self) -> Result<QueryFuture<T, E>, EventError> {
-        QueryFuture::from_builder(self)
+    pub async fn query(mut self) -> Result<Vec<Event<E>>, EventError> {
+        let event = self.event;
+        self.filter.topics = event
+            .filter(self.topics)
+            .map_err(|err| EventError::new(&event, err))?;
+        let logs = self
+            .filter
+            .past_logs()
+            .await
+            .map_err(|err| EventError::new(&event, err))?;
+
+        logs.into_iter()
+            .map(|log| {
+                Event::from_past_log(log, |raw| raw.decode(&event))
+                    .map_err(|err| EventError::new(&event, err))
+            })
+            .collect()
     }
 
     /// Creates an event stream from the current event builder that emits new
     /// events.
-    pub fn stream(self) -> Result<EventStream<T, E>, EventError> {
-        EventStream::from_builder(self)
+    pub fn stream(self) -> futures::stream::BoxStream<'static, Result<StreamEvent<E>, EventError>> {
+        /*j
+        self.filter.stream()
+            .try_map(|log| {
+            next.map(|log| Event::from_streamed_log(log?, |raw| raw.decode(event)))
+                .map(|next| next.map_err(|err| EventError::new(&event, err)))
+            })
+        */
+        todo!()
     }
 }
 
@@ -142,109 +143,6 @@ where
     P: Tokenizable,
 {
     topic.map(|parameter| parameter.into_token())
-}
-
-/// A future for querying events based on a log filter.
-#[must_use = "futures do nothing unless you await or poll them"]
-#[pin_project]
-pub struct QueryFuture<T: Transport, E: Detokenize> {
-    event: AbiEvent,
-    #[pin]
-    inner: CompatCallFuture<T, Vec<Log>>,
-    _event: PhantomData<E>,
-}
-
-impl<T: Transport, E: Detokenize> QueryFuture<T, E> {
-    /// Create a new query future from event builder parameters.
-    pub fn from_builder(builder: EventBuilder<T, E>) -> Result<Self, EventError> {
-        let event = builder.event;
-
-        let web3 = builder.web3;
-        let filter = {
-            let abi_filter = event
-                .filter(builder.topics)
-                .map_err(|err| EventError::new(&event, err))?;
-            builder.filter.topic_filter(abi_filter).build()
-        };
-
-        let inner = web3.eth().logs(filter).compat();
-
-        Ok(QueryFuture {
-            event,
-            inner,
-            _event: PhantomData,
-        })
-    }
-}
-
-impl<T: Transport, E: Detokenize> Future for QueryFuture<T, E> {
-    type Output = Result<Vec<Event<E>>, EventError>;
-
-    #[project]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        #[project]
-        let QueryFuture { event, inner, .. } = self.project();
-
-        inner
-            .poll(cx)
-            .map(|logs| {
-                logs?
-                    .into_iter()
-                    .map(|log| Event::from_past_log(log, |raw| raw.decode(event)))
-                    .collect::<Result<Vec<_>, ExecutionError>>()
-            })
-            .map(|result| result.map_err(|err| EventError::new(&event, err)))
-    }
-}
-
-/// An event stream that emits events matching a builder.
-#[must_use = "streams do nothing unless you or poll them"]
-#[pin_project]
-pub struct EventStream<T: Transport, E: Detokenize> {
-    event: AbiEvent,
-    #[pin]
-    inner: LogStream<T>,
-    _event: PhantomData<E>,
-}
-
-impl<T: Transport, E: Detokenize> EventStream<T, E> {
-    /// Create a new log stream from a given web3 provider, filter and polling
-    /// parameters.
-    pub fn from_builder(builder: EventBuilder<T, E>) -> Result<Self, EventError> {
-        let event = builder.event;
-
-        let web3 = builder.web3;
-        let filter = {
-            let abi_filter = event
-                .filter(builder.topics)
-                .map_err(|err| EventError::new(&event, err))?;
-            builder.filter.topic_filter(abi_filter).build()
-        };
-
-        let poll_interval = builder.poll_interval.unwrap_or(DEFAULT_POLL_INTERVAL);
-
-        let inner = LogStream::new(web3, filter, poll_interval);
-
-        Ok(EventStream {
-            event,
-            inner,
-            _event: PhantomData,
-        })
-    }
-}
-
-impl<T: Transport, E: Detokenize> Stream for EventStream<T, E> {
-    type Item = Result<StreamEvent<E>, EventError>;
-
-    #[project]
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        #[project]
-        let EventStream { event, inner, .. } = self.project();
-        inner.poll_next(cx).map(|next| {
-            next.map(|log| Event::from_streamed_log(log?, |raw| raw.decode(event)))
-                .map(|next| next.map_err(|err| EventError::new(&event, err)))
-        })
-    }
 }
 
 /// A builder for creating a filtered stream for any contract event.
@@ -326,13 +224,6 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
         self
     }
 
-    /// The number of blocks mined after a log has been emitted until it is
-    /// considered confirmed and can no longer be reorg-ed.
-    pub fn confirmations(mut self, value: usize) -> Self {
-        self.filter = self.filter.confirmations(value);
-        self
-    }
-
     /// The polling interval. This is used as the interval between consecutive
     /// `eth_getLogs` calls to get log updates.
     pub fn poll_interval(mut self, value: Duration) -> Self {
@@ -389,8 +280,10 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     }
 
     /// Creates an event stream from the current event builder.
-    pub fn stream(self) -> AllEventsStream<T, E> {
-        AllEventsStream::from_builder(self)
+    pub fn stream(self) -> impl Stream<Item = Result<StreamEvent<E>, ExecutionError>> {
+        self.filter
+            .stream()
+            .and_then(|log| async { Event::from_streamed_log(log, E::parse_log) })
     }
 }
 
@@ -409,45 +302,6 @@ async fn block_number_from_transaction_hash<T: Transport>(
         .block_number
         .ok_or(ExecutionError::PendingTransaction(tx_hash))?
         .as_u64())
-}
-
-/// An event stream for all contract events.
-#[must_use = "streams do nothing unless you or poll them"]
-#[pin_project]
-pub struct AllEventsStream<T: Transport, E: ParseLog> {
-    #[pin]
-    inner: LogStream<T>,
-    _events: PhantomData<E>,
-}
-
-impl<T: Transport, E: ParseLog> AllEventsStream<T, E> {
-    /// Create a new log stream from a given web3 provider, filter and polling
-    /// parameters.
-    pub fn from_builder(builder: AllEventsBuilder<T, E>) -> Self {
-        let poll_interval = builder
-            .filter
-            .poll_interval
-            .unwrap_or(DEFAULT_POLL_INTERVAL);
-        let web3 = builder.web3.clone();
-        let filter = builder.filter.into_filter();
-        let inner = LogStream::new(web3, filter.build(), poll_interval);
-
-        AllEventsStream {
-            inner,
-            _events: PhantomData,
-        }
-    }
-}
-
-impl<T: Transport, E: ParseLog> Stream for AllEventsStream<T, E> {
-    type Item = Result<StreamEvent<E>, ExecutionError>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        self.project()
-            .inner
-            .poll_next(cx)
-            .map(|next| next.map(|log| Event::from_streamed_log(log?, E::parse_log)))
-    }
 }
 
 #[cfg(test)]
@@ -515,13 +369,11 @@ mod tests {
         let signature = event.signature();
         let events = EventBuilder::<_, (Address, Address, U256)>::new(web3, event, address)
             .to_block(99.into())
-            .limit(1000)
             .topic1(Topic::OneOf(vec![
                 Address::repeat_byte(0x70),
                 Address::repeat_byte(0x80),
             ]))
             .query()
-            .expect("failed to abi-encode filter")
             .immediate()
             .expect("failed to get logs");
 
@@ -531,7 +383,6 @@ mod tests {
             &[json!({
                 "address": address,
                 "toBlock": U256::from(99),
-                "limit": 1000,
                 "topics": [
                     signature,
                     null,
@@ -565,7 +416,7 @@ mod tests {
                 Address::repeat_byte(0x80),
             ]))
             .stream()
-            .expect("failed to abi-encode filter")
+            //.expect("failed to abi-encode filter")
             .next()
             .immediate()
             .expect("log stream did not produce any logs")
@@ -738,6 +589,7 @@ mod tests {
                 Address::repeat_byte(0x80).into(),
             ]))
             .stream()
+            .boxed()
             .next()
             .immediate()
             .expect("log stream did not produce any logs")

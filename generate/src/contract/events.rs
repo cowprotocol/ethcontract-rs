@@ -300,14 +300,6 @@ fn expand_builder_type(event: &Event) -> Result<TokenStream> {
                 self
             }
 
-            /// Limit the number of events that can be retrieved by this filter.
-            ///
-            /// Note that this parameter is non-standard.
-            pub fn limit(mut self, value: usize) -> Self {
-                self.0 = (self.0).limit(value);
-                self
-            }
-
             /// The polling interval. This is used as the interval between
             /// consecutive `eth_getFilterChanges` calls to get filter updates.
             pub fn poll_interval(mut self, value: std::time::Duration) -> Self {
@@ -319,19 +311,21 @@ fn expand_builder_type(event: &Event) -> Result<TokenStream> {
 
             /// Returns a future that resolves with a collection of all existing
             /// logs matching the builder parameters.
-            pub fn query(self) -> self::ethcontract::contract::QueryFuture<
-                self::ethcontract::dyns::DynTransport,
-                self::event_data::#event_name,
+            pub async fn query(self) -> std::result::Result<
+                std::vec::Vec<self::ethcontract::Event<self::event_data::#event_name>>,
+                self::ethcontract::errors::EventError,
             > {
-                (self.0).query().expect("generated event query")
+                (self.0).query().await
             }
 
             /// Creates an event stream from the current event builder.
-            pub fn stream(self) -> self::ethcontract::contract::EventStream<
-                self::ethcontract::dyns::DynTransport,
-                self::event_data::#event_name,
+            pub fn stream(self) -> impl self::ethcontract::futures::stream::Stream<
+                Item = std::result::Result<
+                    self::ethcontract::StreamEvent<self::event_data::#event_name>,
+                    self::ethcontract::errors::EventError,
+                >,
             > {
-                (self.0).stream().expect("generated event topic filters")
+                (self.0).stream()
             }
         }
     })
