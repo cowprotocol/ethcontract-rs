@@ -8,8 +8,9 @@ use crate::errors::{EventError, ExecutionError};
 use crate::log::LogFilterBuilder;
 pub use ethcontract_common::abi::Topic;
 use ethcontract_common::abi::{Event as AbiEvent, RawTopicFilter, Token};
-use futures::compat::Future01CompatExt;
-use futures::stream::{Stream, TryStreamExt};
+use futures::compat::Future01CompatExt as _;
+use futures::future::{self, TryFutureExt as _};
+use futures::stream::{Stream, StreamExt as _, TryStreamExt as _};
 use std::cmp;
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -102,20 +103,31 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
         self
     }
 
-    /// Returns a future that resolves with a collection of all existing logs
-    /// matching the builder parameters.
-    pub async fn query(mut self) -> Result<Vec<Event<E>>, EventError> {
-        let event = self.event;
-        self.filter.topics = event
-            .filter(self.topics)
-            .map_err(|err| EventError::new(&event, err))?;
-        let logs = self
-            .filter
-            .past_logs()
-            .await
+    /// Returns a `LogFilterBuilder` instance for the current builder.
+    pub fn into_inner(self) -> Result<(AbiEvent, LogFilterBuilder<T>), EventError> {
+        let EventBuilder {
+            event,
+            mut filter,
+            topics,
+            ..
+        } = self;
+
+        filter.topics = event
+            .filter(topics)
             .map_err(|err| EventError::new(&event, err))?;
 
-        logs.into_iter()
+        Ok((event, filter))
+    }
+
+    /// Returns a future that resolves with a collection of all existing logs
+    /// matching the builder parameters.
+    pub async fn query(self) -> Result<Vec<Event<E>>, EventError> {
+        let (event, filter) = self.into_inner()?;
+        filter
+            .past_logs()
+            .await
+            .map_err(|err| EventError::new(&event, err))?
+            .into_iter()
             .map(|log| {
                 Event::from_past_log(log, |raw| raw.decode(&event))
                     .map_err(|err| EventError::new(&event, err))
@@ -125,15 +137,14 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
 
     /// Creates an event stream from the current event builder that emits new
     /// events.
-    pub fn stream(self) -> futures::stream::BoxStream<'static, Result<StreamEvent<E>, EventError>> {
-        /*j
-        self.filter.stream()
-            .try_map(|log| {
-            next.map(|log| Event::from_streamed_log(log?, |raw| raw.decode(event)))
-                .map(|next| next.map_err(|err| EventError::new(&event, err)))
+    pub fn stream(self) -> impl Stream<Item = Result<StreamEvent<E>, EventError>> {
+        future::ready(self.into_inner().map(|(event, filter)| {
+            filter.stream().map(move |log| {
+                log.and_then(|log| Event::from_streamed_log(log, |raw| raw.decode(&event)))
+                    .map_err(|err| EventError::new(&event, err))
             })
-        */
-        todo!()
+        }))
+        .try_flatten_stream()
     }
 }
 
@@ -416,7 +427,7 @@ mod tests {
                 Address::repeat_byte(0x80),
             ]))
             .stream()
-            //.expect("failed to abi-encode filter")
+            .boxed()
             .next()
             .immediate()
             .expect("log stream did not produce any logs")
