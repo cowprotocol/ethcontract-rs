@@ -226,7 +226,7 @@ impl<T: Transport> LogFilterBuilder<T> {
     }
 
     /// Returns a web3 filter builder needed for querying and streaming logs.
-    fn into_filter(self) -> FilterBuilder {
+    pub fn into_filter(self) -> FilterBuilder {
         let mut filter = FilterBuilder::default();
         if !self.address.is_empty() {
             filter = filter.address(self.address);
@@ -242,6 +242,17 @@ impl<T: Transport> LogFilterBuilder<T> {
         }
 
         filter
+    }
+
+    /// Performs a `eth_getLogs` query to past logs. For large block ranges,
+    /// such as retrieving all contract logs since genesis, it is recommended to
+    /// use the `past_logs_pages` method instead.
+    pub async fn past_logs(self) -> Result<Vec<Log>, ExecutionError> {
+        let web3 = self.web3.clone();
+        let filter = self.into_filter();
+        let logs = web3.eth().logs(filter.build()).compat().await?;
+
+        Ok(logs)
     }
 
     /// Returns a stream that resolves into a page of logs matching the filter
