@@ -3,7 +3,7 @@
 
 mod data;
 
-pub use self::data::{Event, EventData, EventMetadata, ParseLog, RawLog};
+pub use self::data::{Event, EventMetadata, EventStatus, ParseLog, RawLog, StreamEvent};
 use crate::errors::{EventError, ExecutionError};
 use crate::future::CompatCallFuture;
 use crate::log::{LogFilterBuilder, LogStream};
@@ -190,7 +190,7 @@ impl<T: Transport, E: Detokenize> Future for QueryFuture<T, E> {
             .map(|logs| {
                 logs?
                     .into_iter()
-                    .map(|log| Event::from_log(log, |raw| raw.decode(event)))
+                    .map(|log| Event::from_past_log(log, |raw| raw.decode(event)))
                     .collect::<Result<Vec<_>, ExecutionError>>()
             })
             .map(|result| result.map_err(|err| EventError::new(&event, err)))
@@ -234,14 +234,14 @@ impl<T: Transport, E: Detokenize> EventStream<T, E> {
 }
 
 impl<T: Transport, E: Detokenize> Stream for EventStream<T, E> {
-    type Item = Result<Event<E>, EventError>;
+    type Item = Result<StreamEvent<E>, EventError>;
 
     #[project]
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         #[project]
         let EventStream { event, inner, .. } = self.project();
         inner.poll_next(cx).map(|next| {
-            next.map(|log| Event::from_log(log?, |raw| raw.decode(event)))
+            next.map(|log| Event::from_streamed_log(log?, |raw| raw.decode(event)))
                 .map(|next| next.map_err(|err| EventError::new(&event, err)))
         })
     }
@@ -345,7 +345,7 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     pub async fn query(self) -> Result<Vec<Event<E>>, ExecutionError> {
         let logs = self.filter.past_logs().await?;
         logs.into_iter()
-            .map(|log| Event::from_log(log, E::parse_log))
+            .map(|log| Event::from_past_log(log, E::parse_log))
             .collect()
     }
 
@@ -378,7 +378,7 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
             .try_fold(Vec::new(), |mut events, logs| async move {
                 events.reserve(logs.len());
                 for log in logs {
-                    let event = Event::from_log(log, E::parse_log)?;
+                    let event = Event::from_past_log(log, E::parse_log)?;
                     events.push(event);
                 }
                 Ok(events)
@@ -440,13 +440,13 @@ impl<T: Transport, E: ParseLog> AllEventsStream<T, E> {
 }
 
 impl<T: Transport, E: ParseLog> Stream for AllEventsStream<T, E> {
-    type Item = Result<Event<E>, ExecutionError>;
+    type Item = Result<StreamEvent<E>, ExecutionError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         self.project()
             .inner
             .poll_next(cx)
-            .map(|next| next.map(|log| Event::from_log(log?, E::parse_log)))
+            .map(|next| next.map(|log| Event::from_streamed_log(log?, E::parse_log)))
     }
 }
 
@@ -525,8 +525,7 @@ mod tests {
             .immediate()
             .expect("failed to get logs");
 
-        assert!(events[0].is_added());
-        assert_eq!(events[0].inner_data().2, U256::from(42));
+        assert_eq!(events[0].data.2, U256::from(42));
         transport.assert_request(
             "eth_getLogs",
             &[json!({
@@ -615,9 +614,8 @@ mod tests {
             .immediate()
             .expect("failed to get logs");
 
-        assert!(raw_events[0].is_added());
         assert_eq!(
-            *raw_events[0].inner_data(),
+            raw_events[0].data,
             RawLog {
                 topics: vec![
                     signature,

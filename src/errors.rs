@@ -13,7 +13,7 @@ use thiserror::Error;
 use uint::FromDecStrErr;
 use web3::contract::Error as Web3ContractError;
 use web3::error::Error as Web3Error;
-use web3::types::{TransactionReceipt, H256};
+use web3::types::{Log, TransactionReceipt, H256};
 
 /// Error that can occur while locating a deployed contract.
 #[derive(Debug, Error)]
@@ -95,6 +95,10 @@ pub enum ExecutionError {
     /// mined.
     #[error("pending transaction {0:?}, not yet part of a block")]
     PendingTransaction(H256),
+
+    /// A removed log was received when querying past logs.
+    #[error("unexepected removed log when querying past logs")]
+    RemovedLog(Box<Log>),
 }
 
 impl From<Web3Error> for ExecutionError {
