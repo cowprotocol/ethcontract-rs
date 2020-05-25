@@ -7,16 +7,14 @@ pub mod estimate_gas;
 pub mod gas_price;
 pub mod send;
 
+use self::build::BuildFuture;
+use self::confirm::ConfirmParams;
+use self::estimate_gas::EstimateGasFuture;
+pub use self::gas_price::GasPrice;
+pub use self::send::TransactionResult;
 use crate::secret::{Password, PrivateKey};
-use crate::transaction::build::BuildFuture;
-use crate::transaction::confirm::ConfirmParams;
-use crate::transaction::estimate_gas::EstimateGasFuture;
-pub use crate::transaction::gas_price::GasPrice;
-use crate::transaction::send::SendFuture;
 use web3::api::Web3;
-use web3::types::{
-    Address, Bytes, TransactionCondition, TransactionReceipt, TransactionRequest, H256, U256,
-};
+use web3::types::{Address, Bytes, TransactionCondition, TransactionRequest, U256};
 use web3::Transport;
 
 /// The account type used for signing the transaction.
@@ -91,60 +89,6 @@ impl Transaction {
     pub fn raw(self) -> Option<Bytes> {
         match self {
             Transaction::Raw(tx) => Some(tx),
-            _ => None,
-        }
-    }
-}
-
-/// Represents the result of a sent transaction that can either be a transaction
-/// hash, in the case the transaction was not confirmed, or a full transaction
-/// receipt if the `TransactionBuilder` was configured to wait for confirmation
-/// blocks.
-///
-/// Note that the result will always be a `TransactionResult::Hash` if
-/// `Confirm::Skip` was used and `TransactionResult::Receipt` if
-/// `Confirm::Blocks` was used.
-#[derive(Clone, Debug)]
-#[allow(clippy::large_enum_variant)]
-pub enum TransactionResult {
-    /// A transaction hash, this variant happens if and only if confirmation was
-    /// skipped.
-    Hash(H256),
-    /// A transaction receipt, this variant happens if and only if the
-    /// transaction was configured to wait for confirmations.
-    Receipt(TransactionReceipt),
-}
-
-impl TransactionResult {
-    /// Returns true if the `TransactionResult` is a `Hash` variant, i.e. it is
-    /// only a hash and does not contain the transaction receipt.
-    pub fn is_hash(&self) -> bool {
-        match self {
-            TransactionResult::Hash(_) => true,
-            _ => false,
-        }
-    }
-
-    /// Get the transaction hash.
-    pub fn hash(&self) -> H256 {
-        match self {
-            TransactionResult::Hash(hash) => *hash,
-            TransactionResult::Receipt(tx) => tx.transaction_hash,
-        }
-    }
-
-    /// Returns true if the `TransactionResult` is a `Receipt` variant, i.e. the
-    /// transaction was confirmed and the full transaction receipt is available.
-    pub fn is_receipt(&self) -> bool {
-        self.as_receipt().is_some()
-    }
-
-    /// Extract a `TransactionReceipt` from the result. This will return `None`
-    /// if the result is only a hash and the transaction receipt is not
-    /// available.
-    pub fn as_receipt(&self) -> Option<&TransactionReceipt> {
-        match self {
-            TransactionResult::Receipt(ref tx) => Some(tx),
             _ => None,
         }
     }
@@ -277,12 +221,6 @@ impl<T: Transport> TransactionBuilder<T> {
     pub fn build(self) -> BuildFuture<T> {
         BuildFuture::from_builder(self)
     }
-
-    /// Sign (if required) and send the transaction. Returns the transaction
-    /// hash that can be used to retrieve transaction information.
-    pub fn send(self) -> SendFuture<T> {
-        SendFuture::from_builder(self)
-    }
 }
 
 #[cfg(test)]
@@ -290,7 +228,7 @@ mod tests {
     use super::*;
     use crate::errors::ExecutionError;
     use crate::test::prelude::*;
-    use web3::types::H2048;
+    use web3::types::{H2048, H256};
 
     #[test]
     fn tx_builder_estimate_gas() {

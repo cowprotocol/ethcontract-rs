@@ -2,119 +2,89 @@
 //! confirmation.
 
 use crate::errors::ExecutionError;
-use crate::future::CompatCallFuture;
-use crate::transaction::build::BuildFuture;
 use crate::transaction::confirm::ConfirmFuture;
-use crate::transaction::{ResolveCondition, Transaction, TransactionBuilder, TransactionResult};
+use crate::transaction::{ResolveCondition, Transaction, TransactionBuilder};
 use futures::compat::Future01CompatExt;
-use futures::ready;
-use pin_project::{pin_project, project};
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use web3::api::Web3;
-use web3::types::{H256, U64};
+use web3::types::{TransactionReceipt, H256, U64};
 use web3::Transport;
 
-/// Future for optionally signing and then sending a transaction.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct SendFuture<T: Transport> {
-    web3: Web3<T>,
-    /// The confirmation options to use for the transaction once it has been
-    /// sent. Stored as an option as we require transfer of ownership.
-    resolve: Option<ResolveCondition>,
-    /// Internal execution state.
-    #[pin]
-    state: SendState<T>,
-}
+impl<T: Transport> TransactionBuilder<T> {
+    /// Sign (if required) and send the transaction. Returns the transaction
+    /// hash that can be used to retrieve transaction information.
+    pub async fn send(mut self) -> Result<TransactionResult, ExecutionError> {
+        let web3 = self.web3.clone();
+        let resolve = self.resolve.take().unwrap_or_default();
 
-/// The state of the send future.
-#[pin_project]
-enum SendState<T: Transport> {
-    /// The transaction is being built into a request or a signed raw
-    /// transaction.
-    Building(#[pin] BuildFuture<T>),
-    /// The transaction is being sent to the node.
-    Sending(#[pin] CompatCallFuture<T, H256>),
-    /// The transaction is being confirmed.
-    Confirming(#[pin] ConfirmFuture<T>),
-}
+        let tx = self.build().await?;
+        let tx_hash = match tx {
+            Transaction::Request(tx) => web3.eth().send_transaction(tx),
+            Transaction::Raw(tx) => web3.eth().send_raw_transaction(tx),
+        }
+        .compat()
+        .await?;
 
-impl<T: Transport> SendFuture<T> {
-    /// Creates a new future from a `TransactionBuilder`
-    pub fn from_builder(mut builder: TransactionBuilder<T>) -> Self {
-        let web3 = builder.web3.clone();
-        let resolve = Some(builder.resolve.take().unwrap_or_default());
-        let state = SendState::Building(BuildFuture::from_builder(builder));
+        let tx_receipt = match resolve {
+            ResolveCondition::Pending => return Ok(TransactionResult::Hash(tx_hash)),
+            ResolveCondition::Confirmed(params) => ConfirmFuture::new(&web3, tx_hash, params).await,
+        }?;
 
-        SendFuture {
-            web3,
-            resolve,
-            state,
+        match tx_receipt.status {
+            Some(U64([1])) => Ok(TransactionResult::Receipt(tx_receipt)),
+            _ => Err(ExecutionError::Failure(Box::new(tx_receipt))),
         }
     }
 }
 
-impl<T: Transport> Future for SendFuture<T> {
-    type Output = Result<TransactionResult, ExecutionError>;
+/// Represents the result of a sent transaction that can either be a transaction
+/// hash, in the case the transaction was not confirmed, or a full transaction
+/// receipt if the `TransactionBuilder` was configured to wait for confirmation
+/// blocks.
+///
+/// Note that the result will always be a `TransactionResult::Hash` if
+/// `Confirm::Skip` was used and `TransactionResult::Receipt` if
+/// `Confirm::Blocks` was used.
+#[derive(Clone, Debug)]
+#[allow(clippy::large_enum_variant)]
+pub enum TransactionResult {
+    /// A transaction hash, this variant happens if and only if confirmation was
+    /// skipped.
+    Hash(H256),
+    /// A transaction receipt, this variant happens if and only if the
+    /// transaction was configured to wait for confirmations.
+    Receipt(TransactionReceipt),
+}
 
-    #[project]
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        loop {
-            #[project]
-            let SendFuture {
-                web3,
-                resolve,
-                state,
-            } = self.as_mut().project();
+impl TransactionResult {
+    /// Returns true if the `TransactionResult` is a `Hash` variant, i.e. it is
+    /// only a hash and does not contain the transaction receipt.
+    pub fn is_hash(&self) -> bool {
+        match self {
+            TransactionResult::Hash(_) => true,
+            _ => false,
+        }
+    }
 
-            #[project]
-            let next_state = match state.project() {
-                SendState::Building(build) => {
-                    let tx = match ready!(build.poll(cx)) {
-                        Ok(tx) => tx,
-                        Err(err) => return Poll::Ready(Err(err)),
-                    };
+    /// Get the transaction hash.
+    pub fn hash(&self) -> H256 {
+        match self {
+            TransactionResult::Hash(hash) => *hash,
+            TransactionResult::Receipt(tx) => tx.transaction_hash,
+        }
+    }
 
-                    let eth = web3.eth();
-                    let send = match tx {
-                        Transaction::Request(tx) => eth.send_transaction(tx).compat(),
-                        Transaction::Raw(tx) => eth.send_raw_transaction(tx).compat(),
-                    };
+    /// Returns true if the `TransactionResult` is a `Receipt` variant, i.e. the
+    /// transaction was confirmed and the full transaction receipt is available.
+    pub fn is_receipt(&self) -> bool {
+        self.as_receipt().is_some()
+    }
 
-                    SendState::Sending(send)
-                }
-                SendState::Sending(send) => {
-                    let tx_hash = match ready!(send.poll(cx)) {
-                        Ok(tx_hash) => tx_hash,
-                        Err(err) => return Poll::Ready(Err(err.into())),
-                    };
-
-                    let confirm = match resolve.take().expect("confirmation called more than once")
-                    {
-                        ResolveCondition::Pending => {
-                            return Poll::Ready(Ok(TransactionResult::Hash(tx_hash)))
-                        }
-                        ResolveCondition::Confirmed(params) => {
-                            ConfirmFuture::new(&web3, tx_hash, params)
-                        }
-                    };
-
-                    SendState::Confirming(confirm)
-                }
-                SendState::Confirming(confirm) => {
-                    return confirm.poll(cx).map(|result| {
-                        let tx = result?;
-                        match tx.status {
-                            Some(U64([1])) => Ok(TransactionResult::Receipt(tx)),
-                            _ => Err(ExecutionError::Failure(Box::new(tx))),
-                        }
-                    })
-                }
-            };
-
-            self.state = next_state;
+    /// Extract a `TransactionReceipt` from the result. This will return `None`
+    /// if the result is only a hash and the transaction receipt is not
+    /// available.
+    pub fn as_receipt(&self) -> Option<&TransactionReceipt> {
+        match self {
+            TransactionResult::Receipt(ref tx) => Some(tx),
+            _ => None,
         }
     }
 }
