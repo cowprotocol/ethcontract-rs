@@ -96,6 +96,14 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
         self
     }
 
+    /// Limit the number of events that can be retrieved by this filter.
+    ///
+    /// Note that this parameter is non-standard.
+    pub fn limit(mut self, value: usize) -> Self {
+        self.filter = self.filter.limit(value);
+        self
+    }
+
     /// The polling interval. This is used as the interval between consecutive
     /// `eth_getFilterChanges` calls to get filter updates.
     pub fn poll_interval(mut self, value: Duration) -> Self {
@@ -226,6 +234,14 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// Adds a filter for the third indexed topic.
     pub fn topic3(mut self, topic: Topic<H256>) -> Self {
         self.filter = self.filter.topic3(topic);
+        self
+    }
+
+    /// Limit the number of events that can be retrieved by this filter.
+    ///
+    /// Note that this parameter is non-standard.
+    pub fn limit(mut self, value: usize) -> Self {
+        self.filter = self.filter.limit(value);
         self
     }
 

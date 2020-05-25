@@ -40,6 +40,10 @@ pub struct LogFilterBuilder<T: Transport> {
     pub address: Vec<Address>,
     /// Topic filters used for filtering logs based on indexed topics.
     pub topics: TopicFilter,
+    /// Limit the number of events that can be retrieved by this filter.
+    ///
+    /// Note that this is option is non-standard.
+    pub limit: Option<usize>,
 
     /// The page size in blocks to use when doing a paginated query on past
     /// logs. This provides no guarantee in how many logs will be returned per
@@ -66,6 +70,7 @@ impl<T: Transport> LogFilterBuilder<T> {
             to_block: None,
             address: Vec::new(),
             topics: TopicFilter::default(),
+            limit: None,
             block_page_size: None,
             confirmations: None,
             poll_interval: None,
@@ -124,6 +129,14 @@ impl<T: Transport> LogFilterBuilder<T> {
         self
     }
 
+    /// Limit the number of events that can be retrieved by this filter.
+    ///
+    /// Note that this parameter is non-standard.
+    pub fn limit(mut self, value: usize) -> Self {
+        self.limit = Some(value);
+        self
+    }
+
     /// The page size in blocks to use when doing a paginated query on past
     /// events.
     ///
@@ -152,17 +165,20 @@ impl<T: Transport> LogFilterBuilder<T> {
     /// Returns a web3 filter builder needed for querying and streaming logs.
     pub fn into_filter(self) -> FilterBuilder {
         let mut filter = FilterBuilder::default();
+        if let Some(from_block) = self.from_block {
+            filter = filter.from_block(from_block);
+        }
+        if let Some(to_block) = self.to_block {
+            filter = filter.to_block(to_block);
+        }
         if !self.address.is_empty() {
             filter = filter.address(self.address);
         }
         if self.topics != TopicFilter::default() {
             filter = filter.topic_filter(self.topics)
         }
-        if let Some(from_block) = self.from_block {
-            filter = filter.from_block(from_block);
-        }
-        if let Some(to_block) = self.to_block {
-            filter = filter.to_block(to_block);
+        if let Some(limit) = self.limit {
+            filter = filter.limit(limit)
         }
 
         filter
@@ -181,7 +197,11 @@ impl<T: Transport> LogFilterBuilder<T> {
 
     /// Returns a stream that resolves into a page of logs matching the filter
     /// builder's parameters.
-    pub fn past_logs_pages(self) -> impl Stream<Item = Result<Vec<Log>, ExecutionError>> {
+    pub fn past_logs_pages(mut self) -> impl Stream<Item = Result<Vec<Log>, ExecutionError>> {
+        // NOTE: Ignore the `limit` option when doing paginated queries as it
+        //   can interfere.
+        self.limit = None;
+
         stream::try_unfold(PastLogsStream::Init(self), PastLogsStream::next)
             .try_filter(|logs| future::ready(!logs.is_empty()))
     }
@@ -419,6 +439,7 @@ mod tests {
             .to_block(BlockNumber::Pending)
             .address(vec![address])
             .topic0(Topic::This(topic))
+            .limit(42) // NOTE: This should get ignored.
             .block_page_size(5)
             .past_logs_pages()
             .boxed();
