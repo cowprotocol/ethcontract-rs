@@ -9,7 +9,6 @@ mod send;
 
 pub use self::build::Transaction;
 use self::confirm::ConfirmParams;
-use self::estimate_gas::EstimateGasFuture;
 pub use self::gas_price::GasPrice;
 pub use self::send::TransactionResult;
 use crate::secret::{Password, PrivateKey};
@@ -180,11 +179,6 @@ impl<T: Transport> TransactionBuilder<T> {
         };
         self
     }
-
-    /// Estimate the gas required for this transaction.
-    pub fn estimate_gas(self) -> EstimateGasFuture<T> {
-        EstimateGasFuture::from_builder(self)
-    }
 }
 
 #[cfg(test)]
@@ -205,8 +199,11 @@ mod tests {
         let estimate_gas = TransactionBuilder::new(web3)
             .to(to)
             .value(42.into())
-            .estimate_gas();
+            .estimate_gas()
+            .immediate()
+            .expect("success");
 
+        assert_eq!(estimate_gas, 0x42.into());
         transport.assert_request(
             "eth_estimateGas",
             &[json!({
@@ -215,9 +212,6 @@ mod tests {
             })],
         );
         transport.assert_no_more_requests();
-
-        let estimate_gas = estimate_gas.immediate().expect("success");
-        assert_eq!(estimate_gas, 0x42.into());
     }
 
     #[test]

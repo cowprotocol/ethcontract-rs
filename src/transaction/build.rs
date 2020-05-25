@@ -7,7 +7,7 @@
 use crate::errors::ExecutionError;
 use crate::secret::{Password, PrivateKey};
 use crate::sign::TransactionData;
-use crate::transaction::estimate_gas::{EstimateGasFuture, EstimateGasRequest};
+use crate::transaction::estimate_gas::{estimate_gas, EstimateGasRequest};
 use crate::transaction::gas_price::GasPrice;
 use crate::transaction::{Account, TransactionBuilder};
 use futures::compat::Future01CompatExt;
@@ -206,8 +206,8 @@ async fn build_offline_signed_transaction<T: Transport>(
     let gas = match options.gas {
         Some(value) => value,
         None => {
-            EstimateGasFuture::from_request(
-                web3.eth(),
+            estimate_gas(
+                &web3,
                 EstimateGasRequest {
                     from: Some(from),
                     to: options.to,
