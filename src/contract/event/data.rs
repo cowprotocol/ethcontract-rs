@@ -9,18 +9,24 @@ use web3::types::{Log, H256};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Event<T> {
     /// The decoded log data.
-    pub data: EventData<T>,
+    pub data: T,
     /// The additional metadata for the event. Note that this is not always
     /// available if these logs are pending. This can happen if the `to_block`
     /// option was set to `BlockNumber::Pending`.
     pub meta: Option<EventMetadata>,
 }
 
+/// A contract event from an event stream.
+///
+/// This is similar to `Event`s except the event may either be added (in case a
+/// new block is mined) or removed (in case of re-orgs when blocks are removed).
+pub type StreamEvent<T> = Event<EventStatus<T>>;
+
 /// A type representing a contract event that was either added or removed. Note
 /// that this type intentionally an enum so that the handling of removed events
 /// is made more explicit.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum EventData<T> {
+pub enum EventStatus<T> {
     /// A new event was received.
     Added(T),
     /// A previously mined event was removed as a result of a re-org.
@@ -29,21 +35,39 @@ pub enum EventData<T> {
 
 impl<T> Event<T> {
     /// Creates an event from a log given a mapping function.
-    pub(crate) fn from_log<E, F>(log: Log, f: F) -> Result<Self, E>
+    pub(crate) fn from_past_log<E, F>(log: Log, f: F) -> Result<Self, ExecutionError>
     where
         F: FnOnce(RawLog) -> Result<T, E>,
+        ExecutionError: From<E>,
     {
-        let meta = EventMetadata::from_log(&log);
-        let data = {
-            let removed = log.removed == Some(true);
-            let raw = RawLog::from(log);
-            let inner_data = f(raw)?;
+        if log.removed == Some(true) {
+            return Err(ExecutionError::RemovedLog(Box::new(log)));
+        }
 
-            if removed {
-                EventData::Removed(inner_data)
-            } else {
-                EventData::Added(inner_data)
-            }
+        let meta = EventMetadata::from_log(&log);
+        let raw = RawLog::from(log);
+        let data = f(raw)?;
+
+        Ok(Event { data, meta })
+    }
+}
+
+impl<T> Event<EventStatus<T>> {
+    /// Creates an event from a log given a mapping function.
+    pub(crate) fn from_streamed_log<E, F>(log: Log, f: F) -> Result<Self, ExecutionError>
+    where
+        F: FnOnce(RawLog) -> Result<T, E>,
+        ExecutionError: From<E>,
+    {
+        let removed = log.removed == Some(true);
+        let meta = EventMetadata::from_log(&log);
+        let raw = RawLog::from(log);
+        let inner_data = f(raw)?;
+
+        let data = if removed {
+            EventStatus::Removed(inner_data)
+        } else {
+            EventStatus::Added(inner_data)
         };
 
         Ok(Event { data, meta })
@@ -53,26 +77,26 @@ impl<T> Event<T> {
     /// event was added or removed.
     pub fn inner_data(&self) -> &T {
         match &self.data {
-            EventData::Added(value) => value,
-            EventData::Removed(value) => value,
+            EventStatus::Added(value) => value,
+            EventStatus::Removed(value) => value,
         }
     }
 
     /// Gets a bool representing if the event was added.
     pub fn is_added(&self) -> bool {
-        matches!(&self.data, EventData::Added(_))
+        matches!(&self.data, EventStatus::Added(_))
     }
 
     /// Gets a bool representing if the event was removed.
     pub fn is_removed(&self) -> bool {
-        matches!(&self.data, EventData::Removed(_))
+        matches!(&self.data, EventStatus::Removed(_))
     }
 
     /// Get the underlying event data if the event was added, `None` otherwise.
     pub fn added(self) -> Option<T> {
         match self.data {
-            EventData::Added(value) => Some(value),
-            EventData::Removed(_) => None,
+            EventStatus::Added(value) => Some(value),
+            EventStatus::Removed(_) => None,
         }
     }
 
@@ -80,20 +104,20 @@ impl<T> Event<T> {
     /// otherwise.
     pub fn removed(self) -> Option<T> {
         match self.data {
-            EventData::Removed(value) => Some(value),
-            EventData::Added(_) => None,
+            EventStatus::Removed(value) => Some(value),
+            EventStatus::Added(_) => None,
         }
     }
 
     /// Maps the inner data of an event into some other data.
-    pub fn map<U, F>(self, f: F) -> Event<U>
+    pub fn map<U, F>(self, f: F) -> StreamEvent<U>
     where
         F: FnOnce(T) -> U,
     {
         Event {
             data: match self.data {
-                EventData::Added(inner) => EventData::Added(f(inner)),
-                EventData::Removed(inner) => EventData::Removed(f(inner)),
+                EventStatus::Added(inner) => EventStatus::Added(f(inner)),
+                EventStatus::Removed(inner) => EventStatus::Removed(f(inner)),
             },
             meta: self.meta,
         }

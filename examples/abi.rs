@@ -76,8 +76,8 @@ async fn events(instance: &AbiTypes) {
                 .await
                 .expect(concat!(stringify!($events), " failed"));
             let event_data = events
-                .iter()
-                .map(|event| event.inner_data())
+                .into_iter()
+                .map(|event| event.data)
                 .collect::<Vec<_>>();
             println!("{}()\n  ⏎ {:?}", stringify!($events), event_data);
         }};
@@ -104,7 +104,7 @@ async fn events(instance: &AbiTypes) {
         .await
         .expect("failed to retrieve all events");
     for event in all_events {
-        if let abi_types::Event::Values(data) = event.inner_data() {
+        if let abi_types::Event::Values(data) = event.data {
             println!("anonymous event\n  ⏎ {:?}", data);
         }
     }
