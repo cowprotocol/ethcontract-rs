@@ -25,7 +25,7 @@ pub use self::event::{
     StreamEvent, Topic,
 };
 pub use self::method::{
-    CallFuture, Detokenizable, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture,
+    Detokenizable, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture,
     ViewMethodBuilder, Void,
 };
 

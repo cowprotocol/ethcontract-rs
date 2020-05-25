@@ -3,7 +3,6 @@
 //! [Instance::method](ethcontract::contract::Instance::method).
 
 use crate::errors::{revert, ExecutionError, MethodError};
-use crate::future::CompatCallFuture;
 use crate::transaction::send::SendFuture;
 use crate::transaction::{Account, GasPrice, TransactionBuilder};
 use ethcontract_common::abi::{Function, Token};
@@ -189,8 +188,8 @@ impl<T: Transport, R: Detokenizable> MethodBuilder<T, R> {
     /// as such do not require gas or signing. Note that doing a call with a
     /// block number requires first demoting the `MethodBuilder` into a
     /// `ViewMethodBuilder` and setting the block number for the call.
-    pub fn call(self) -> CallFuture<T, R> {
-        self.view().call()
+    pub async fn call(self) -> Result<R::Output, MethodError> {
+        self.view().call().await
     }
 }
 
@@ -294,63 +293,30 @@ impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
 impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
     /// Call a contract method. Contract calls do not modify the blockchain and
     /// as such do not require gas or signing.
-    pub fn call(self) -> CallFuture<T, R> {
-        CallFuture::from_builder(self)
-    }
-}
+    pub async fn call(self) -> Result<R::Output, MethodError> {
+        let function = self.m.function;
+        let bytes = self
+            .m
+            .web3
+            .eth()
+            .call(
+                CallRequest {
+                    from: self.m.tx.from.map(|account| account.address()),
+                    to: self.m.tx.to.unwrap_or_default(),
+                    gas: self.m.tx.gas,
+                    gas_price: self.m.tx.gas_price.and_then(|gas_price| gas_price.value()),
+                    value: self.m.tx.value,
+                    data: self.m.tx.data,
+                },
+                self.block,
+            )
+            .compat()
+            .await
+            .map_err(|err| MethodError::new(&function, err))?;
+        let result = decode_geth_call_result::<R>(&function, bytes.0)
+            .map_err(|err| MethodError::new(&function, err))?;
 
-/// Future representing a pending contract call (i.e. query) to be resolved when
-/// the call completes.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct CallFuture<T: Transport, R: Detokenizable> {
-    function: Function,
-    #[pin]
-    call: CompatCallFuture<T, Bytes>,
-    _result: PhantomData<Box<R>>,
-}
-
-impl<T: Transport, R: Detokenizable> CallFuture<T, R> {
-    /// Construct a new `CallFuture` from a `ViewMethodBuilder`.
-    fn from_builder(builder: ViewMethodBuilder<T, R>) -> Self {
-        CallFuture {
-            function: builder.m.function,
-            call: builder
-                .m
-                .web3
-                .eth()
-                .call(
-                    CallRequest {
-                        from: builder.m.tx.from.map(|account| account.address()),
-                        to: builder.m.tx.to.unwrap_or_default(),
-                        gas: builder.m.tx.gas,
-                        gas_price: builder
-                            .m
-                            .tx
-                            .gas_price
-                            .and_then(|gas_price| gas_price.value()),
-                        value: builder.m.tx.value,
-                        data: builder.m.tx.data,
-                    },
-                    builder.block,
-                )
-                .compat(),
-            _result: PhantomData,
-        }
-    }
-}
-
-impl<T: Transport, R: Detokenizable> Future for CallFuture<T, R> {
-    type Output = Result<R::Output, MethodError>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let mut this = self.project();
-        this.call.as_mut().poll(cx).map(|result| {
-            result
-                .map_err(ExecutionError::from)
-                .and_then(|bytes| decode_geth_call_result::<R>(&this.function, bytes.0))
-                .map_err(|err| MethodError::new(&this.function, err))
-        })
+        Ok(result)
     }
 }
 
