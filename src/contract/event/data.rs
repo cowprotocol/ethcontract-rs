@@ -18,7 +18,8 @@ pub struct Event<T> {
 
 /// A contract event from an event stream.
 ///
-/// This is similar to `Event`s except they may
+/// This is similar to `Event`s except the event may either be added (in case a
+/// new block is mined) or removed (in case of re-orgs when blocks are removed).
 pub type StreamEvent<T> = Event<EventStatus<T>>;
 
 /// A type representing a contract event that was either added or removed. Note
