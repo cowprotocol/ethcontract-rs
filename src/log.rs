@@ -93,10 +93,6 @@ pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(0);
 /// The default block page size used for querying past events.
 pub const DEFAULT_BLOCK_PAGE_SIZE: u64 = 10_000;
 
-/// The default number for confirmations before a log is no longer considered
-/// when dealing with re-orgs.
-pub const DEFAULT_CONFIRMATIONS: usize = 5;
-
 /// A log filter builder for configuring either a query for past logs or a
 /// stream that constantly queries new logs and deals with re-orgs.
 #[derive(Debug)]
@@ -260,6 +256,14 @@ impl<T: Transport> LogFilterBuilder<T> {
     pub fn past_logs_pages(self) -> impl Stream<Item = Result<Vec<Log>, ExecutionError>> {
         stream::try_unfold(PastLogsStream::Init(self), PastLogsStream::next)
             .try_filter(|logs| future::ready(!logs.is_empty()))
+    }
+
+    /// Creates a filter-based log stream that emits logs for each filter change.
+    pub fn stream(self) -> impl Stream<Item = Result<Log, ExecutionError>> {
+        let web3 = self.web3.clone();
+        let poll_interval = self.poll_interval.unwrap_or(DEFAULT_POLL_INTERVAL);
+        let filter = self.into_filter().build();
+        LogStream::new(web3, filter, poll_interval)
     }
 }
 
