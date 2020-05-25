@@ -49,14 +49,6 @@ pub struct LogFilterBuilder<T: Transport> {
     /// logs. This provides no guarantee in how many logs will be returned per
     /// page, but used to limit the block range for the query.
     pub block_page_size: Option<NonZeroU64>,
-    /// The number of blocks to confirm the logs with. This is the number of
-    /// blocks mined on top of the block where the log was emitted for it to be
-    /// considered confirmed.
-    ///
-    /// Live log streaming keeps track of events in the last `confirmations`
-    /// blocks so that reorgs can be detected and a `Removed` logs can be
-    /// emitted by the log stream. Omit this property for a sensible default.
-    pub confirmations: Option<usize>,
     /// The polling interval for querying the node for more logs.
     pub poll_interval: Option<Duration>,
 }
@@ -72,7 +64,6 @@ impl<T: Transport> LogFilterBuilder<T> {
             topics: TopicFilter::default(),
             limit: None,
             block_page_size: None,
-            confirmations: None,
             poll_interval: None,
         }
     }
@@ -145,13 +136,6 @@ impl<T: Transport> LogFilterBuilder<T> {
     /// Panics if a block page size of 0 is specified.
     pub fn block_page_size(mut self, value: u64) -> Self {
         self.block_page_size = Some(NonZeroU64::new(value).expect("block page size cannot be 0"));
-        self
-    }
-
-    /// The number of blocks mined after a log has been emitted until it is
-    /// considered confirmed and can no longer be reorg-ed.
-    pub fn confirmations(mut self, value: usize) -> Self {
-        self.confirmations = Some(value);
         self
     }
 
@@ -395,26 +379,47 @@ mod tests {
     }
 
     #[test]
-    fn log_stream_next_log() {
+    fn past_logs_options() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
-        // filter created
-        transport.add_response(json!("0xf0"));
-        // get logs filter
+        let address = Address::repeat_byte(0x42);
+        let topics = (0..=3).map(H256::repeat_byte).collect::<Vec<_>>();
+
+        // get logs
         transport.add_response(json!([generate_log("awesome")]));
 
-        let log = LogFilterBuilder::new(web3)
-            .stream()
-            .boxed()
-            .next()
+        let logs = LogFilterBuilder::new(web3)
+            .from_block(66.into())
+            .to_block(BlockNumber::Pending)
+            .address(vec![address])
+            .topic0(Topic::This(topics[0]))
+            .topic1(Topic::This(topics[1]))
+            .topic2(Topic::This(topics[2]))
+            .topic3(Topic::OneOf(vec![topics[3]; 3]))
+            .limit(42)
+            .block_page_size(5) // NOTE: This should get ignored.
+            .poll_interval(Duration::from_secs(100)) // NOTE: This should get ignored.
+            .past_logs()
             .immediate()
-            .expect("log stream did not produce any logs")
-            .expect("failed to get log from log stream");
+            .expect("failed to get past logs");
 
-        assert_eq!(log.log_type.as_deref(), Some("awesome"));
-        transport.assert_request("eth_newFilter", &[json!({})]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
+        assert_eq!(logs[0].log_type.as_deref(), Some("awesome"));
+        transport.assert_request(
+            "eth_getLogs",
+            &[json!({
+                "address": address,
+                "fromBlock": U64::from(66),
+                "toBlock": BlockNumber::Pending,
+                "topics": [
+                    topics[0],
+                    topics[1],
+                    topics[2],
+                    vec![topics[3]; 3],
+                ],
+                "limit": 42,
+            })],
+        );
         transport.assert_no_more_requests();
     }
 
@@ -493,6 +498,30 @@ mod tests {
                 "topics": [topic],
             })],
         );
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn log_stream_next_log() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        // filter created
+        transport.add_response(json!("0xf0"));
+        // get logs filter
+        transport.add_response(json!([generate_log("awesome")]));
+
+        let log = LogFilterBuilder::new(web3)
+            .stream()
+            .boxed()
+            .next()
+            .immediate()
+            .expect("log stream did not produce any logs")
+            .expect("failed to get log from log stream");
+
+        assert_eq!(log.log_type.as_deref(), Some("awesome"));
+        transport.assert_request("eth_newFilter", &[json!({})]);
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
         transport.assert_no_more_requests();
     }
 }
