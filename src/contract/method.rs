@@ -3,15 +3,10 @@
 //! [Instance::method](ethcontract::contract::Instance::method).
 
 use crate::errors::{revert, ExecutionError, MethodError};
-use crate::transaction::send::SendFuture;
-use crate::transaction::{Account, GasPrice, TransactionBuilder};
+use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
 use ethcontract_common::abi::{Function, Token};
 use futures::compat::Future01CompatExt;
-use pin_project::pin_project;
-use std::future::Future;
 use std::marker::PhantomData;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use web3::api::Web3;
 use web3::contract::tokens::Detokenize;
 use web3::contract::Error as Web3ContractError;
@@ -174,8 +169,11 @@ impl<T: Transport, R: Detokenizable> MethodBuilder<T, R> {
     }
 
     /// Sign (if required) and send the method call transaction.
-    pub fn send(self) -> MethodSendFuture<T> {
-        MethodFuture::new(self.function, self.tx.send())
+    pub async fn send(self) -> Result<TransactionResult, MethodError> {
+        let Self { function, tx, .. } = self;
+        tx.send()
+            .await
+            .map_err(|err| MethodError::new(&function, err))
     }
 
     /// Demotes a `MethodBuilder` into a `ViewMethodBuilder` which has a more
@@ -192,42 +190,6 @@ impl<T: Transport, R: Detokenizable> MethodBuilder<T, R> {
         self.view().call().await
     }
 }
-
-/// Future that wraps an inner transaction execution future to add method
-/// information to the error.
-#[pin_project]
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct MethodFuture<F> {
-    function: Function,
-    #[pin]
-    inner: F,
-}
-
-impl<F> MethodFuture<F> {
-    /// Creates a new `MethodFuture` from a function ABI declaration and an
-    /// inner future.
-    fn new(function: Function, inner: F) -> Self {
-        MethodFuture { function, inner }
-    }
-}
-
-impl<T, F> Future for MethodFuture<F>
-where
-    F: Future<Output = Result<T, ExecutionError>>,
-{
-    type Output = Result<T, MethodError>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let mut this = self.project();
-        this.inner
-            .as_mut()
-            .poll(cx)
-            .map(|result| result.map_err(|err| MethodError::new(&this.function, err)))
-    }
-}
-
-/// A type alias for a `MethodFuture` wrapped `SendFuture`.
-pub type MethodSendFuture<T> = MethodFuture<SendFuture<T>>;
 
 /// Data used for building a contract method call. The view method builder can't
 /// directly send transactions and is for read only method calls.

@@ -24,10 +24,7 @@ pub use self::event::{
     AllEventsBuilder, Event, EventBuilder, EventMetadata, EventStatus, ParseLog, RawLog,
     StreamEvent, Topic,
 };
-pub use self::method::{
-    Detokenizable, MethodBuilder, MethodDefaults, MethodFuture, MethodSendFuture,
-    ViewMethodBuilder, Void,
-};
+pub use self::method::{Detokenizable, MethodBuilder, MethodDefaults, ViewMethodBuilder, Void};
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
