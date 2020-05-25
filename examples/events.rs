@@ -30,7 +30,8 @@ async fn run() {
         .events()
         .transfer()
         .from(Topic::This(accounts[0]))
-        .stream();
+        .stream()
+        .boxed();
 
     join! {
         async {

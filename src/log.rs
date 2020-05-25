@@ -3,86 +3,14 @@
 
 use crate::errors::ExecutionError;
 use ethcontract_common::abi::{Topic, TopicFilter};
-use futures::compat::{Compat01As03, Future01CompatExt, Stream01CompatExt};
-use futures::future;
-use futures::ready;
+use futures::compat::{Future01CompatExt, Stream01CompatExt};
+use futures::future::{self, TryFutureExt};
 use futures::stream::{self, Stream, TryStreamExt};
-use pin_project::{pin_project, project};
-use std::future::Future;
 use std::num::NonZeroU64;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
-use web3::api::{CreateFilter, FilterStream, Web3};
+use web3::api::Web3;
 use web3::types::{Address, BlockNumber, Filter, FilterBuilder, Log, H256};
 use web3::Transport;
-
-/// A log stream that emits logs matching a certain filter.
-///
-/// Note that when creating a log stream that is only valid until a certain
-/// block number, the `Stream` implementation will currently remain in the
-/// pending state indefinitely.
-#[must_use = "streams do nothing unless you poll them"]
-#[pin_project]
-pub struct LogStream<T: Transport> {
-    #[pin]
-    state: LogStreamState<T>,
-}
-
-/// The state of the log stream. It can either be creating a new log filter for
-/// retrieving new logs or streaming logs from the created filter.
-#[pin_project]
-enum LogStreamState<T: Transport> {
-    CreatingFilter(#[pin] CompatCreateFilter<T, Log>, Duration),
-    Streaming(#[pin] CompatFilterStream<T, Log>),
-}
-
-impl<T: Transport> LogStream<T> {
-    /// Create a new log stream from a given web3 provider, filter and polling
-    /// parameters.
-    pub fn new(web3: Web3<T>, filter: Filter, poll_interval: Duration) -> Self {
-        let create_filter = web3.eth_filter().create_logs_filter(filter).compat();
-        let state = LogStreamState::CreatingFilter(create_filter, poll_interval);
-        LogStream { state }
-    }
-}
-
-impl<T: Transport> Stream for LogStream<T> {
-    type Item = Result<Log, ExecutionError>;
-
-    #[project]
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        loop {
-            let mut state = self.as_mut().project().state;
-
-            #[project]
-            let next_state = match state.as_mut().project() {
-                LogStreamState::CreatingFilter(create_filter, poll_interval) => {
-                    let log_filter = match ready!(create_filter.poll(cx)) {
-                        Ok(log_filter) => log_filter,
-                        Err(err) => return Poll::Ready(Some(Err(err.into()))),
-                    };
-                    let stream = log_filter.stream(*poll_interval).compat();
-                    LogStreamState::Streaming(stream)
-                }
-                LogStreamState::Streaming(stream) => {
-                    return stream
-                        .poll_next(cx)
-                        .map(|result| result.map(|log| Ok(log?)))
-                }
-            };
-
-            *state = next_state;
-        }
-    }
-}
-
-/// A type alias for a stream that emits logs.
-type CompatFilterStream<T, R> = Compat01As03<FilterStream<T, R>>;
-
-/// A type alias for a future that resolves with the ID of a created log filter
-/// that can be queried in order to stream logs.
-type CompatCreateFilter<T, R> = Compat01As03<CreateFilter<T, R>>;
 
 /// The default poll interval to use for polling logs from the block chain.
 #[cfg(not(test))]
@@ -262,8 +190,23 @@ impl<T: Transport> LogFilterBuilder<T> {
     pub fn stream(self) -> impl Stream<Item = Result<Log, ExecutionError>> {
         let web3 = self.web3.clone();
         let poll_interval = self.poll_interval.unwrap_or(DEFAULT_POLL_INTERVAL);
-        let filter = self.into_filter().build();
-        LogStream::new(web3, filter, poll_interval)
+        let filter = self.into_filter();
+
+        async move {
+            let eth_filter = web3
+                .eth_filter()
+                .create_logs_filter(filter.build())
+                .compat()
+                .await
+                .map_err(ExecutionError::from)?;
+            let stream = eth_filter
+                .stream(poll_interval)
+                .compat()
+                .map_err(ExecutionError::from);
+
+            Ok(stream)
+        }
+        .try_flatten_stream()
     }
 }
 
@@ -441,7 +384,9 @@ mod tests {
         // get logs filter
         transport.add_response(json!([generate_log("awesome")]));
 
-        let log = LogStream::new(web3, Default::default(), Duration::from_secs(0))
+        let log = LogFilterBuilder::new(web3)
+            .stream()
+            .boxed()
             .next()
             .immediate()
             .expect("log stream did not produce any logs")
