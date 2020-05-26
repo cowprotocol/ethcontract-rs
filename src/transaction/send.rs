@@ -2,7 +2,7 @@
 //! confirmation.
 
 use crate::errors::ExecutionError;
-use crate::transaction::confirm::ConfirmFuture;
+use crate::transaction::confirm;
 use crate::transaction::{ResolveCondition, Transaction, TransactionBuilder};
 use futures::compat::Future01CompatExt;
 use web3::types::{TransactionReceipt, H256, U64};
@@ -25,7 +25,9 @@ impl<T: Transport> TransactionBuilder<T> {
 
         let tx_receipt = match resolve {
             ResolveCondition::Pending => return Ok(TransactionResult::Hash(tx_hash)),
-            ResolveCondition::Confirmed(params) => ConfirmFuture::new(&web3, tx_hash, params).await,
+            ResolveCondition::Confirmed(params) => {
+                confirm::wait_for_confirmation(&web3, tx_hash, params).await
+            }
         }?;
 
         match tx_receipt.status {

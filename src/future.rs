@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use futures::compat::Compat01As03;
 use futures::future::{self, Either, Ready};
 use pin_project::pin_project;
