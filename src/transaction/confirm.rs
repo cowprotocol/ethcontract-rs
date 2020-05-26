@@ -11,7 +11,7 @@ use futures::compat::Future01CompatExt;
 use futures_timer::Delay;
 use std::time::Duration;
 use web3::api::Web3;
-use web3::futures::Stream as Stream01;
+use web3::futures::Stream as _;
 use web3::types::{TransactionReceipt, H256, U64};
 use web3::Transport;
 
@@ -76,14 +76,10 @@ pub async fn wait_for_confirmation<T: Transport>(
     tx: H256,
     params: ConfirmParams,
 ) -> Result<TransactionReceipt, ExecutionError> {
-    let mut latest_block = None;
-    let mut context = ConfirmationContext {
-        web3,
-        tx,
-        params,
-        starting_block: None,
-    };
+    let context = ConfirmationContext { web3, tx, params };
 
+    let mut latest_block = web3.eth().block_number().compat().await?;
+    let starting_block = latest_block;
     loop {
         let (target_block, remaining_confirmations) = match context.check(latest_block).await? {
             Check::Confirmed(tx) => return Ok(tx),
@@ -93,9 +89,17 @@ pub async fn wait_for_confirmation<T: Transport>(
             } => (target_block, remaining_confirmations),
         };
 
-        latest_block = context
+        if let Some(block_timeout) = context.params.block_timeout {
+            let elapsed_blocks = latest_block.saturating_sub(starting_block);
+            if elapsed_blocks > U64::from(block_timeout) {
+                return Err(ExecutionError::ConfirmTimeout);
+            }
+        }
+
+        context
             .wait_for_blocks(target_block, remaining_confirmations)
             .await?;
+        latest_block = target_block;
     }
 }
 
@@ -108,9 +112,6 @@ struct ConfirmationContext<'a, T: Transport> {
     /// The confirmation parameters (like number of confirming blocks to wait
     /// for and polling interval).
     params: ConfirmParams,
-    /// The current block number when confirmation started. This is used for
-    /// timeouts.
-    starting_block: Option<U64>,
 }
 
 impl<T: Transport> ConfirmationContext<'_, T> {
@@ -118,11 +119,7 @@ impl<T: Transport> ConfirmationContext<'_, T> {
     ///
     /// Accepts an optional block number parameter to avoid re-querying the
     /// current block if it is already known.
-    async fn check(&mut self, latest_block: Option<U64>) -> Result<Check, ExecutionError> {
-        let latest_block = match latest_block {
-            Some(value) => value,
-            None => self.web3.eth().block_number().compat().await?,
-        };
+    async fn check(&self, latest_block: U64) -> Result<Check, ExecutionError> {
         let tx = self
             .web3
             .eth()
@@ -151,15 +148,6 @@ impl<T: Transport> ConfirmationContext<'_, T> {
                 }
             };
 
-        if let Some(block_timeout) = self.params.block_timeout {
-            let starting_block = *self.starting_block.get_or_insert(latest_block);
-            let elapsed_blocks = latest_block.saturating_sub(starting_block);
-
-            if elapsed_blocks > U64::from(block_timeout) {
-                return Err(ExecutionError::ConfirmTimeout);
-            }
-        }
-
         Ok(Check::Pending {
             target_block,
             remaining_confirmations,
@@ -170,49 +158,58 @@ impl<T: Transport> ConfirmationContext<'_, T> {
     /// wait for a certain number of blocks to be mined. If that fails, it falls
     /// back to polling the latest block number to wait until a target block
     /// number is reached.
-    ///
-    /// This method returns the latest block number if it is known. Specifically
-    /// if the polling method is used to query the latest block, then this will
-    /// return the `target_block` since the node is currently at that block
-    /// height. This method returns `None` otherwise as block filters can emit
-    /// block hashes for blocks at the same height because of re-orgs, so the
-    /// latest block needs to be queried after the waiting period as it is not
-    /// garanteed to be `target_block`.
     async fn wait_for_blocks(
         &self,
         target_block: U64,
         block_count: usize,
-    ) -> Result<Option<U64>, ExecutionError> {
-        match self.wait_for_blocks_with_filter(block_count).await {
-            Ok(_) => Ok(None),
-            Err(_) => {
-                // NOTE: In the case we fail to create a filter (usually because
-                //   the node doesn't support filters like Infura over HTTPS) or
-                //   we fail to query the filter (node is behind a load balancer
-                //   or cleaned up the filter) then fall back to polling.
-                self.wait_for_blocks_with_polling(target_block).await?;
-                Ok(Some(target_block))
-            }
+    ) -> Result<(), ExecutionError> {
+        if self
+            .wait_for_blocks_with_filter(target_block, block_count)
+            .await
+            .is_err()
+        {
+            // NOTE: In the case we fail to create a filter (usually because the
+            //   node doesn't support filters like Infura over HTTPS) or we fail
+            //   to query the filter (node is behind a load balancer or cleaned
+            //   up the filter) then fall back to polling.
+            self.wait_for_blocks_with_polling(target_block).await?;
         }
+
+        Ok(())
     }
 
     /// Waits for a certain number of blocks to be mined using a block filter.
-    async fn wait_for_blocks_with_filter(&self, block_count: usize) -> Result<(), ExecutionError> {
-        let block_filter = self
+    async fn wait_for_blocks_with_filter(
+        &self,
+        target_block: U64,
+        mut block_count: usize,
+    ) -> Result<(), ExecutionError> {
+        let mut block_stream = self
             .web3
             .eth_filter()
             .create_blocks_filter()
             .compat()
-            .await?;
-        let _ = block_filter
-            .stream(self.params.poll_interval)
-            .skip((block_count - 1) as _)
-            .into_future()
-            .compat()
-            .await
-            .map_err(|(err, _)| err)?;
+            .await?
+            .stream(self.params.poll_interval);
 
-        Ok(())
+        loop {
+            while block_count > 0 {
+                block_stream = block_stream
+                    .into_future()
+                    .compat()
+                    .await
+                    .map_err(|(err, _)| err)?
+                    .1;
+                block_count -= 1;
+            }
+
+            let latest_block = self.web3.eth().block_number().compat().await?;
+            if latest_block >= target_block {
+                return Ok(());
+            }
+
+            block_count = (target_block - latest_block).as_usize();
+        }
     }
 
     /// Waits for the block chain to reach the target height by polling the
@@ -293,8 +290,8 @@ mod tests {
         transport.add_response(json!([]));
         transport.add_response(json!([]));
         transport.add_response(json!([H256::repeat_byte(2)]));
-        // check transaction was mined
         transport.add_response(json!("0x2"));
+        // check transaction was mined
         transport.add_response(generate_tx_receipt(hash, 2));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::mined())
@@ -350,14 +347,14 @@ mod tests {
         transport.add_response(json!([]));
         transport.add_response(json!([H256::repeat_byte(4)]));
         transport.add_response(json!([H256::repeat_byte(5)]));
-        // check confirmation again - transaction mined on block 3 instead of 2
         transport.add_response(json!("0x5"));
+        // check confirmation again - transaction mined on block 3 instead of 2
         transport.add_response(generate_tx_receipt(hash, 3));
         // needs to wait 1 more block - creating filter again and polling
         transport.add_response(json!("0xf1"));
         transport.add_response(json!([H256::repeat_byte(6)]));
-        // check confirmation one last time
         transport.add_response(json!("0x6"));
+        // check confirmation one last time
         transport.add_response(generate_tx_receipt(hash, 3));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(3))
@@ -400,8 +397,7 @@ mod tests {
         transport.add_response(json!("0x2"));
         transport.add_response(json!("0x2"));
         transport.add_response(json!("0x3"));
-        // check transaction was mined - note that the block number doesn't get
-        // re-queried and is re-used from the polling loop.
+        // check transaction was mined
         transport.add_response(generate_tx_receipt(hash, 2));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
@@ -442,8 +438,7 @@ mod tests {
         transport.add_response(json!("0x2"));
         transport.add_response(json!("0x2"));
         transport.add_response(json!("0x3"));
-        // check transaction was mined - note that the block number doesn't get
-        // re-queried and is re-used from the polling loop.
+        // check transaction was mined
         transport.add_response(generate_tx_receipt(hash, 2));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
@@ -478,7 +473,7 @@ mod tests {
         transport.add_response(json!({ "error": "eth_newBlockFilter not supported" }));
         // poll block number which skipped 2
         transport.add_response(json!("0x4"));
-        // check transaction was mined (`eth_blockNumber` request is reused)
+        // check transaction was mined
         transport.add_response(generate_tx_receipt(hash, 2));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
@@ -508,20 +503,20 @@ mod tests {
         transport.add_response(json!("0xf0"));
         transport.add_response(json!([H256::repeat_byte(2)]));
         transport.add_response(json!([H256::repeat_byte(3)]));
-        // check confirmation again - transaction mined on block 3
         transport.add_response(json!("0x3"));
+        // check confirmation again - transaction mined on block 3
         transport.add_response(generate_tx_receipt(hash, 3));
         // needs to wait 1 more block - creating filter again and polling
         transport.add_response(json!("0xf1"));
         transport.add_response(json!([H256::repeat_byte(4)]));
-        // check confirmation - reorg happened, tx mined on block 4!
         transport.add_response(json!("0x4"));
+        // check confirmation - reorg happened, tx mined on block 4!
         transport.add_response(generate_tx_receipt(hash, 4));
         // wait for another block
         transport.add_response(json!("0xf2"));
         transport.add_response(json!([H256::repeat_byte(5)]));
-        // check confirmation - and we are satisfied.
         transport.add_response(json!("0x5"));
+        // check confirmation - and we are satisfied.
         transport.add_response(generate_tx_receipt(hash, 4));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
@@ -562,20 +557,17 @@ mod tests {
         transport.add_response(json!([H256::repeat_byte(2)]));
         transport.add_response(json!([H256::repeat_byte(3)]));
         transport.add_response(json!([H256::repeat_byte(4)]));
-        // check confirmation again - transaction mined on block 3
         transport.add_response(json!("0x4"));
+        // check confirmation again - transaction mined on block 3
         transport.add_response(generate_tx_receipt(hash, 3));
         // needs to wait 1 more block - creating filter again and polling
         transport.add_response(json!("0xf1"));
         transport.add_response(json!([H256::repeat_byte(5)]));
-        // check confirmation - reorg happened and block 4 was replaced
         transport.add_response(json!("0x4"));
-        transport.add_response(generate_tx_receipt(hash, 3));
-        // wait for another block
-        transport.add_response(json!("0xf2"));
+        // reorg happened and block 4 was replaced - filter polled for more blocks
         transport.add_response(json!([H256::repeat_byte(6)]));
-        // check confirmation - and we are satisfied.
         transport.add_response(json!("0x5"));
+        // check confirmation - and we are satisfied.
         transport.add_response(generate_tx_receipt(hash, 3));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(2))
@@ -594,9 +586,7 @@ mod tests {
         transport.assert_request("eth_newBlockFilter", &[]);
         transport.assert_request("eth_getFilterChanges", &[json!("0xf1")]);
         transport.assert_request("eth_blockNumber", &[]);
-        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf2")]);
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf1")]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
         transport.assert_no_more_requests();
