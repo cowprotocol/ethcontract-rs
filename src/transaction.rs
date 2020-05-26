@@ -1,20 +1,20 @@
 //! Implementation for setting up, signing, estimating gas and sending
 //! transactions on the Ethereum network.
 
-pub mod build;
+mod build;
 pub mod confirm;
 pub mod estimate_gas;
 pub mod gas_price;
-pub mod send;
+mod send;
 
-use self::build::BuildFuture;
+pub use self::build::Transaction;
 use self::confirm::ConfirmParams;
 use self::estimate_gas::EstimateGasFuture;
 pub use self::gas_price::GasPrice;
 pub use self::send::TransactionResult;
 use crate::secret::{Password, PrivateKey};
 use web3::api::Web3;
-use web3::types::{Address, Bytes, TransactionCondition, TransactionRequest, U256};
+use web3::types::{Address, Bytes, TransactionCondition, U256};
 use web3::Transport;
 
 /// The account type used for signing the transaction.
@@ -60,37 +60,6 @@ pub enum ResolveCondition {
 impl Default for ResolveCondition {
     fn default() -> Self {
         ResolveCondition::Confirmed(Default::default())
-    }
-}
-
-/// Represents a prepared and optionally signed transaction that is ready for
-/// sending created by a `TransactionBuilder`.
-#[derive(Clone, Debug, PartialEq)]
-#[allow(clippy::large_enum_variant)]
-pub enum Transaction {
-    /// A structured transaction request to be signed locally by the node.
-    Request(TransactionRequest),
-    /// A signed raw transaction request.
-    Raw(Bytes),
-}
-
-impl Transaction {
-    /// Unwraps the transaction into a transaction request, returning None if the
-    /// transaction is a raw transaction.
-    pub fn request(self) -> Option<TransactionRequest> {
-        match self {
-            Transaction::Request(tx) => Some(tx),
-            _ => None,
-        }
-    }
-
-    /// Unwraps the transaction into its raw bytes, returning None if it is a
-    /// transaction request.
-    pub fn raw(self) -> Option<Bytes> {
-        match self {
-            Transaction::Raw(tx) => Some(tx),
-            _ => None,
-        }
     }
 }
 
@@ -215,11 +184,6 @@ impl<T: Transport> TransactionBuilder<T> {
     /// Estimate the gas required for this transaction.
     pub fn estimate_gas(self) -> EstimateGasFuture<T> {
         EstimateGasFuture::from_builder(self)
-    }
-
-    /// Build a prepared transaction that is ready to send.
-    pub fn build(self) -> BuildFuture<T> {
-        BuildFuture::from_builder(self)
     }
 }
 

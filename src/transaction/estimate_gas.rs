@@ -79,11 +79,6 @@ impl<T: Transport> EstimateGasFuture<T> {
             .compat(),
         )
     }
-
-    /// Gets the inner `CallFuture`.
-    pub(crate) fn into_inner(self) -> CompatCallFuture<T, U256> {
-        self.0
-    }
 }
 
 impl<T: Transport> Future for EstimateGasFuture<T> {
