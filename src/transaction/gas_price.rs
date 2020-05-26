@@ -1,15 +1,9 @@
 //! Implementation of gas price estimation.
 
 use crate::conv;
-use crate::future::CompatCallFuture;
+use crate::errors::ExecutionError;
 use futures::compat::Future01CompatExt;
-use futures::future::OptionFuture;
-use pin_project::{pin_project, project};
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use web3::api::Web3;
-use web3::error::Error as Web3Error;
 use web3::types::U256;
 use web3::Transport;
 
@@ -58,23 +52,31 @@ impl GasPrice {
     /// the gas price is calculated as this may require contacting the node for
     /// gas price estimates in the case of `GasPrice::Standard` and
     /// `GasPrice::Scaled`.
-    pub fn resolve<T: Transport>(self, web3: &Web3<T>) -> ResolveGasPriceFuture<T> {
-        ResolveGasPriceFuture::new(web3, self)
+    pub async fn resolve<T: Transport>(self, web3: &Web3<T>) -> Result<U256, ExecutionError> {
+        let resolved_gas_price = match self {
+            GasPrice::Standard => web3.eth().gas_price().compat().await?,
+            GasPrice::Scaled(factor) => {
+                let gas_price = web3.eth().gas_price().compat().await?;
+                scale_gas_price(gas_price, factor)
+            }
+            GasPrice::Value(value) => value,
+        };
+
+        Ok(resolved_gas_price)
     }
 
     /// Resolves the gas price into an `Option<U256>` intendend to be used by a
     /// `TransactionRequest`. Note that `TransactionRequest`s gas price default
     /// to the node's estimate (i.e. `GasPrice::Standard`) when omitted, so this
     /// allows for a small optimization by foregoing a JSON RPC request.
-    pub fn resolve_for_transaction_request<T: Transport>(
+    pub async fn resolve_for_transaction_request<T: Transport>(
         self,
         web3: &Web3<T>,
-    ) -> ResolveTransactionRequestGasPriceFuture<T> {
-        let future = match self {
+    ) -> Option<Result<U256, ExecutionError>> {
+        match self {
             GasPrice::Standard => None,
-            _ => Some(self.resolve(web3)),
-        };
-        future.into()
+            _ => Some(self.resolve(web3).await),
+        }
     }
 }
 
@@ -106,70 +108,6 @@ impl_gas_price_from_integer! {
     i8, i16, i32, i64, i128, isize,
     u8, u16, u32, u64, u128, usize,
 }
-
-/// Future for resolving gas prices.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct ResolveGasPriceFuture<T: Transport> {
-    /// The state of the future.
-    #[pin]
-    state: ResolveGasPriceState<T>,
-}
-
-/// The state of the `ResolveGasPriceFuture`. This type is used to not leak
-/// internal implementation details.
-#[pin_project]
-enum ResolveGasPriceState<T: Transport> {
-    /// The gas price is known before hand.
-    Ready(U256),
-    /// The gas price estimate is being queried with the node. Optinally, the
-    /// gas price will be scaled once retrieved.
-    Estimating(#[pin] CompatCallFuture<T, U256>, Option<f64>),
-}
-
-impl<T: Transport> ResolveGasPriceFuture<T> {
-    /// Creates a new future that resolves once the gas price value is computed.
-    pub fn new(web3: &Web3<T>, gas_price: GasPrice) -> Self {
-        let state = match gas_price {
-            GasPrice::Standard => {
-                ResolveGasPriceState::Estimating(web3.eth().gas_price().compat(), None)
-            }
-            GasPrice::Scaled(factor) => {
-                ResolveGasPriceState::Estimating(web3.eth().gas_price().compat(), Some(factor))
-            }
-            GasPrice::Value(value) => ResolveGasPriceState::Ready(value),
-        };
-
-        ResolveGasPriceFuture { state }
-    }
-}
-
-impl<T: Transport> Future for ResolveGasPriceFuture<T> {
-    type Output = Result<U256, Web3Error>;
-
-    #[project]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        let this = self.project();
-
-        #[project]
-        match this.state.project() {
-            ResolveGasPriceState::Ready(value) => Poll::Ready(Ok(*value)),
-            ResolveGasPriceState::Estimating(gas_price, factor) => {
-                gas_price.poll(cx).map(|gas_price| {
-                    if let Some(factor) = factor {
-                        Ok(scale_gas_price(gas_price?, *factor))
-                    } else {
-                        gas_price
-                    }
-                })
-            }
-        }
-    }
-}
-
-/// A type alias for an optional `ResolveGasPriceFuture` when resolving the gas
-/// price for a `TransactionRequest`.
-pub type ResolveTransactionRequestGasPriceFuture<T> = OptionFuture<ResolveGasPriceFuture<T>>;
 
 /// Apply a scaling factor to a gas price.
 fn scale_gas_price(gas_price: U256, factor: f64) -> U256 {

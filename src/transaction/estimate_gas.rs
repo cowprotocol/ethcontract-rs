@@ -2,15 +2,10 @@
 //! incompatabilities.
 
 use crate::errors::ExecutionError;
-use crate::future::CompatCallFuture;
 use crate::transaction::TransactionBuilder;
 use futures::compat::Future01CompatExt;
-use pin_project::pin_project;
 use serde::Serialize;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use web3::api::{Eth, Namespace};
+use web3::api::Web3;
 use web3::helpers::{self, CallFuture};
 use web3::types::{Address, Bytes, U256};
 use web3::Transport;
@@ -45,46 +40,39 @@ pub struct EstimateGasRequest {
     pub data: Option<Bytes>,
 }
 
-/// Future for estimating gas for a transaction.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[pin_project]
-pub struct EstimateGasFuture<T: Transport>(#[pin] CompatCallFuture<T, U256>);
+/// Extention trait for implementing gas estimation for transactions that allows
+/// estimating gas on contract deployments.
+pub async fn estimate_gas<T: Transport>(
+    web3: &Web3<T>,
+    request: EstimateGasRequest,
+) -> Result<U256, ExecutionError> {
+    let gas = CallFuture::new(
+        web3.transport()
+            .execute("eth_estimateGas", vec![helpers::serialize(&request)]),
+    )
+    .compat()
+    .await?;
 
-impl<T: Transport> EstimateGasFuture<T> {
-    /// Create a instance from a `TransactionBuilder`.
-    pub fn from_builder(builder: TransactionBuilder<T>) -> Self {
-        let eth = builder.web3.eth();
-
-        let from = builder.from.map(|account| account.address());
-        let gas_price = builder.gas_price.and_then(|gas_price| gas_price.value());
-        let request = EstimateGasRequest {
-            from,
-            to: builder.to,
-            gas: None,
-            gas_price,
-            value: builder.value,
-            data: builder.data,
-        };
-
-        EstimateGasFuture::from_request(eth, request)
-    }
-
-    /// Create an estimate gas future from a `web3` `EstimateGasRequest`.
-    pub(crate) fn from_request(eth: Eth<T>, request: EstimateGasRequest) -> Self {
-        EstimateGasFuture(
-            CallFuture::new(
-                eth.transport()
-                    .execute("eth_estimateGas", vec![helpers::serialize(&request)]),
-            )
-            .compat(),
-        )
-    }
+    Ok(gas)
 }
 
-impl<T: Transport> Future for EstimateGasFuture<T> {
-    type Output = Result<U256, ExecutionError>;
+impl<T: Transport> TransactionBuilder<T> {
+    /// Estimate the gas required for this transaction.
+    pub async fn estimate_gas(self) -> Result<U256, ExecutionError> {
+        let from = self.from.map(|account| account.address());
+        let gas_price = self.gas_price.and_then(|gas_price| gas_price.value());
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        self.project().0.poll(cx).map_err(ExecutionError::from)
+        estimate_gas(
+            &self.web3,
+            EstimateGasRequest {
+                from,
+                to: self.to,
+                gas: None,
+                gas_price,
+                value: self.value,
+                data: self.data,
+            },
+        )
+        .await
     }
 }
