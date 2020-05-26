@@ -158,10 +158,7 @@ async fn build_transaction_request_for_local_signing<T: Transport>(
             .get(0)
             .ok_or(ExecutionError::NoLocalAccounts)?,
     };
-    let gas_price = gas_price
-        .resolve_for_transaction_request(&web3)
-        .await
-        .transpose()?;
+    let gas_price = gas_price.resolve_for_transaction_request(&web3).await?;
 
     let request = options.build_request(from, gas_price);
 
@@ -176,10 +173,7 @@ async fn build_transaction_signed_with_locked_account<T: Transport>(
     gas_price: GasPrice,
     options: TransactionRequestOptions,
 ) -> Result<Bytes, ExecutionError> {
-    let gas_price = gas_price
-        .resolve_for_transaction_request(&web3)
-        .await
-        .transpose()?;
+    let gas_price = gas_price.resolve_for_transaction_request(&web3).await?;
 
     let request = options.build_request(from, gas_price);
     let signed_tx = web3
