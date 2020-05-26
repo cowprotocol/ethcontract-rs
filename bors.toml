@@ -2,4 +2,5 @@ status = [
   "continuous-integration/travis-ci/push"
 ]
 required-approvals = 1
+delete-merged-branches = true
 use-squash-merge = true
