@@ -153,9 +153,9 @@ impl<T: Transport> ConfirmationContext<'_, T> {
 
         if let Some(block_timeout) = self.params.block_timeout {
             let starting_block = *self.starting_block.get_or_insert(latest_block);
-            let elapsed_blocks = latest_block.saturating_sub(starting_block);
+            let remaining_blocks = target_block.saturating_sub(starting_block);
 
-            if elapsed_blocks > U64::from(block_timeout) {
+            if remaining_blocks > U64::from(block_timeout) {
                 return Err(ExecutionError::ConfirmTimeout);
             }
         }
@@ -641,7 +641,7 @@ mod tests {
             confirm
         );
 
-        for i in 0..timeout {
+        for i in 0..timeout - 1 {
             let filter_id = format!("0xf{:x}", i);
 
             transport.assert_request("eth_blockNumber", &[]);
