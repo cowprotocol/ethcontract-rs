@@ -72,11 +72,13 @@ impl GasPrice {
     pub async fn resolve_for_transaction_request<T: Transport>(
         self,
         web3: &Web3<T>,
-    ) -> Option<Result<U256, ExecutionError>> {
-        match self {
+    ) -> Result<Option<U256>, ExecutionError> {
+        let gas_price = match self {
             GasPrice::Standard => None,
-            _ => Some(self.resolve(web3).await),
-        }
+            _ => Some(self.resolve(web3).await?),
+        };
+
+        Ok(gas_price)
     }
 }
 
@@ -180,7 +182,6 @@ mod tests {
             GasPrice::Standard
                 .resolve_for_transaction_request(&web3)
                 .immediate()
-                .transpose()
                 .expect("error resolving gas price"),
             None
         );
@@ -191,7 +192,6 @@ mod tests {
             GasPrice::Scaled(2.0)
                 .resolve_for_transaction_request(&web3)
                 .immediate()
-                .transpose()
                 .expect("error resolving gas price"),
             Some(gas_price * 2),
         );
@@ -202,7 +202,6 @@ mod tests {
             GasPrice::Value(gas_price)
                 .resolve_for_transaction_request(&web3)
                 .immediate()
-                .transpose()
                 .expect("error resolving gas price"),
             Some(gas_price)
         );
