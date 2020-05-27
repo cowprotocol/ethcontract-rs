@@ -608,26 +608,27 @@ mod tests {
         let web3 = Web3::new(transport.clone());
 
         let hash = H256::repeat_byte(0xff);
-        let params = ConfirmParams::mined();
-        let timeout = params
-            .block_timeout
-            .expect("default confirm parameters have a block timeout")
-            + 1;
+        let params = ConfirmParams {
+            confirmations: 3,
+            block_timeout: Some(10),
+            ..Default::default()
+        };
 
-        // wait for the transaction a total of block timeout + 1 times
-        for i in 0..timeout {
-            let block_num = format!("0x{:x}", i + 1);
-            let filter_id = format!("0xf{:x}", i);
-
-            // transaction is pending
-            transport.add_response(json!(block_num));
-            transport.add_response(json!(null));
-            transport.add_response(json!(filter_id));
-            transport.add_response(json!([H256::repeat_byte(2)]));
-        }
-
-        let block_num = format!("0x{:x}", timeout + 1);
-        transport.add_response(json!(block_num));
+        // Initial check
+        transport.add_response(json!("0x0"));
+        transport.add_response(json!(null));
+        // Wait one block to mine plus number of confirmations
+        transport.add_response(json!("0xf1"));
+        transport.add_response(json!(vec![H256::zero(); 4]));
+        // Check again, at block 4
+        transport.add_response(json!("0x4"));
+        transport.add_response(json!(null));
+        // Wait for more blocks
+        transport.add_response(json!("0xf2"));
+        transport.add_response(json!(vec![H256::zero(); 4]));
+        // Final check at block 8, since the earliest the transaction can be
+        // confirmed is at block 12 which is past the block timeout.
+        transport.add_response(json!("0x8"));
         transport.add_response(json!(null));
 
         let confirm = wait_for_confirmation(&web3, hash, params).immediate();
@@ -641,15 +642,14 @@ mod tests {
             confirm
         );
 
-        for i in 0..timeout - 1 {
-            let filter_id = format!("0xf{:x}", i);
-
-            transport.assert_request("eth_blockNumber", &[]);
-            transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-            transport.assert_request("eth_newBlockFilter", &[]);
-            transport.assert_request("eth_getFilterChanges", &[json!(filter_id)]);
-        }
-
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_request("eth_newBlockFilter", &[]);
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf1")]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_request("eth_newBlockFilter", &[]);
+        transport.assert_request("eth_getFilterChanges", &[json!("0xf2")]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
         transport.assert_no_more_requests();
