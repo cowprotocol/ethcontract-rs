@@ -7,19 +7,10 @@
 //! some of this can move upstream into the `web3` crate.
 
 use crate::errors::ExecutionError;
-use crate::future::{CompatCallFuture, MaybeReady};
-use futures::compat::{Compat01As03, Future01CompatExt};
-use futures::future::{self, TryJoin};
-use futures::ready;
+use futures::compat::Future01CompatExt;
 use futures_timer::Delay;
-use pin_project::{pin_project, project};
-use std::fmt::{self, Debug, Formatter};
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
-use web3::api::{CreateFilter, FilterStream, Web3};
-use web3::futures::stream::{Skip as Skip01, StreamFuture as StreamFuture01};
+use web3::api::Web3;
 use web3::futures::Stream as Stream01;
 use web3::types::{TransactionReceipt, H256, U64};
 use web3::Transport;
@@ -79,11 +70,39 @@ impl Default for ConfirmParams {
     }
 }
 
-/// A future that resolves once a transaction is confirmed.
-#[pin_project]
+/// Waits for a transaction to be confirmed.
+pub async fn wait_for_confirmation<T: Transport>(
+    web3: &Web3<T>,
+    tx: H256,
+    params: ConfirmParams,
+) -> Result<TransactionReceipt, ExecutionError> {
+    let mut latest_block = None;
+    let mut context = ConfirmationContext {
+        web3,
+        tx,
+        params,
+        starting_block: None,
+    };
+
+    loop {
+        let (target_block, remaining_confirmations) = match context.check(latest_block).await? {
+            Check::Confirmed(tx) => return Ok(tx),
+            Check::Pending {
+                target_block,
+                remaining_confirmations,
+            } => (target_block, remaining_confirmations),
+        };
+
+        latest_block = context
+            .wait_for_blocks(target_block, remaining_confirmations)
+            .await?;
+    }
+}
+
+/// The state used for waiting for a transaction confirmation.
 #[derive(Debug)]
-pub struct ConfirmFuture<T: Transport> {
-    web3: Web3<T>,
+struct ConfirmationContext<'a, T: Transport> {
+    web3: &'a Web3<T>,
     /// The transaction hash that is being confirmed.
     tx: H256,
     /// The confirmation parameters (like number of confirming blocks to wait
@@ -91,216 +110,150 @@ pub struct ConfirmFuture<T: Transport> {
     params: ConfirmParams,
     /// The current block number when confirmation started. This is used for
     /// timeouts.
-    starting_block_num: Option<U64>,
-    /// The current state of the confirmation.
-    #[pin]
-    state: ConfirmState<T>,
+    starting_block: Option<U64>,
 }
 
-/// The state of the confirmation future.
-#[pin_project]
-enum ConfirmState<T: Transport> {
-    /// The future is in the state where it needs to setup the checking future
-    /// to see if the confirmation is complete. This is used as a intermediate
-    /// state that doesn't actually wait for anything and immediately proceeds
-    /// to the `Checking` state.
-    Check,
-    /// The future is waiting for the block number and transaction receipt to
-    /// make sure that enough blocks have passed since the transaction was
-    /// mined. Note that the transaction receipt is retrieved everytime in case
-    /// of ommered blocks.
-    Checking(#[pin] CheckFuture<T>),
-    /// The future is waiting for the block filter to be created so that it can
-    /// wait for blocks to go by.
-    CreatingFilter(#[pin] CompatCreateFilter<T, H256>, U64, u64),
-    /// The future is waiting for new blocks to be mined and added to the chain
-    /// so that the transaction can be confirmed the desired number of blocks.
-    WaitingForBlocks(#[pin] CompatFilterFuture<T, H256>, U64),
-    /// The future is waiting for a poll timeout. This state happens when the
-    /// node does not support block filters for the given transport (like Infura
-    /// over HTTPS) so we need to fallback to polling.
-    PollDelay(#[pin] MaybeDelay, U64),
-    /// The future is checking that the current block number has reached a
-    /// certain target after waiting the poll delay.
-    PollCheckingBlockNumber(#[pin] CompatCallFuture<T, U64>, U64),
-}
+impl<T: Transport> ConfirmationContext<'_, T> {
+    /// Checks if the transaction is confirmed.
+    ///
+    /// Accepts an optional block number parameter to avoid re-querying the
+    /// current block if it is already known.
+    async fn check(&mut self, latest_block: Option<U64>) -> Result<Check, ExecutionError> {
+        let latest_block = match latest_block {
+            Some(value) => value,
+            None => self.web3.eth().block_number().compat().await?,
+        };
+        let tx = self
+            .web3
+            .eth()
+            .transaction_receipt(self.tx)
+            .compat()
+            .await?;
 
-impl<T: Transport> ConfirmFuture<T> {
-    /// Create a new `ConfirmFuture` with a `web3` provider for the specified
-    /// transaction hash and with the specified parameters.
-    pub fn new(web3: &Web3<T>, tx: H256, params: ConfirmParams) -> Self {
-        ConfirmFuture {
-            web3: web3.clone(),
-            tx,
-            params,
-            starting_block_num: None,
-            state: ConfirmState::Check,
-        }
-    }
-}
-
-impl<T: Transport> Future for ConfirmFuture<T> {
-    type Output = Result<TransactionReceipt, ExecutionError>;
-
-    #[project]
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        loop {
-            #[project]
-            let ConfirmFuture {
-                web3,
-                tx,
-                params,
-                starting_block_num,
-                state,
-            } = self.as_mut().project();
-
-            #[project]
-            let next_state = match state.project() {
-                ConfirmState::Check => ConfirmState::Checking(future::try_join(
-                    MaybeReady::future(web3.eth().block_number().compat()),
-                    web3.eth().transaction_receipt(*tx).compat(),
-                )),
-                ConfirmState::Checking(check) => {
-                    let (block_num, tx) = match ready!(check.poll(cx)) {
-                        Ok(result) => result,
-                        Err(err) => return Poll::Ready(Err(err.into())),
-                    };
-
-                    // NOTE: If the transaction hasn't been mined, then assume
-                    //   it will be picked up in the next block.
-                    let tx_block_num = tx
-                        .as_ref()
-                        .and_then(|tx| tx.block_number)
-                        .unwrap_or(block_num + 1);
-
-                    let target_block_num = tx_block_num + params.confirmations;
-                    let remaining_confirmations = target_block_num.saturating_sub(block_num);
+        let (target_block, remaining_confirmations) =
+            match tx.and_then(|tx| Some((tx.block_number?, tx))) {
+                Some((tx_block, tx)) => {
+                    let target_block = tx_block + self.params.confirmations;
+                    let remaining_confirmations = target_block.saturating_sub(latest_block);
 
                     if remaining_confirmations.is_zero() {
-                        // NOTE: It is safe to unwrap here since if tx is `None`
-                        //   then the `remaining_confirmations` will always be
-                        //   positive since `tx_block_num` will be a future
-                        //   block.
-                        return Poll::Ready(Ok(tx.unwrap()));
+                        return Ok(Check::Confirmed(tx));
                     }
 
-                    if let Some(block_timeout) = params.block_timeout {
-                        let starting_block_num = *starting_block_num.get_or_insert(block_num);
-                        let elapsed_blocks = block_num.saturating_sub(starting_block_num);
-
-                        if elapsed_blocks > U64::from(block_timeout) {
-                            return Poll::Ready(Err(ExecutionError::ConfirmTimeout));
-                        }
-                    }
-
-                    ConfirmState::CreatingFilter(
-                        web3.eth_filter().create_blocks_filter().compat(),
-                        target_block_num,
-                        remaining_confirmations.as_u64(),
+                    (target_block, remaining_confirmations.as_usize())
+                }
+                None => {
+                    let remaining_confirmations = self.params.confirmations + 1;
+                    (
+                        latest_block + remaining_confirmations,
+                        remaining_confirmations,
                     )
-                }
-                ConfirmState::CreatingFilter(create_filter, target_block_num, count) => {
-                    match ready!(create_filter.poll(cx)) {
-                        Ok(filter) => ConfirmState::WaitingForBlocks(
-                            filter
-                                .stream(params.poll_interval)
-                                .skip(*count - 1)
-                                .into_future()
-                                .compat(),
-                            *target_block_num,
-                        ),
-                        Err(_) => {
-                            // NOTE: In the case we fail to create a filter
-                            //   (usually because the node doesn't support
-                            //   filters like Infura over HTTPS) then fall back
-                            //   to polling.
-                            ConfirmState::PollDelay(delay(params.poll_interval), *target_block_num)
-                        }
-                    }
-                }
-                ConfirmState::WaitingForBlocks(wait, target_block_num) => {
-                    match ready!(wait.poll(cx)) {
-                        Ok(_) => ConfirmState::Check,
-                        Err(_) => {
-                            // NOTE: In the case we fail to query the filter
-                            //   (node is behind a load balancer or cleaned up
-                            //   the filter) then also fall back to polling.
-                            ConfirmState::PollDelay(delay(params.poll_interval), *target_block_num)
-                        }
-                    }
-                }
-                ConfirmState::PollDelay(delay, target_block_num) => {
-                    ready!(delay.poll(cx));
-                    ConfirmState::PollCheckingBlockNumber(
-                        web3.eth().block_number().compat(),
-                        *target_block_num,
-                    )
-                }
-                ConfirmState::PollCheckingBlockNumber(block_num, target_block_num) => {
-                    let block_num = match ready!(block_num.poll(cx)) {
-                        Ok(block_num) => block_num,
-                        Err(err) => return Poll::Ready(Err(err.into())),
-                    };
-
-                    if block_num >= *target_block_num {
-                        ConfirmState::Checking(future::try_join(
-                            MaybeReady::ready(Ok(block_num)),
-                            web3.eth().transaction_receipt(*tx).compat(),
-                        ))
-                    } else {
-                        ConfirmState::PollDelay(delay(params.poll_interval), *target_block_num)
-                    }
                 }
             };
 
-            self.state = next_state;
+        if let Some(block_timeout) = self.params.block_timeout {
+            let starting_block = *self.starting_block.get_or_insert(latest_block);
+            let elapsed_blocks = latest_block.saturating_sub(starting_block);
+
+            if elapsed_blocks > U64::from(block_timeout) {
+                return Err(ExecutionError::ConfirmTimeout);
+            }
         }
+
+        Ok(Check::Pending {
+            target_block,
+            remaining_confirmations,
+        })
+    }
+
+    /// Waits for blocks to be mined. This method tries to use a block filter to
+    /// wait for a certain number of blocks to be mined. If that fails, it falls
+    /// back to polling the latest block number to wait until a target block
+    /// number is reached.
+    ///
+    /// This method returns the latest block number if it is known. Specifically
+    /// if the polling method is used to query the latest block, then this will
+    /// return the `target_block` since the node is currently at that block
+    /// height. This method returns `None` otherwise as block filters can emit
+    /// block hashes for blocks at the same height because of re-orgs, so the
+    /// latest block needs to be queried after the waiting period as it is not
+    /// garanteed to be `target_block`.
+    async fn wait_for_blocks(
+        &self,
+        target_block: U64,
+        block_count: usize,
+    ) -> Result<Option<U64>, ExecutionError> {
+        match self.wait_for_blocks_with_filter(block_count).await {
+            Ok(_) => Ok(None),
+            Err(_) => {
+                // NOTE: In the case we fail to create a filter (usually because
+                //   the node doesn't support filters like Infura over HTTPS) or
+                //   we fail to query the filter (node is behind a load balancer
+                //   or cleaned up the filter) then fall back to polling.
+                self.wait_for_blocks_with_polling(target_block).await?;
+                Ok(Some(target_block))
+            }
+        }
+    }
+
+    /// Waits for a certain number of blocks to be mined using a block filter.
+    async fn wait_for_blocks_with_filter(&self, block_count: usize) -> Result<(), ExecutionError> {
+        let block_filter = self
+            .web3
+            .eth_filter()
+            .create_blocks_filter()
+            .compat()
+            .await?;
+        let _ = block_filter
+            .stream(self.params.poll_interval)
+            .skip((block_count - 1) as _)
+            .into_future()
+            .compat()
+            .await
+            .map_err(|(err, _)| err)?;
+
+        Ok(())
+    }
+
+    /// Waits for the block chain to reach the target height by polling the
+    /// current latest block.
+    async fn wait_for_blocks_with_polling(&self, target_block: U64) -> Result<(), ExecutionError> {
+        while {
+            delay(self.params.poll_interval).await;
+            let latest_block = self.web3.eth().block_number().compat().await?;
+
+            latest_block < target_block
+        } {}
+
+        Ok(())
     }
 }
 
-impl<T: Transport> Debug for ConfirmState<T> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            ConfirmState::Check => f.debug_tuple("Check").finish(),
-            ConfirmState::Checking(_) => f.debug_tuple("Checking").finish(),
-            ConfirmState::CreatingFilter(_, t, c) => {
-                f.debug_tuple("CreatingFilter").field(t).field(c).finish()
-            }
-            ConfirmState::WaitingForBlocks(_, t) => {
-                f.debug_tuple("WaitingForBlocks").field(t).finish()
-            }
-            ConfirmState::PollDelay(d, t) => f.debug_tuple("PollDelay").field(d).field(t).finish(),
-            ConfirmState::PollCheckingBlockNumber(_, t) => {
-                f.debug_tuple("PollCheckingBlockNumber").field(t).finish()
-            }
-        }
-    }
+/// The result of checking a transaction confirmation.
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
+enum Check {
+    /// The transaction is confirmed with a transaction receipt.
+    Confirmed(TransactionReceipt),
+    /// The transaction is not yet confirmed, and requires additional block
+    /// confirmations.
+    Pending {
+        target_block: U64,
+        remaining_confirmations: usize,
+    },
 }
-
-/// A type alias for a joined `eth_blockNumber` and `eth_getTransactionReceipt`
-/// calls. Used when checking that the transaction has been confirmed by enough
-/// blocks.
-type CheckFuture<T> =
-    TryJoin<MaybeReady<CompatCallFuture<T, U64>>, CompatCallFuture<T, Option<TransactionReceipt>>>;
-
-/// A type alias for a future creating a `eth_newBlockFilter` filter.
-type CompatCreateFilter<T, R> = Compat01As03<CreateFilter<T, R>>;
-
-/// A type alias for a future that resolves once the block filter has received
-/// a certain number of blocks.
-type CompatFilterFuture<T, R> = Compat01As03<StreamFuture01<Skip01<FilterStream<T, R>>>>;
-
-/// A type alias for a possible delay, that would resolve immediately if the
-/// polling delay was 0.
-type MaybeDelay = MaybeReady<Delay>;
 
 /// Create a new delay that may resolve immediately when delayed for a zero
 /// duration.
-fn delay(duration: Duration) -> MaybeDelay {
-    if duration == Duration::default() {
-        MaybeReady::ready(())
-    } else {
-        MaybeReady::future(Delay::new(duration))
+///
+/// This method is used so that unit tests resolve immediately, as the `Delay`
+/// future always returns `Poll::Pending` at least once, even with a delay or
+/// zero.
+async fn delay(duration: Duration) {
+    const ZERO_DURATION: Duration = Duration::from_secs(0);
+
+    if duration != ZERO_DURATION {
+        Delay::new(duration).await;
     }
 }
 
@@ -344,7 +297,7 @@ mod tests {
         transport.add_response(json!("0x2"));
         transport.add_response(generate_tx_receipt(hash, 2));
 
-        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::mined())
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::mined())
             .immediate()
             .expect("transaction confirmation failed");
 
@@ -370,7 +323,7 @@ mod tests {
         transport.add_response(json!("0x1"));
         transport.add_response(generate_tx_receipt(hash, 1));
 
-        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::mined())
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::mined())
             .immediate()
             .expect("transaction confirmation failed");
 
@@ -407,7 +360,7 @@ mod tests {
         transport.add_response(json!("0x6"));
         transport.add_response(generate_tx_receipt(hash, 3));
 
-        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(3))
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(3))
             .immediate()
             .expect("transaction confirmation failed");
 
@@ -451,7 +404,7 @@ mod tests {
         // re-queried and is re-used from the polling loop.
         transport.add_response(generate_tx_receipt(hash, 2));
 
-        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(1))
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
             .immediate()
             .expect("transaction confirmation failed");
 
@@ -493,7 +446,7 @@ mod tests {
         // re-queried and is re-used from the polling loop.
         transport.add_response(generate_tx_receipt(hash, 2));
 
-        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(1))
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
             .immediate()
             .expect("transaction confirmation failed");
 
@@ -528,7 +481,7 @@ mod tests {
         // check transaction was mined (`eth_blockNumber` request is reused)
         transport.add_response(generate_tx_receipt(hash, 2));
 
-        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(1))
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
             .immediate()
             .expect("transaction confirmation failed");
 
@@ -571,7 +524,7 @@ mod tests {
         transport.add_response(json!("0x5"));
         transport.add_response(generate_tx_receipt(hash, 4));
 
-        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(1))
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
             .immediate()
             .expect("transaction confirmation failed");
 
@@ -625,7 +578,7 @@ mod tests {
         transport.add_response(json!("0x5"));
         transport.add_response(generate_tx_receipt(hash, 3));
 
-        let confirm = ConfirmFuture::new(&web3, hash, ConfirmParams::with_confirmations(2))
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(2))
             .immediate()
             .expect("transaction confirmation failed");
 
@@ -677,7 +630,7 @@ mod tests {
         transport.add_response(json!(block_num));
         transport.add_response(json!(null));
 
-        let confirm = ConfirmFuture::new(&web3, hash, params).immediate();
+        let confirm = wait_for_confirmation(&web3, hash, params).immediate();
 
         assert!(
             match &confirm {
