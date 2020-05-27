@@ -99,7 +99,6 @@ pub mod errors;
 mod int;
 pub mod log;
 pub mod secret;
-pub mod sign;
 pub mod transaction;
 pub mod transport;
 
