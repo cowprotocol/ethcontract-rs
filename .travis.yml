@@ -1,9 +1,5 @@
 branches:
   only:
-    # NOTE: The `staging` and `trying` branches are used by bors for performing
-    #   continuous integration checks.
-    - staging
-    - trying
     - master
 
 os: linux
