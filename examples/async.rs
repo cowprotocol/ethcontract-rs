@@ -1,24 +1,14 @@
 use ethcontract::prelude::*;
 use ethcontract::web3::types::TransactionRequest;
-use futures::compat::Future01CompatExt;
 
 ethcontract::contract!("examples/truffle/build/contracts/RustCoin.json");
 
-fn main() {
-    futures::executor::block_on(run());
-}
-
-async fn run() {
-    let (eloop, http) = Http::new("http://localhost:9545").expect("transport failed");
-    eloop.into_remote();
+#[tokio::main]
+async fn main() {
+    let http = Http::new("http://localhost:9545").expect("transport failed");
     let web3 = Web3::new(http);
 
-    let accounts = web3
-        .eth()
-        .accounts()
-        .compat()
-        .await
-        .expect("get accounts failed");
+    let accounts = web3.eth().accounts().await.expect("get accounts failed");
 
     let instance = RustCoin::builder(&web3)
         .gas(4_712_388.into())
@@ -61,7 +51,6 @@ async fn run() {
             nonce: None,
             condition: None,
         })
-        .compat()
         .await
         .expect("send eth failed");
 

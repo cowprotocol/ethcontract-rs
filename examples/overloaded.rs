@@ -7,13 +7,9 @@ ethcontract::contract!(
     },
 );
 
-fn main() {
-    futures::executor::block_on(run());
-}
-
-async fn run() {
-    let (eloop, http) = Http::new("http://localhost:9545").expect("transport failure");
-    eloop.into_remote();
+#[tokio::main]
+async fn main() {
+    let http = Http::new("http://localhost:9545").expect("transport failure");
     let web3 = Web3::new(http);
 
     let instance = OverloadedMethods::builder(&web3)

@@ -6,18 +6,20 @@
 //! be generic on the underlying transport (at the small cost of some dynamic
 //! dispatch and extra allocations).
 
+use futures::future::BoxFuture;
+use futures::FutureExt as _;
 use jsonrpc_core::Call;
 use serde_json::Value;
 use std::any::Any;
 use std::fmt::Debug;
+use std::future::Future;
 use std::sync::Arc;
 use web3::error::Error as Web3Error;
-use web3::futures::Future;
 use web3::{RequestId, Transport};
 
 /// Type alias for the output future in for the `DynTransport`'s `Transport`
 /// implementation.
-type BoxedFuture = Box<dyn Future<Item = Value, Error = Web3Error> + Send + 'static>;
+type BoxedFuture = BoxFuture<'static, Result<Value, Web3Error>>;
 
 /// Helper trait that wraps `Transport` trait so it can be used as a trait
 /// object. This trait is implemented for all `Transport`'s.
@@ -32,7 +34,7 @@ trait TransportBoxed: Debug {
 
 impl<F, T> TransportBoxed for T
 where
-    F: Future<Item = Value, Error = Web3Error> + Send + 'static,
+    F: Future<Output = Result<Value, Web3Error>> + Send + Unpin + 'static,
     T: Transport<Out = F>,
 {
     #[inline(always)]
@@ -42,12 +44,12 @@ where
 
     #[inline(always)]
     fn send_boxed(&self, id: RequestId, request: Call) -> BoxedFuture {
-        Box::new(self.send(id, request))
+        self.send(id, request).boxed()
     }
 
     #[inline(always)]
     fn execute_boxed(&self, method: &str, params: Vec<Value>) -> BoxedFuture {
-        Box::new(self.execute(method, params))
+        self.execute(method, params).boxed()
     }
 }
 
@@ -62,7 +64,7 @@ impl DynTransport {
     /// Wrap a `Transport` in a `DynTransport`
     pub fn new<F, T>(inner: T) -> Self
     where
-        F: Future<Item = Value, Error = Web3Error> + Send + 'static,
+        F: Future<Output = Result<Value, Web3Error>> + Send + Unpin + 'static,
         T: Transport<Out = F> + Sync + Send + 'static,
     {
         let inner_ref: &dyn Any = &inner;
@@ -122,14 +124,14 @@ mod tests {
 
         // assert that the underlying transport returns the response.
         transport.add_response(json!(true));
-        let response = dyn_transport.send(id, call).wait().expect("success");
+        let response = dyn_transport.send(id, call).immediate().expect("success");
         assert_eq!(response, json!(true));
 
         // assert that the transport layer gets propagated - it errors here since
         // we did not provide the test transport with a response
         dyn_transport
             .execute("test", vec![json!(42)])
-            .wait()
+            .immediate()
             .err()
             .expect("failed");
         transport.assert_request("test", &[json!(42)]);

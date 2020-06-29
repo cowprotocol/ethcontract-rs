@@ -6,11 +6,8 @@ ethcontract::contract!("examples/truffle/build/contracts/DeployedContract.json")
 
 const RINKEBY_CHAIN_ID: u64 = 4;
 
-fn main() {
-    futures::executor::block_on(run());
-}
-
-async fn run() {
+#[tokio::main]
+async fn main() {
     let account = {
         let pk = env::var("PK").expect("PK is not set");
         let key: PrivateKey = pk.parse().expect("invalid PK");
@@ -24,8 +21,7 @@ async fn run() {
     // NOTE: Use a WebSocket transport for `eth_newBlockFilter` support on
     //   Infura, filters are disabled over HTTPS. Filters are needed for
     //   confirmation support.
-    let (eloop, ws) = WebSocket::new(&infura_url).expect("transport failed");
-    eloop.into_remote();
+    let ws = WebSocket::new(&infura_url).await.expect("transport failed");
     let web3 = Web3::new(ws);
 
     println!("Account {:?}", account.address());

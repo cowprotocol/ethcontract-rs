@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 ethcontract = { path = "../..", default-features = false }
 futures = "0.3"
+tokio = { version = "0.2", features = ["macros"] }
 
 [build-dependencies]
 ethcontract-generate = { path = "../../generate" }

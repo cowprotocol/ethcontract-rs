@@ -125,7 +125,7 @@ pub mod prelude {
     pub use crate::transaction::{Account, GasPrice};
     pub use web3::api::Web3;
     pub use web3::transports::Http;
-    pub use web3::types::{Address, BlockNumber, TransactionCondition, H160, H256, U256};
+    pub use web3::types::{Address, BlockId, BlockNumber, TransactionCondition, H160, H256, U256};
 }
 
 pub mod dyns {

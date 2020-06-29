@@ -9,8 +9,8 @@ use crate::secret::{Password, PrivateKey};
 use crate::transaction::estimate_gas::{estimate_gas, EstimateGasRequest};
 use crate::transaction::gas_price::GasPrice;
 use crate::transaction::{Account, TransactionBuilder};
-use futures::compat::Future01CompatExt;
 use web3::api::Web3;
+use web3::signing::SecretKeyRef;
 use web3::types::{
     Address, Bytes, TransactionCondition, TransactionParameters, TransactionRequest, U256,
 };
@@ -153,7 +153,6 @@ async fn build_transaction_request_for_local_signing<T: Transport>(
         None => *web3
             .eth()
             .accounts()
-            .compat()
             .await?
             .get(0)
             .ok_or(ExecutionError::NoLocalAccounts)?,
@@ -176,11 +175,7 @@ async fn build_transaction_signed_with_locked_account<T: Transport>(
     let gas_price = gas_price.resolve_for_transaction_request(&web3).await?;
 
     let request = options.build_request(from, gas_price);
-    let signed_tx = web3
-        .personal()
-        .sign_transaction(request, &password)
-        .compat()
-        .await?;
+    let signed_tx = web3.personal().sign_transaction(request, &password).await?;
 
     Ok(signed_tx.raw)
 }
@@ -228,9 +223,8 @@ async fn build_offline_signed_transaction<T: Transport>(
                 data: options.data.unwrap_or_default(),
                 chain_id,
             },
-            &key,
+            SecretKeyRef::new(&key),
         )
-        .compat()
         .await?;
 
     Ok(signed.raw_transaction)

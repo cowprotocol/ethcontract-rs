@@ -8,11 +8,10 @@
 
 use crate::errors::ExecutionError;
 use crate::transaction::TransactionResult;
-use futures::compat::Future01CompatExt;
+use futures::StreamExt as _;
 use futures_timer::Delay;
 use std::time::Duration;
 use web3::api::Web3;
-use web3::futures::Stream as Stream01;
 use web3::types::{TransactionReceipt, H256, U64};
 use web3::Transport;
 
@@ -122,14 +121,9 @@ impl<T: Transport> ConfirmationContext<'_, T> {
     async fn check(&mut self, latest_block: Option<U64>) -> Result<Check, ExecutionError> {
         let latest_block = match latest_block {
             Some(value) => value,
-            None => self.web3.eth().block_number().compat().await?,
+            None => self.web3.eth().block_number().await?,
         };
-        let tx = self
-            .web3
-            .eth()
-            .transaction_receipt(self.tx)
-            .compat()
-            .await?;
+        let tx = self.web3.eth().transaction_receipt(self.tx).await?;
 
         let (target_block, remaining_confirmations, tx_result) =
             match tx.and_then(|tx| Some((tx.block_number?, tx))) {
@@ -204,19 +198,14 @@ impl<T: Transport> ConfirmationContext<'_, T> {
 
     /// Waits for a certain number of blocks to be mined using a block filter.
     async fn wait_for_blocks_with_filter(&self, block_count: usize) -> Result<(), ExecutionError> {
-        let block_filter = self
-            .web3
-            .eth_filter()
-            .create_blocks_filter()
-            .compat()
-            .await?;
-        let _ = block_filter
-            .stream(self.params.poll_interval)
-            .skip((block_count - 1) as _)
-            .into_future()
-            .compat()
-            .await
-            .map_err(|(err, _)| err)?;
+        let block_filter = self.web3.eth_filter().create_blocks_filter().await?;
+        let mut stream = block_filter.stream(self.params.poll_interval);
+        for _ in 0..block_count {
+            stream
+                .next()
+                .await
+                .ok_or(ExecutionError::StreamEndedUnexpectedly)??;
+        }
 
         Ok(())
     }
@@ -226,7 +215,7 @@ impl<T: Transport> ConfirmationContext<'_, T> {
     async fn wait_for_blocks_with_polling(&self, target_block: U64) -> Result<(), ExecutionError> {
         while {
             delay(self.params.poll_interval).await;
-            let latest_block = self.web3.eth().block_number().compat().await?;
+            let latest_block = self.web3.eth().block_number().await?;
 
             latest_block < target_block
         } {}
@@ -304,7 +293,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 2));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::mined())
-            .immediate()
+            .wait()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -367,7 +356,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 3));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(3))
-            .immediate()
+            .wait()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -411,7 +400,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 2));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
-            .immediate()
+            .wait()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -453,7 +442,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 2));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
-            .immediate()
+            .wait()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -531,7 +520,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 4));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
-            .immediate()
+            .wait()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -585,7 +574,7 @@ mod tests {
         transport.add_response(generate_tx_receipt(hash, 3));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(2))
-            .immediate()
+            .wait()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
@@ -637,7 +626,7 @@ mod tests {
         transport.add_response(json!("0x8"));
         transport.add_response(json!(null));
 
-        let confirm = wait_for_confirmation(&web3, hash, params).immediate();
+        let confirm = wait_for_confirmation(&web3, hash, params).wait();
 
         assert!(
             match &confirm {
