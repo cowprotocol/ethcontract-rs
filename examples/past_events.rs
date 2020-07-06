@@ -29,6 +29,7 @@ async fn run() {
     println!("Retrieving all past events (this could take a while)...");
     let event_history = owl_token
         .all_events()
+        .from_block(BlockNumber::Earliest)
         .query_paginated()
         .await
         .expect("Couldn't retrieve event history");
