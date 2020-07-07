@@ -7,6 +7,7 @@
 //! some of this can move upstream into the `web3` crate.
 
 use crate::errors::ExecutionError;
+use crate::transaction::TransactionResult;
 use futures::compat::Future01CompatExt;
 use futures_timer::Delay;
 use std::time::Duration;
@@ -130,7 +131,7 @@ impl<T: Transport> ConfirmationContext<'_, T> {
             .compat()
             .await?;
 
-        let (target_block, remaining_confirmations) =
+        let (target_block, remaining_confirmations, tx_result) =
             match tx.and_then(|tx| Some((tx.block_number?, tx))) {
                 Some((tx_block, tx)) => {
                     let target_block = tx_block + self.params.confirmations;
@@ -140,13 +141,18 @@ impl<T: Transport> ConfirmationContext<'_, T> {
                         return Ok(Check::Confirmed(tx));
                     }
 
-                    (target_block, remaining_confirmations.as_usize())
+                    (
+                        target_block,
+                        remaining_confirmations.as_usize(),
+                        TransactionResult::Receipt(tx),
+                    )
                 }
                 None => {
                     let remaining_confirmations = self.params.confirmations + 1;
                     (
                         latest_block + remaining_confirmations,
                         remaining_confirmations,
+                        TransactionResult::Hash(self.tx),
                     )
                 }
             };
@@ -156,7 +162,7 @@ impl<T: Transport> ConfirmationContext<'_, T> {
             let remaining_blocks = target_block.saturating_sub(starting_block);
 
             if remaining_blocks > U64::from(block_timeout) {
-                return Err(ExecutionError::ConfirmTimeout);
+                return Err(ExecutionError::ConfirmTimeout(Box::new(tx_result)));
             }
         }
 
@@ -635,7 +641,7 @@ mod tests {
 
         assert!(
             match &confirm {
-                Err(ExecutionError::ConfirmTimeout) => true,
+                Err(ExecutionError::ConfirmTimeout(tx)) => tx.is_hash(),
                 _ => false,
             },
             "expected confirmation to time out but got {:?}",

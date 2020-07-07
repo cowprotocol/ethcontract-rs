@@ -4,6 +4,7 @@ mod ganache;
 mod parity;
 pub(crate) mod revert;
 
+use crate::transaction::TransactionResult;
 use ethcontract_common::abi::{Error as AbiError, Event, Function};
 use ethcontract_common::abiext::EventExt;
 pub use ethcontract_common::errors::*;
@@ -81,7 +82,7 @@ pub enum ExecutionError {
 
     /// A contract transaction failed to confirm within the block timeout limit.
     #[error("transaction confirmation timed-out")]
-    ConfirmTimeout,
+    ConfirmTimeout(Box<TransactionResult>),
 
     /// Transaction failure (e.g. out of gas or revert).
     #[error("transaction failed: {:?}", .0.transaction_hash)]
