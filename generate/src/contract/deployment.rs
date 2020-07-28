@@ -32,10 +32,9 @@ fn expand_deployed(cx: &Context) -> TokenStream {
                 web3: &self::ethcontract::web3::api::Web3<T>,
             ) -> Result<Self, self::ethcontract::errors::DeployError>
             where
-                F: self::ethcontract::web3::futures::Future<
-                    Item = self::ethcontract::json::Value,
-                    Error = self::ethcontract::web3::Error
-                > + Send + 'static,
+                F: std::future::Future<
+                       Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
+                   > + Send + Unpin + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
                 use self::ethcontract::{Instance, Web3};
@@ -123,10 +122,9 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
                 web3: &self::ethcontract::web3::api::Web3<T> #lib_input #input ,
             ) -> self::ethcontract::dyns::DynDeployBuilder<Self>
             where
-                F: self::ethcontract::web3::futures::Future<
-                    Item = self::ethcontract::json::Value,
-                    Error = self::ethcontract::web3::Error,
-                > + Send + 'static,
+                F: std::future::Future<
+                       Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
+                   > + Send + Unpin + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
                 use self::ethcontract::dyns::DynTransport;

@@ -5,7 +5,7 @@ use jsonrpc_core::{Call, Value};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use web3::error::Error;
-use web3::futures::future::{self, FutureResult};
+use web3::futures::future::{self, Ready};
 use web3::helpers;
 use web3::{RequestId, Transport};
 
@@ -26,7 +26,7 @@ pub struct TestTransport {
 }
 
 impl Transport for TestTransport {
-    type Out = FutureResult<Value, Error>;
+    type Out = Ready<Result<Value, Error>>;
 
     fn prepare(&self, method: &str, params: Vec<Value>) -> (RequestId, Call) {
         let request = helpers::build_request(1, method, params.clone());

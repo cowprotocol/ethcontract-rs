@@ -8,7 +8,6 @@ use crate::errors::{EventError, ExecutionError};
 use crate::log::LogFilterBuilder;
 pub use ethcontract_common::abi::Topic;
 use ethcontract_common::abi::{Event as AbiEvent, RawTopicFilter, Token};
-use futures::compat::Future01CompatExt as _;
 use futures::future::{self, TryFutureExt as _};
 use futures::stream::{Stream, StreamExt as _, TryStreamExt as _};
 use std::cmp;
@@ -323,7 +322,6 @@ async fn block_number_from_transaction_hash<T: Transport>(
     let tx_receipt = web3
         .eth()
         .transaction_receipt(tx_hash)
-        .compat()
         .await?
         .ok_or(ExecutionError::MissingTransaction(tx_hash))?;
     Ok(tx_receipt
@@ -446,7 +444,7 @@ mod tests {
             .stream()
             .boxed()
             .next()
-            .immediate()
+            .wait()
             .expect("log stream did not produce any logs")
             .expect("failed to get log from log stream");
 
@@ -619,7 +617,7 @@ mod tests {
             .stream()
             .boxed()
             .next()
-            .immediate()
+            .wait()
             .expect("log stream did not produce any logs")
             .expect("failed to get log from log stream");
 

@@ -3,7 +3,6 @@
 
 use crate::errors::ExecutionError;
 use crate::transaction::TransactionBuilder;
-use futures::compat::Future01CompatExt;
 use serde::Serialize;
 use web3::api::Web3;
 use web3::helpers::{self, CallFuture};
@@ -50,7 +49,6 @@ pub async fn estimate_gas<T: Transport>(
         web3.transport()
             .execute("eth_estimateGas", vec![helpers::serialize(&request)]),
     )
-    .compat()
     .await?;
 
     Ok(gas)

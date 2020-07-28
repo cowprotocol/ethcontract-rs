@@ -295,13 +295,13 @@ mod tests {
         let tx_raw = builder
             .clone()
             .build()
-            .immediate()
+            .wait()
             .expect("failed to sign transaction")
             .raw()
             .expect("offline transactions always build into raw transactions");
         let tx_receipt = builder
             .send()
-            .immediate()
+            .wait()
             .expect("send with confirmations failed");
 
         assert_eq!(tx_receipt.hash(), tx_hash);

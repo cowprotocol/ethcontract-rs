@@ -2,7 +2,6 @@
 
 use crate::conv;
 use crate::errors::ExecutionError;
-use futures::compat::Future01CompatExt;
 use web3::api::Web3;
 use web3::types::U256;
 use web3::Transport;
@@ -54,9 +53,9 @@ impl GasPrice {
     /// `GasPrice::Scaled`.
     pub async fn resolve<T: Transport>(self, web3: &Web3<T>) -> Result<U256, ExecutionError> {
         let resolved_gas_price = match self {
-            GasPrice::Standard => web3.eth().gas_price().compat().await?,
+            GasPrice::Standard => web3.eth().gas_price().await?,
             GasPrice::Scaled(factor) => {
-                let gas_price = web3.eth().gas_price().compat().await?;
+                let gas_price = web3.eth().gas_price().await?;
                 scale_gas_price(gas_price, factor)
             }
             GasPrice::Value(value) => value,

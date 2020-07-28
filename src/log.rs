@@ -3,7 +3,6 @@
 
 use crate::errors::ExecutionError;
 use ethcontract_common::abi::{Topic, TopicFilter};
-use futures::compat::{Future01CompatExt, Stream01CompatExt};
 use futures::future::{self, TryFutureExt};
 use futures::stream::{self, Stream, TryStreamExt};
 use std::num::NonZeroU64;
@@ -174,7 +173,7 @@ impl<T: Transport> LogFilterBuilder<T> {
     pub async fn past_logs(self) -> Result<Vec<Log>, ExecutionError> {
         let web3 = self.web3.clone();
         let filter = self.into_filter();
-        let logs = web3.eth().logs(filter.build()).compat().await?;
+        let logs = web3.eth().logs(filter.build()).await?;
 
         Ok(logs)
     }
@@ -200,12 +199,10 @@ impl<T: Transport> LogFilterBuilder<T> {
             let eth_filter = web3
                 .eth_filter()
                 .create_logs_filter(filter.build())
-                .compat()
                 .await
                 .map_err(ExecutionError::from)?;
             let stream = eth_filter
                 .stream(poll_interval)
-                .compat()
                 .map_err(ExecutionError::from);
 
             Ok(stream)
@@ -239,7 +236,7 @@ impl<T: Transport> PastLogsStream<T> {
                     (logs, PastLogsStream::Paging(pager))
                 }
                 PastLogsStream::Querying(web3, filter) => {
-                    let logs = web3.eth().logs(filter.clone()).compat().await?;
+                    let logs = web3.eth().logs(filter.clone()).await?;
                     (logs, PastLogsStream::Done)
                 }
             };
@@ -267,7 +264,7 @@ impl<T: Transport> PastLogsStream<T> {
             BlockNumber::Earliest => None,
             BlockNumber::Number(value) => Some(value.as_u64()),
             BlockNumber::Latest | BlockNumber::Pending => {
-                let latest_block = web3.eth().block_number().compat().await?;
+                let latest_block = web3.eth().block_number().await?;
                 Some(latest_block.as_u64())
             }
         };
@@ -339,7 +336,6 @@ impl<T: Transport> PastLogsPager<T> {
                         .to_block(page_to_block)
                         .build(),
                 )
-                .compat()
                 .await?;
 
             self.page_block = page_end + 1;
@@ -515,7 +511,7 @@ mod tests {
             .stream()
             .boxed()
             .next()
-            .immediate()
+            .wait()
             .expect("log stream did not produce any logs")
             .expect("failed to get log from log stream");
 

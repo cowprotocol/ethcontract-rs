@@ -5,7 +5,6 @@
 use crate::errors::{revert, ExecutionError, MethodError};
 use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
 use ethcontract_common::abi::{Function, Token};
-use futures::compat::Future01CompatExt;
 use std::marker::PhantomData;
 use web3::api::Web3;
 use web3::contract::tokens::Detokenize;
@@ -264,7 +263,7 @@ impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
             .call(
                 CallRequest {
                     from: self.m.tx.from.map(|account| account.address()),
-                    to: self.m.tx.to.unwrap_or_default(),
+                    to: Some(self.m.tx.to.unwrap_or_default()),
                     gas: self.m.tx.gas,
                     gas_price: self.m.tx.gas_price.and_then(|gas_price| gas_price.value()),
                     value: self.m.tx.value,
@@ -272,7 +271,6 @@ impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
                 },
                 self.block,
             )
-            .compat()
             .await
             .map_err(|err| MethodError::new(&function, err))?;
         let result = decode_geth_call_result::<R>(&function, bytes.0)

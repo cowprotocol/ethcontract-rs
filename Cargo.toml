@@ -32,7 +32,7 @@ members = [
 [dependencies]
 ethcontract-common = { version = "0.7.2", path = "./common" }
 ethcontract-derive = { version = "0.7.2", path = "./derive", optional = true}
-futures = { version = "0.3", features = ["compat"] }
+futures = "0.3"
 futures-timer = "3.0"
 hex = "0.4"
 jsonrpc-core = "14.0"
@@ -42,5 +42,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 uint = "0.8"
-web3 = "0.11"
+web3 = "0.13"
 zeroize = "1.1"
+
+[dev-dependencies]
+tokio = { version = "0.2", features = ["macros"] }

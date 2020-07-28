@@ -11,7 +11,6 @@ use ethcontract_common::abi::{Error as AbiError, Result as AbiResult};
 use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::hash::H32;
 use ethcontract_common::{Abi, Artifact, Bytecode};
-use futures::compat::Future01CompatExt;
 use std::collections::HashMap;
 use std::hash::Hash;
 use web3::api::Web3;
@@ -90,7 +89,7 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matchin `Abi` is
     /// actually deployed at the given address.
     pub async fn deployed(web3: Web3<T>, artifact: Artifact) -> Result<Self, DeployError> {
-        let network_id = web3.net().version().compat().await?;
+        let network_id = web3.net().version().await?;
         let network = artifact
             .networks
             .get(&network_id)

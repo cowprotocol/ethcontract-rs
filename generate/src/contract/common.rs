@@ -68,10 +68,9 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
                 address: self::ethcontract::Address,
             ) -> Self
             where
-                F: self::ethcontract::web3::futures::Future<
-                    Item = self::ethcontract::json::Value,
-                    Error = self::ethcontract::web3::Error,
-                > + Send + 'static,
+                F: std::future::Future<
+                       Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
+                   > + Send + Unpin + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
                 Contract::with_transaction(web3, address, None)
@@ -92,10 +91,9 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
                 transaction_hash: Option<self::ethcontract::H256>,
             ) -> Self
             where
-                F: self::ethcontract::web3::futures::Future<
-                    Item = self::ethcontract::json::Value,
-                    Error = self::ethcontract::web3::Error,
-                > + Send + 'static,
+                F: std::future::Future<
+                       Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
+                   > + Send + Unpin + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
                 use self::ethcontract::Instance;

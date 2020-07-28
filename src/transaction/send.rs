@@ -4,7 +4,6 @@
 use crate::errors::ExecutionError;
 use crate::transaction::confirm;
 use crate::transaction::{ResolveCondition, Transaction, TransactionBuilder};
-use futures::compat::Future01CompatExt;
 use web3::types::{TransactionReceipt, H256, U64};
 use web3::Transport;
 
@@ -20,7 +19,6 @@ impl<T: Transport> TransactionBuilder<T> {
             Transaction::Request(tx) => web3.eth().send_transaction(tx),
             Transaction::Raw(tx) => web3.eth().send_raw_transaction(tx),
         }
-        .compat()
         .await?;
 
         let tx_receipt = match resolve {
