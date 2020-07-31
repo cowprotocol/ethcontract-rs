@@ -6,13 +6,13 @@
 
 use crate::errors::ExecutionError;
 use crate::secret::{Password, PrivateKey};
-use crate::transaction::estimate_gas::{estimate_gas, EstimateGasRequest};
 use crate::transaction::gas_price::GasPrice;
 use crate::transaction::{Account, TransactionBuilder};
 use web3::api::Web3;
 use web3::signing::SecretKeyRef;
 use web3::types::{
-    Address, Bytes, TransactionCondition, TransactionParameters, TransactionRequest, U256,
+    Address, Bytes, CallRequest, TransactionCondition, TransactionParameters, TransactionRequest,
+    U256,
 };
 use web3::Transport;
 
@@ -195,18 +195,19 @@ async fn build_offline_signed_transaction<T: Transport>(
     let gas = match options.gas {
         Some(value) => value,
         None => {
-            estimate_gas(
-                &web3,
-                EstimateGasRequest {
-                    from: Some(key.public_address()),
-                    to: options.to,
-                    gas: None,
-                    gas_price: gas_price.value(),
-                    value: options.value,
-                    data: options.data.clone(),
-                },
-            )
-            .await?
+            web3.eth()
+                .estimate_gas(
+                    CallRequest {
+                        from: Some(key.public_address()),
+                        to: options.to,
+                        gas: None,
+                        gas_price: gas_price.value(),
+                        value: options.value,
+                        data: options.data.clone(),
+                    },
+                    None,
+                )
+                .await?
         }
     };
     let gas_price = gas_price.resolve(&web3).await?;

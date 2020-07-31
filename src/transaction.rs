@@ -3,7 +3,6 @@
 
 mod build;
 pub mod confirm;
-pub mod estimate_gas;
 pub mod gas_price;
 mod send;
 
@@ -11,9 +10,10 @@ pub use self::build::Transaction;
 use self::confirm::ConfirmParams;
 pub use self::gas_price::GasPrice;
 pub use self::send::TransactionResult;
+use crate::errors::ExecutionError;
 use crate::secret::{Password, PrivateKey};
 use web3::api::Web3;
-use web3::types::{Address, Bytes, TransactionCondition, U256};
+use web3::types::{Address, Bytes, CallRequest, TransactionCondition, U256};
 use web3::Transport;
 
 /// The account type used for signing the transaction.
@@ -178,6 +178,28 @@ impl<T: Transport> TransactionBuilder<T> {
             )),
         };
         self
+    }
+
+    /// Estimate the gas required for this transaction.
+    pub async fn estimate_gas(self) -> Result<U256, ExecutionError> {
+        let from = self.from.map(|account| account.address());
+        let gas_price = self.gas_price.and_then(|gas_price| gas_price.value());
+
+        self.web3
+            .eth()
+            .estimate_gas(
+                CallRequest {
+                    from,
+                    to: self.to,
+                    gas: None,
+                    gas_price,
+                    value: self.value,
+                    data: self.data.clone(),
+                },
+                None,
+            )
+            .await
+            .map_err(From::from)
     }
 }
 
