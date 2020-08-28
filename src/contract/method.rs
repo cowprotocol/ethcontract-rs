@@ -468,13 +468,13 @@ mod tests {
         transport.add_response(json!(revert::encode_reason_hex("message"))); // call response
         let result = tx.call().immediate();
         assert!(
-            match &result {
+            matches!(
+                &result,
                 Err(MethodError {
                     inner: ExecutionError::Revert(Some(ref reason)),
                     ..
-                }) if reason == "message" => true,
-                _ => false,
-            },
+                }) if reason == "message"
+            ),
             "unexpected result {:?}",
             result
         );
@@ -494,13 +494,13 @@ mod tests {
         transport.add_response(json!("0x"));
         let result = tx.call().immediate();
         assert!(
-            match &result {
+            matches!(
+                &result,
                 Err(MethodError {
                     inner: ExecutionError::InvalidOpcode,
                     ..
-                }) => true,
-                _ => false,
-            },
+                })
+            ),
             "unexpected result {:?}",
             result
         );

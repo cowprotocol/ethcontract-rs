@@ -58,10 +58,7 @@ impl TransactionResult {
     /// Returns true if the `TransactionResult` is a `Hash` variant, i.e. it is
     /// only a hash and does not contain the transaction receipt.
     pub fn is_hash(&self) -> bool {
-        match self {
-            TransactionResult::Hash(_) => true,
-            _ => false,
-        }
+        matches!(self, TransactionResult::Hash(_))
     }
 
     /// Get the transaction hash.

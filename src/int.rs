@@ -60,7 +60,7 @@ impl Sign {
 }
 
 /// Little-endian 256-bit signed integer.
-#[derive(Clone, Copy, Default, Deserialize, Eq, Hash, Ord, PartialEq, Serialize)]
+#[derive(Clone, Copy, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(transparent)]
 pub struct I256(U256);
 
@@ -1001,20 +1001,24 @@ impl fmt::UpperHex for I256 {
 
 impl cmp::PartialOrd for I256 {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl cmp::Ord for I256 {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
         // TODO(nlordell): Once subtraction is implemented:
         // self.saturating_sub(*other).signum64().partial_cmp(&0)
 
         use cmp::Ordering::*;
         use Sign::*;
 
-        let ord = match (self.into_sign_and_abs(), other.into_sign_and_abs()) {
+        match (self.into_sign_and_abs(), other.into_sign_and_abs()) {
             ((Positive, _), (Negative, _)) => Greater,
             ((Negative, _), (Positive, _)) => Less,
             ((Positive, this), (Positive, other)) => this.cmp(&other),
             ((Negative, this), (Negative, other)) => other.cmp(&this),
-        };
-
-        Some(ord)
+        }
     }
 }
 

@@ -78,10 +78,10 @@ mod tests {
         let err = get_encoded_error(&jsonrpc_err);
 
         assert!(
-            match &err {
-                Some(ExecutionError::Revert(Some(reason))) if reason == "message" => true,
-                _ => false,
-            },
+            matches!(
+                &err,
+                Some(ExecutionError::Revert(Some(reason))) if reason == "message"
+            ),
             "bad error conversion {:?}",
             err
         );
@@ -93,10 +93,7 @@ mod tests {
         let err = get_encoded_error(&jsonrpc_err);
 
         assert!(
-            match err {
-                Some(ExecutionError::Revert(None)) => true,
-                _ => false,
-            },
+            matches!(err, Some(ExecutionError::Revert(None))),
             "bad error conversion {:?}",
             err
         );
@@ -108,10 +105,7 @@ mod tests {
         let err = get_encoded_error(&jsonrpc_err);
 
         assert!(
-            match err {
-                Some(ExecutionError::InvalidOpcode) => true,
-                _ => false,
-            },
+            matches!(err, Some(ExecutionError::InvalidOpcode)),
             "bad error conversion {:?}",
             err
         );

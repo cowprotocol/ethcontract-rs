@@ -41,10 +41,10 @@ impl Bytecode {
         for block in CodeIter(&s[2..]) {
             let block = block?;
 
-            if let Some(pos) = block.bytes().position(|b| match b {
-                b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => false,
-                _ => true,
-            }) {
+            if let Some(pos) = block
+                .bytes()
+                .position(|b| !matches!(b, b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F'))
+            {
                 return Err(BytecodeError::InvalidHexDigit(
                     block.chars().nth(pos).expect("valid pos"),
                 ));
