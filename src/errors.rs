@@ -237,10 +237,7 @@ mod tests {
         let err = ExecutionError::from(web3_err);
 
         assert!(
-            match err {
-                ExecutionError::InvalidOpcode => true,
-                _ => false,
-            },
+            matches!(err, ExecutionError::InvalidOpcode),
             "bad error conversion {:?}",
             err
         );
@@ -252,10 +249,7 @@ mod tests {
         let err = ExecutionError::from(web3_err);
 
         assert!(
-            match err {
-                ExecutionError::InvalidOpcode => true,
-                _ => false,
-            },
+            matches!(err, ExecutionError::InvalidOpcode),
             "bad error conversion {:?}",
             err
         );
