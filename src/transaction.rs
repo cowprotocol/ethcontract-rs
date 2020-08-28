@@ -375,10 +375,10 @@ mod tests {
         let result = builder.send().immediate();
 
         assert!(
-            match &result {
-                Err(ExecutionError::Failure(ref tx)) if tx.transaction_hash == tx_hash => true,
-                _ => false,
-            },
+            matches!(
+                &result,
+                Err(ExecutionError::Failure(ref tx)) if tx.transaction_hash == tx_hash
+            ),
             "expected transaction failure with hash {} but got {:?}",
             tx_hash,
             result

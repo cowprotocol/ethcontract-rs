@@ -379,10 +379,7 @@ mod tests {
         transport.assert_no_more_requests();
 
         assert!(
-            match err {
-                ExecutionError::NoLocalAccounts => true,
-                _ => false,
-            },
+            matches!(err, ExecutionError::NoLocalAccounts),
             "expected no local accounts error but got '{:?}'",
             err
         );
