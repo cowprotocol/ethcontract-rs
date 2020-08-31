@@ -3459,10 +3459,10 @@ simple-get@^2.7.0:
     once "^1.3.1"
     simple-concat "^1.0.0"
 
-sol-merger@3.0.1:
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/sol-merger/-/sol-merger-3.0.1.tgz#b87cdd15dbcc4aa741fd1ac307a7e178f0356a87"
-  integrity sha512-zVYm51Kym+lruM5DLuhRjYeiQ014TXM3iWpVluR6oVjTEFKF/Q/LmrcQZK7JF/ceK9zpYpcU1YJPdZRvEsvV5w==
+sol-merger@3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/sol-merger/-/sol-merger-3.1.0.tgz#547b282a616d106c0fa8869e0a275fd7db0213d8"
+  integrity sha512-4/JELeFlB8bcyqttRZ7pE/EGpevft9Q7IPjMaKLKMrj1exmdyt+1qSfuSXxueFXRZQxSd21u6DjEedDkOtQ5yQ==
   dependencies:
     antlr4ts "^0.5.0-alpha.3"
     cli-color "^1.4.0"
@@ -3703,16 +3703,16 @@ tough-cookie@~2.5.0:
     psl "^1.1.28"
     punycode "^2.1.1"
 
-truffle-plugin-verify@^0.3.11:
-  version "0.3.11"
-  resolved "https://registry.yarnpkg.com/truffle-plugin-verify/-/truffle-plugin-verify-0.3.11.tgz#7e8e46b932c21924ee829af18d85d0edd3cce5a1"
-  integrity sha512-RN18HcPSuxcdP1oDlRjIu56fEx+Bo1Rf0h+Ra/cI1dQ8rQcdikpdy4r+CHxT/mvUy8vEwS39doB5vWDNvydpPA==
+truffle-plugin-verify@^0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/truffle-plugin-verify/-/truffle-plugin-verify-0.4.0.tgz#5e93bc8fd8f07b2554d320c20811938e40dc1de9"
+  integrity sha512-wI6J8vB6DZYyqTouMCayGWwTqy5VZwLaZ/vGjRjtt1MdXDzfyeGw5UHJujjFQYU1hCDYt/0LmAVmBkWg9MBWmA==
   dependencies:
     axios "0.19.2"
     cli-logger "0.5.40"
     delay "4.3.0"
     querystring "0.2.0"
-    sol-merger "3.0.1"
+    sol-merger "3.1.0"
 
 truffle@^5.1.37:
   version "5.1.37"
