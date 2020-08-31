@@ -1,0 +1,22 @@
+pull_request_rules:
+  - name: Merge approved and green PRs with merge-when-green label
+    conditions:
+      - "#approved-reviews-by>=1"
+      - status-success=Travis CI - Pull Request
+      - base=master
+      - label=merge when green
+    actions:
+      merge:
+        method: squash
+        strict: smart+fasttrack
+        commit_message: title+body
+  - name: Automatic merge for Dependabot pull requests
+    conditions:
+      - author~=^dependabot(|-preview)\[bot\]$
+      - status-success=Travis CI - Pull Request
+      - base=master
+    actions:
+      merge:
+        method: squash
+        strict: smart+fasttrack
+        commit_message: title+body
