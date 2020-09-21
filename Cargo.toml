@@ -39,7 +39,7 @@ ethcontract-derive = { version = "0.7.2", path = "./derive", optional = true}
 futures = "0.3"
 futures-timer = "3.0"
 hex = "0.4"
-jsonrpc-core = "14.0"
+jsonrpc-core = "15.0"
 lazy_static = "1.4"
 secp256k1 = "0.17"
 serde = { version = "1.0", features = ["derive"] }
