@@ -9,7 +9,6 @@ use crate::secret::{Password, PrivateKey};
 use crate::transaction::gas_price::GasPrice;
 use crate::transaction::{Account, TransactionBuilder};
 use web3::api::Web3;
-use web3::signing::SecretKeyRef;
 use web3::types::{
     Address, Bytes, CallRequest, TransactionCondition, TransactionParameters, TransactionRequest,
     U256,
@@ -224,7 +223,7 @@ async fn build_offline_signed_transaction<T: Transport>(
                 data: options.data.unwrap_or_default(),
                 chain_id,
             },
-            SecretKeyRef::new(&key),
+            &key,
         )
         .await?;
 
