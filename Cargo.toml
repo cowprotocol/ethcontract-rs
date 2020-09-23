@@ -1,6 +1,6 @@
 [package]
 name = "ethcontract"
-version = "0.7.2"
+version = "0.8.0"
 authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -34,8 +34,8 @@ members = [
 ]
 
 [dependencies]
-ethcontract-common = { version = "0.7.2", path = "./common" }
-ethcontract-derive = { version = "0.7.2", path = "./derive", optional = true}
+ethcontract-common = { version = "0.8.0", path = "./common" }
+ethcontract-derive = { version = "0.8.0", path = "./derive", optional = true}
 futures = "0.3"
 futures-timer = "3.0"
 hex = "0.4"
