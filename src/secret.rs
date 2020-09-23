@@ -3,11 +3,12 @@
 use crate::errors::InvalidPrivateKey;
 use ethcontract_common::hash;
 use secp256k1::key::ONE_KEY;
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
-use web3::types::Address;
+use web3::signing::{Key, Signature, SigningError};
+use web3::types::{Address, H256};
 use zeroize::{DefaultIsZeroes, Zeroizing};
 
 /// A secret key used for signing and hashing.
@@ -83,6 +84,30 @@ impl Debug for PrivateKey {
         f.debug_tuple("PrivateKey")
             .field(&self.public_address())
             .finish()
+    }
+}
+
+impl Key for &'_ PrivateKey {
+    fn sign(&self, message: &[u8], chain_id: Option<u64>) -> Result<Signature, SigningError> {
+        let message = Message::from_slice(&message).map_err(|_| SigningError::InvalidMessage)?;
+        let (recovery_id, signature) = Secp256k1::signing_only()
+            .sign_recoverable(&message, self)
+            .serialize_compact();
+
+        let standard_v = recovery_id.to_i32() as u64;
+        let v = if let Some(chain_id) = chain_id {
+            standard_v + 35 + chain_id * 2
+        } else {
+            standard_v + 27
+        };
+        let r = H256::from_slice(&signature[..32]);
+        let s = H256::from_slice(&signature[32..]);
+
+        Ok(Signature { v, r, s })
+    }
+
+    fn address(&self) -> Address {
+        self.public_address()
     }
 }
 
