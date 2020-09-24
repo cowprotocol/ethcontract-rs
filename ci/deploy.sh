@@ -20,7 +20,7 @@ USAGE:
 
 OPTIONS:
         --token <TOKEN>     Token to use when uploading
-    -t, --tag <TAG>         The current tag being deployed
+        --tag <TAG>         The current tag being deployed
         --dry-run           Perform all checks without uploading
     -v, --verbose           Use verbose output (-vv very verbose output)
     -h, --help              Prints this help information
@@ -51,7 +51,7 @@ check_manifest_version derive/Cargo.toml
 check_manifest_version Cargo.toml
 
 function cargo_publish {
-	(cd $1; cargo publish --token $CARGO_TOKEN $options)
+	(cd $1; cargo publish --token $token $options)
 
 	# NOTE(nlordell): For some reason, the next publish fails on not being able
 	#   to find the new version; maybe it takes a second for crates.io to update
