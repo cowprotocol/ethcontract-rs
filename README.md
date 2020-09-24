@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/gnosis/ethcontract-rs.svg?branch=master)](https://travis-ci.org/gnosis/ethcontract-rs)
+[![Build Status](https://travis-ci.org/gnosis/ethcontract-rs.svg?branch=main)](https://travis-ci.org/gnosis/ethcontract-rs)
 [![Crates.io](https://img.shields.io/crates/v/ethcontract.svg)](https://crates.io/crates/ethcontract)
 [![Docs.rs](https://docs.rs/ethcontract/badge.svg)](https://docs.rs/ethcontract)
 [![Rustc Version](https://img.shields.io/badge/rustc-1.42+-lightgray.svg)](https://blog.rust-lang.org/2019/12/19/Rust-1.42.0.html)

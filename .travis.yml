@@ -1,6 +1,6 @@
 branches:
   only:
-    - master
+    - main
 
 os: linux
 dist: bionic
