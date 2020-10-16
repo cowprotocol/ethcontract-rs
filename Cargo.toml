@@ -50,4 +50,4 @@ web3 = { version = "0.13", default-features = false }
 zeroize = "1.1"
 
 [dev-dependencies]
-tokio = { version = "0.2", features = ["macros"] }
+tokio = { version = "0.3", features = ["macros"] }
