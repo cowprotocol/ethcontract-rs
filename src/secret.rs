@@ -34,14 +34,8 @@ impl PrivateKey {
     /// Creates a new private key from a hex string representation. Accepts hex
     /// string with or without leading `"0x"`.
     pub fn from_hex_str<S: AsRef<str>>(s: S) -> Result<Self, InvalidPrivateKey> {
-        let hex_str = {
-            let s = s.as_ref();
-            if s.starts_with("0x") {
-                &s[2..]
-            } else {
-                s
-            }
-        };
+        let s = s.as_ref();
+        let hex_str = s.strip_prefix("0x").unwrap_or(s);
         let secret_key = SecretKey::from_str(hex_str)?;
         Ok(PrivateKey(Zeroizing::new(secret_key.into())))
     }

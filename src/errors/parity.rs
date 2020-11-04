@@ -13,8 +13,7 @@ const INVALID: &str = "Bad instruction";
 /// Returns `None` when a more accurate error cannot be determined.
 pub fn get_encoded_error(err: &JsonrpcError) -> Option<ExecutionError> {
     let message = get_error_message(err)?;
-    if message.starts_with(REVERTED) {
-        let hex = &message[REVERTED.len()..];
+    if let Some(hex) = message.strip_prefix(REVERTED) {
         if hex.is_empty() {
             return Some(ExecutionError::Revert(None));
         } else {
