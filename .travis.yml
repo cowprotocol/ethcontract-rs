@@ -10,8 +10,8 @@ jobs:
   fast_finish: true
   include:
     - stage: "Build and Test"
-      name: "Rust: 1.42.0"
-      rust: 1.42.0
+      name: "Rust: 1.47.0"
+      rust: 1.47.0
     - name: "Rust: stable"
       rust: stable
     - name: "Rust: beta"
@@ -25,7 +25,10 @@ jobs:
         # NOTE: We pipe `tail -f /dev/null` into `yarn start`, which internally
         #   calls `truffle develop`, so that the process' STDIN stays open, as
         #   `truffle develop` exits as soon as it gets an EOF from STDIN.
-        - tail -f /dev/null | yarn --cwd examples/truffle start > /dev/null &
+        - cd examples/truffle
+        - tail -f /dev/null | truffle develop &
+        - cd ../..
+        # - yarn --cwd examples/truffle start&
         - cargo run --example abi
         - cargo run --example async
         - cargo run --example deployments
