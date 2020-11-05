@@ -9,7 +9,7 @@ use crate::log::LogFilterBuilder;
 pub use ethcontract_common::abi::Topic;
 use ethcontract_common::abi::{Event as AbiEvent, RawTopicFilter, Token};
 use futures::future::{self, TryFutureExt as _};
-use futures::stream::{Stream, StreamExt as _, TryStreamExt as _};
+use futures::stream::{self, Stream, StreamExt as _, TryStreamExt as _};
 use std::cmp;
 use std::marker::PhantomData;
 use std::time::Duration;
@@ -276,7 +276,9 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// Note that if the block range is inconsistent (for example from block is
     /// after the to block, or querying until the earliest block), then the
     /// query will be forwarded to the node as is.
-    pub async fn query_paginated(self) -> Result<Vec<Event<E>>, ExecutionError> {
+    pub async fn query_paginated(
+        self,
+    ) -> Result<impl Stream<Item = Result<Event<E>, ExecutionError>>, ExecutionError> {
         let web3 = self.web3.clone();
         let filter = match (self.filter.from_block, self.deployment_transaction) {
             (Some(BlockNumber::Earliest), Some(tx)) => {
@@ -293,16 +295,9 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
 
         let events = filter
             .past_logs_pages()
-            .try_fold(Vec::new(), |mut events, logs| async move {
-                events.reserve(logs.len());
-                for log in logs {
-                    let event = Event::from_past_log(log, E::parse_log)?;
-                    events.push(event);
-                }
-                Ok(events)
-            })
-            .await?;
-
+            .map_ok(|logs| stream::iter(logs).map(|log| Event::from_past_log(log, E::parse_log)))
+            .try_flatten()
+            .into_stream();
         Ok(events)
     }
 
@@ -558,6 +553,9 @@ mod tests {
             .topic0(Topic::This(signature))
             .block_page_size(5)
             .query_paginated()
+            .immediate()
+            .expect("failed to get logs")
+            .try_collect::<Vec<_>>()
             .immediate()
             .expect("failed to get logs");
 
