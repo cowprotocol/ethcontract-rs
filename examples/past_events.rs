@@ -1,4 +1,5 @@
 use ethcontract::prelude::*;
+use futures::TryStreamExt as _;
 use std::env;
 
 ethcontract::contract!("npm:@gnosis.pm/owl-token@3.1.0/build/contracts/TokenOWLProxy.json");
@@ -23,14 +24,18 @@ async fn main() {
         TokenOWL::with_transaction(&web3, owl_proxy.address(), owl_proxy.transaction_hash());
     println!("Using OWL token at {:?}", owl_token.address());
     println!("Retrieving all past events (this could take a while)...");
-    let event_history = owl_token
+    let event_history_stream = owl_token
         .all_events()
         .from_block(BlockNumber::Earliest)
         .query_paginated()
         .await
         .expect("Couldn't retrieve event history");
+    let event_history_vec = event_history_stream
+        .try_collect::<Vec<_>>()
+        .await
+        .expect("Couldn't parse event");
     println!(
         "Total number of events emitted by OWL token {:}",
-        event_history.len()
+        event_history_vec.len()
     );
 }
