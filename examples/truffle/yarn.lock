@@ -191,10 +191,10 @@
   dependencies:
     defer-to-connect "^1.0.1"
 
-"@truffle/hdwallet-provider@^1.0.42", "@truffle/hdwallet-provider@^1.1.0":
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-1.1.0.tgz#caca30225ee18c69fdd6403b4de23ca316796922"
-  integrity sha512-hblrGs0w/S8Ij7BrmUju6GEK35NWQs2Hxc6SMBrz4chlwd9vcBzMWCGoCtYwYOi2d6o9jOv17+bLk9KNlTZR8g==
+"@truffle/hdwallet-provider@^1.0.42", "@truffle/hdwallet-provider@^1.1.1":
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-1.1.1.tgz#951f16cf3ca412c7c0e58efddb0eb0f32b127317"
+  integrity sha512-Gw5lk2dUs6NhLcaF49FuuL3Qv1Setpgr9uUhf7voIS/1OD4ar2CW9Zv7QJiR5m0PD/b8SUqbIckq0evY4Mendg==
   dependencies:
     "@trufflesuite/web3-provider-engine" "15.0.13-1"
     "@types/web3" "^1.0.20"
