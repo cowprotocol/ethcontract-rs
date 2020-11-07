@@ -8,6 +8,7 @@ use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::iter;
 use std::ops;
+use std::panic;
 use std::str;
 use std::{i128, i64, u64};
 use web3::contract::{self, tokens};
@@ -29,11 +30,11 @@ fn twos_complement(u: U256) -> U256 {
 #[inline(always)]
 fn handle_overflow<T>((result, overflow): (T, bool)) -> T {
     #[cfg(debug_assertions)]
-    {
-        if overflow {
-            panic!("overflow");
+        {
+            if overflow {
+                panic!("overflow");
+            }
         }
-    }
 
     let _ = overflow;
     result
@@ -1197,8 +1198,8 @@ impl ops::RemAssign for I256 {
 
 impl iter::Sum for I256 {
     fn sum<I>(iter: I) -> Self
-    where
-        I: Iterator<Item = Self>,
+        where
+            I: Iterator<Item=Self>,
     {
         iter.fold(I256::zero(), |acc, x| acc + x)
     }
@@ -1206,8 +1207,8 @@ impl iter::Sum for I256 {
 
 impl iter::Product for I256 {
     fn product<I>(iter: I) -> Self
-    where
-        I: Iterator<Item = Self>,
+        where
+            I: Iterator<Item=Self>,
     {
         iter.fold(I256::one(), |acc, x| acc * x)
     }
@@ -1652,7 +1653,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn div_euclid_overflow() {
-        I256::MIN.div_euclid(-I256::one());
+        let panics = panic::catch_unwind(|| I256::MIN.div_euclid(-I256::one()));
+        assert!(panics.is_err());
     }
 
     #[test]
@@ -1701,7 +1703,7 @@ mod tests {
         assert_eq!(json!(I256::minus_one()), json!(U256::MAX));
 
         assert_eq!(I256::from(42).into_token(), 42i32.into_token());
-        assert_eq!(I256::minus_one().into_token(), Token::Int(U256::MAX),);
+        assert_eq!(I256::minus_one().into_token(), Token::Int(U256::MAX), );
 
         assert_eq!(
             I256::from_token(42i32.into_token()).unwrap(),
