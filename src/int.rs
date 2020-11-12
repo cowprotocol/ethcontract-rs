@@ -1650,7 +1650,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[cfg_attr(debug_assertions, should_panic)]
     fn div_euclid_overflow() {
         I256::MIN.div_euclid(-I256::one());
     }
