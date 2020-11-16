@@ -1,9 +1,8 @@
 //! Implementation of gas price estimation.
 
-use crate::conv;
 use crate::errors::ExecutionError;
+use primitive_types::U256;
 use web3::api::Web3;
-use web3::types::U256;
 use web3::Transport;
 
 /// The gas price setting to use.
@@ -115,8 +114,8 @@ fn scale_gas_price(gas_price: U256, factor: f64) -> U256 {
     // NOTE: U256 does not support floating point multiplication we have to
     //   convert everything to floats to multiply the factor and then convert
     //   back. We are OK with the loss of precision here.
-    let gas_price_f = conv::u256_to_f64(gas_price);
-    conv::f64_to_u256(gas_price_f * factor)
+    let gas_price_f = gas_price.to_f64_lossy();
+    U256::from_f64_lossy(gas_price_f * factor)
 }
 
 #[cfg(test)]
