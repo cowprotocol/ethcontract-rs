@@ -94,7 +94,6 @@
 mod test_macros;
 
 pub mod contract;
-mod conv;
 pub mod errors;
 mod int;
 pub mod log;
