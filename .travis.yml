@@ -22,10 +22,9 @@ jobs:
     - name: "Rust: stable - Examples"
       rust: stable
       script:
-        - npm install -g truffle
         # NOTE: We pipe `tail -f /dev/null`, so that the process' STDIN stays
         # open, as `truffle develop` exits as soon as it gets an EOF from STDIN.
-        - (cd examples/truffle; tail -f /dev/null | truffle develop > /dev/null) &
+        - (cd examples/truffle; tail -f /dev/null | yarn run -s start > /dev/null) &
         - cargo run --example abi
         - cargo run --example async
         - cargo run --example deployments
