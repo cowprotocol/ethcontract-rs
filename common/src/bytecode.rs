@@ -105,7 +105,7 @@ impl Bytecode {
 
     /// Returns true if the bytecode is an empty bytecode.
     pub fn is_empty(&self) -> bool {
-        self.0 == ""
+        self.0.is_empty()
     }
 }
 

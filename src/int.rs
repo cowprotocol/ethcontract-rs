@@ -521,11 +521,11 @@ impl I256 {
 
         // NOTE: Overflow is determined by checking the sign of the operands and
         //   the result.
-        let overflow = match (self.sign(), rhs.sign(), result.sign()) {
-            (Sign::Positive, Sign::Positive, Sign::Negative) => true,
-            (Sign::Negative, Sign::Negative, Sign::Positive) => true,
-            _ => false,
-        };
+        let overflow = matches!(
+            (self.sign(), rhs.sign(), result.sign()),
+            (Sign::Positive, Sign::Positive, Sign::Negative)
+                | (Sign::Negative, Sign::Negative, Sign::Positive)
+        );
 
         (result, overflow)
     }
@@ -574,11 +574,11 @@ impl I256 {
 
         // NOTE: Overflow is determined by checking the sign of the operands and
         //   the result.
-        let overflow = match (self.sign(), rhs.sign(), result.sign()) {
-            (Sign::Positive, Sign::Negative, Sign::Negative) => true,
-            (Sign::Negative, Sign::Positive, Sign::Positive) => true,
-            _ => false,
-        };
+        let overflow = matches!(
+            (self.sign(), rhs.sign(), result.sign()),
+            (Sign::Positive, Sign::Negative, Sign::Negative)
+                | (Sign::Negative, Sign::Positive, Sign::Positive)
+        );
 
         (result, overflow)
     }
