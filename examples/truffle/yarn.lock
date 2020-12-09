@@ -219,10 +219,10 @@
     "@ethersproject/properties" "^5.0.3"
     "@ethersproject/strings" "^5.0.4"
 
-"@gnosis.pm/util-contracts@^3.0.0":
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/@gnosis.pm/util-contracts/-/util-contracts-3.0.0.tgz#fc0490646a55eb7c5c8d7a236fd75b4c68bc9519"
-  integrity sha512-TW+7KOJYva6CS5/TPdvuyLR5hE7Un/3mdrq8AYIO4iL3dha5PaaKBR0nbZQ7akeWgIRe7gl7Qn8S6+GhCfNf9Q==
+"@gnosis.pm/util-contracts@^3.0.1":
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/@gnosis.pm/util-contracts/-/util-contracts-3.0.1.tgz#6fe9b4577e10b07b645b5284f2577e3a5ab5f201"
+  integrity sha512-M+6ntjS5qD8c8c5HlQELM0OPWZf/cWdJKO3MLEPdKAwo/Ej1J6AUi5wIZgjkIVA6MyOb5wf/DleXjIrFjplYlQ==
   dependencies:
     "@truffle/hdwallet-provider" "^1.0.42"
 
