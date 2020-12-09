@@ -28,18 +28,16 @@ impl Bytecode {
             return Ok(Bytecode::default());
         }
 
-        // and that the length is even
+        // Verify that the length is even
         if s.len() % 2 != 0 {
             return Err(BytecodeError::InvalidLength);
         }
 
         // account for optional 0x prefix
-        let mut offset = 0;
-        if s.starts_with("0x") {
-            offset = 2;
-        }
+        let s = s.strip_prefix("0x").unwrap_or(s);
+
         // verify that each code block is valid hex
-        for block in CodeIter(&s[offset..]) {
+        for block in CodeIter(&s[0..]) {
             let block = block?;
 
             if let Some(pos) = block
@@ -52,7 +50,7 @@ impl Bytecode {
             }
         }
 
-        Ok(Bytecode(s[offset..].to_string()))
+        Ok(Bytecode(s[0..].to_string()))
     }
 
     /// Link a library into the current bytecode.
