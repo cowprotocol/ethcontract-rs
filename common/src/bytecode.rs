@@ -28,9 +28,10 @@ impl Bytecode {
             return Ok(Bytecode::default());
         }
 
-        // check that we start with 0x
-        if !s.starts_with("0x") {
-            return Err(BytecodeError::MissingHexPrefix);
+        // check if we start with 0x
+        let mut offset = 0;
+        if s.starts_with("0x") {
+            offset = 2;
         }
         // and that the length is even
         if s.len() % 2 != 0 {
@@ -38,7 +39,7 @@ impl Bytecode {
         }
 
         // verify that each code block is valid hex
-        for block in CodeIter(&s[2..]) {
+        for block in CodeIter(&s[offset..]) {
             let block = block?;
 
             if let Some(pos) = block
@@ -212,6 +213,11 @@ mod tests {
     #[test]
     fn empty_hex_bytecode_is_empty() {
         assert!(Bytecode::from_hex_str("0x").unwrap().is_empty());
+    }
+
+    #[test]
+    fn unprefixed_hex_bytecode_is_not_empty() {
+        assert!(!Bytecode::from_hex_str("feedface").unwrap().is_empty());
     }
 
     #[test]
