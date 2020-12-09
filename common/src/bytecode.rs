@@ -37,7 +37,7 @@ impl Bytecode {
         let s = s.strip_prefix("0x").unwrap_or(s);
 
         // verify that each code block is valid hex
-        for block in CodeIter(&s[0..]) {
+        for block in CodeIter(s) {
             let block = block?;
 
             if let Some(pos) = block
@@ -50,7 +50,7 @@ impl Bytecode {
             }
         }
 
-        Ok(Bytecode(s[0..].to_string()))
+        Ok(Bytecode(s.to_string()))
     }
 
     /// Link a library into the current bytecode.
