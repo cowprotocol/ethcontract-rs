@@ -19,10 +19,6 @@ pub enum ArtifactError {
 /// An error reading bytecode string representation.
 #[derive(Debug, Error)]
 pub enum BytecodeError {
-    /// Missing hex prefix at start of string.
-    #[error("missing 0x hex prefix at start of bytecode")]
-    MissingHexPrefix,
-
     /// Bytecode string is not an even length.
     #[error("invalid bytecode length")]
     InvalidLength,
