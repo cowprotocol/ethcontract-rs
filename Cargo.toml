@@ -17,13 +17,13 @@ to Ethereum smart contracts.
 name = "ethcontract"
 
 [features]
-default = ["derive", "http", "http-tls", "ws", "ws-tls"]
+default = ["derive", "http", "http-tls", "ws-tokio", "ws-tls-tokio"]
 derive = ["ethcontract-derive"]
 samples = []
 http = ["web3/http"]
 http-tls = ["web3/http-tls"]
-ws = ["web3/ws"]
-ws-tls = ["web3/ws-tls"]
+ws-tokio = ["web3/ws-tokio"]
+ws-tls-tokio = ["web3/ws-tls-tokio"]
 
 [workspace]
 members = [
@@ -39,7 +39,7 @@ ethcontract-derive = { version = "0.9.1", path = "./derive", optional = true}
 futures = "0.3"
 futures-timer = "3.0"
 hex = "0.4"
-jsonrpc-core = "14.0"
+jsonrpc-core = "15.0"
 lazy_static = "1.4"
 primitive-types = { version = "0.7.3", features = ["fp-conversion"] }
 secp256k1 = { version = "0.19", features = ["recovery"] }
@@ -47,7 +47,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 uint = "0.8"
-web3 = { version = "0.13", default-features = false }
+web3 = { version = "0.14", default-features = false, features = ["signing"] }
 zeroize = "1.1"
 
 [dev-dependencies]
