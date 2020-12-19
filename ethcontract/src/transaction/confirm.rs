@@ -199,7 +199,9 @@ impl<T: Transport> ConfirmationContext<'_, T> {
     /// Waits for a certain number of blocks to be mined using a block filter.
     async fn wait_for_blocks_with_filter(&self, block_count: usize) -> Result<(), ExecutionError> {
         let block_filter = self.web3.eth_filter().create_blocks_filter().await?;
-        let mut stream = block_filter.stream(self.params.poll_interval);
+        let stream = block_filter.stream(self.params.poll_interval);
+        futures::pin_mut!(stream);
+
         for _ in 0..block_count {
             stream
                 .next()
