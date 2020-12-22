@@ -1,91 +1,11 @@
-branches:
-  only:
-    - main
+if: branch = main AND tag IS present
 
 os: linux
 dist: focal
 language: rust
+rust: stable
 
-jobs:
-  fast_finish: true
-  include:
-    - stage: "Build and Test"
-      name: "Rust: 1.47.0"
-      rust: 1.47.0
-    - name: "Rust: stable"
-      rust: stable
-    - name: "Rust: beta"
-      rust: beta
-    - name: "Rust: nightly"
-      rust: nightly
-      allow_failure: true
-    - name: "Rust: stable - Examples"
-      rust: stable
-      script:
-        # NOTE: We pipe `tail -f /dev/null`, so that the process' STDIN stays
-        # open, as `truffle develop` exits as soon as it gets an EOF from STDIN.
-        - (cd examples/truffle; tail -f /dev/null | yarn run -s start > /dev/null) &
-        - cargo run --example abi
-        - cargo run --example async
-        - cargo run --example deployments
-        - cargo run --example events
-        - cargo run --package examples-generate
-        - cargo run --example linked
-        - cargo run --example rinkeby
-        - cargo run --example sources
-        - kill %1
-
-    - stage: "Deploy"
-      if: tag is present
-      name: "crates.io"
-      rust: stable
-      env:
-        - RUSTC_WRAPPER=
-      before_install: skip
-      before_script: skip
-      script: skip
-      deploy:
-        provider: script
-        script: bash ci/deploy.sh
-
-env:
-  global:
-    - SCCACHE_VERSION=0.2.13
-    - SCCACHE=$HOME/.sccache/bin/sccache
-    - RUSTC_WRAPPER=$SCCACHE
-
-cache:
-  directories:
-    - $HOME/.cache/sccache
-    - $HOME/.cache/yarn
-    - $HOME/.cargo
-    - $HOME/.rustup
-    - examples/truffle/node_modules
-
-before_install:
-  - rustup component add clippy rustfmt
-  - cargo clippy --version
-  - cargo fmt --version
-  - |
-    mkdir -p $HOME/.sccache/bin
-    pushd $HOME/.sccache
-    curl -LO https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz
-    tar -C bin -xvf sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz --wildcards '*/sccache' --strip 1
-    popd
-  - $SCCACHE --version
-  - nvm install --lts && nvm alias default 'lts/*'
-  - node --version
-  - npm install -g yarn@latest
-  - yarn --version
-
-before_script:
-  - (cd examples/truffle; yarn --frozen-lockfile && yarn build)
-
-script:
-  - cargo fmt -- --check
-  - cargo clippy --workspace --all-features --all-targets -- -D warnings
-  - cargo build --workspace --all-features --verbose
-  - cargo test --workspace --all-features --verbose
-
-before_cache:
-  - rm -rf "$TRAVIS_HOME/.cargo/registry"
+script: skip
+deploy:
+  provider: script
+  script: bash ci/deploy.sh
