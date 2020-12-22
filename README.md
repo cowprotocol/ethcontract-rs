@@ -166,16 +166,12 @@ cargo run --example past_events
 
 ## Sample Contracts Documentation
 
-We added some samples of generated contracts from our sample contract collection
-gated behind a feature. This feature is **only intended to be used for document
-generation**. In order to view the documentation for these contracts you need to
-first build the contracts and then generate documentation for the crate with the
-`samples` feature enabled:
+You can view example generated contract documentation by fist building the
+contracts and then generating documentation for the crate:
 
 ```sh
 (cd examples/truffle; yarn && yarn build)
-cargo doc --features samples --open
+cargo doc --package examples-documentation --no-deps --open
 ```
 
-This will open a browser at the documentation root. Look under the `samples`
-module for the sample contracts to get a feel for how the generated types look.
+This will open a browser at the documentation root.

@@ -1,0 +1,8 @@
+[package]
+name = "examples-documentation"
+version = "0.0.0"
+publish = false
+edition = "2018"
+
+[dependencies]
+ethcontract = { path = "../../ethcontract", default-features = false, features = ["derive"] }

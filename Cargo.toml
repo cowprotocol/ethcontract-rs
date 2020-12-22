@@ -1,54 +1,10 @@
-[package]
-name = "ethcontract"
-version = "0.9.1"
-authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
-edition = "2018"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/gnosis/ethcontract-rs"
-homepage = "https://github.com/gnosis/ethcontract-rs"
-documentation = "https://docs.rs/ethcontract"
-keywords = ["web3", "ethereum", "contract", "async"]
-description = """
-Runtime library and proc macro for interacting and generating type-safe bindings
-to Ethereum smart contracts.
-"""
-
-[lib]
-name = "ethcontract"
-
-[features]
-default = ["derive", "http", "http-tls", "ws", "ws-tls"]
-derive = ["ethcontract-derive"]
-samples = []
-http = ["web3/http"]
-http-tls = ["web3/http-tls"]
-ws = ["web3/ws"]
-ws-tls = ["web3/ws-tls"]
-
 [workspace]
 members = [
-  "common",
-  "derive",
-  "generate",
+  "ethcontract",
+  "ethcontract-common",
+  "ethcontract-derive",
+  "ethcontract-generate",
+  "examples",
+  "examples/documentation",
   "examples/generate",
 ]
-
-[dependencies]
-ethcontract-common = { version = "0.9.1", path = "./common" }
-ethcontract-derive = { version = "0.9.1", path = "./derive", optional = true}
-futures = "0.3"
-futures-timer = "3.0"
-hex = "0.4"
-jsonrpc-core = "14.0"
-lazy_static = "1.4"
-primitive-types = { version = "0.7.3", features = ["fp-conversion"] }
-secp256k1 = { version = "0.19", features = ["recovery"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-thiserror = "1.0"
-uint = "0.8"
-web3 = { version = "0.13", default-features = false }
-zeroize = "1.1"
-
-[dev-dependencies]
-tokio = { version = "0.2", features = ["macros"] }

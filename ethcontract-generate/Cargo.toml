@@ -14,7 +14,7 @@ Code generation for type-safe bindings to Ethereum smart contracts.
 [dependencies]
 anyhow = "1.0"
 curl = "0.4"
-ethcontract-common = { version = "0.9.1", path = "../common" }
+ethcontract-common = { version = "0.9.1", path = "../ethcontract-common" }
 Inflector = "0.11"
 proc-macro2 = "1.0"
 quote = "1.0"

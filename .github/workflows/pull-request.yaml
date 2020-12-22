@@ -47,15 +47,15 @@ jobs:
             while ! curl --silent http://127.0.0.1:9545 -o /dev/null; do
               sleep 1
             done
-            cargo run --example abi
-            cargo run --example async
-            cargo run --example deployments
-            cargo run --example events
+            cargo run --package examples --example abi
+            cargo run --package examples --example async
+            cargo run --package examples --example deployments
+            cargo run --package examples --example events
             cargo run --package examples-generate
-            cargo run --example linked
+            cargo run --package examples --example linked
             if [ "$PK" ] && [ "$INFURA_PROJECT_ID" ]; then
-              cargo run --example rinkeby
-              cargo run --example sources
+              cargo run --package examples --example rinkeby
+              cargo run --package examples --example sources
             fi
             kill %1
           fi
