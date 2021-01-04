@@ -176,28 +176,3 @@ mod test {
     pub mod prelude;
     pub mod transport;
 }
-
-#[cfg(feature = "samples")]
-#[allow(missing_docs)]
-pub mod samples {
-    //! Samples of derived contracts for documentation purposes in roder to
-    //! illustrate what the generated API. This module should not be used and is
-    //! should only be included when generating documentation.
-
-    crate::contract!(
-        "examples/truffle/build/contracts/DocumentedContract.json",
-        crate = crate
-    );
-    crate::contract!(
-        "examples/truffle/build/contracts/SimpleLibrary.json",
-        crate = crate
-    );
-    crate::contract!(
-        "examples/truffle/build/contracts/LinkedContract.json",
-        crate = crate
-    );
-    crate::contract!(
-        "examples/truffle/build/contracts/IERC20.json",
-        crate = crate
-    );
-}

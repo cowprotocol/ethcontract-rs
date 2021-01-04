@@ -45,10 +45,10 @@ function check_manifest_version {
 	fi
 }
 
-check_manifest_version common/Cargo.toml
-check_manifest_version generate/Cargo.toml
-check_manifest_version derive/Cargo.toml
-check_manifest_version Cargo.toml
+check_manifest_version ethcontract-common/Cargo.toml
+check_manifest_version ethcontract-generate/Cargo.toml
+check_manifest_version ethcontract-derive/Cargo.toml
+check_manifest_version ethcontract/Cargo.toml
 
 function cargo_publish {
 	(cd $1; cargo publish --token $token $options)
@@ -67,7 +67,7 @@ function cargo_publish {
 	fi
 }
 
-cargo_publish common
-cargo_publish generate
-cargo_publish derive
-cargo_publish .
+cargo_publish ethcontract-common
+cargo_publish ethcontract-generate
+cargo_publish ethcontract-derive
+cargo_publish ethcontract

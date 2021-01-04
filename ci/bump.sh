@@ -63,7 +63,7 @@ function msg {
 }
 
 msg "Updating Cargo manifests with new version '$version':"
-for manifest in Cargo.toml */Cargo.toml examples/*/Cargo.toml; do
+for manifest in ethcontract*/Cargo.toml; do
 	msg "  - $manifest"
 	sed -i -E -e 's/^((ethcontract-[a-z]+ = \{ )?version) = "[0-9\.]+"/\1 = "'"$version"'"/g' "$manifest"
 done

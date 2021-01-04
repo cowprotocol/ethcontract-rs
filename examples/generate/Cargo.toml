@@ -1,15 +1,15 @@
 [package]
 name = "examples-generate"
-version = "0.9.1"
+version = "0.0.0"
 publish = false
 authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-ethcontract = { path = "../..", default-features = false }
+ethcontract = { path = "../../ethcontract" }
 futures = "0.3"
 tokio = { version = "0.2", features = ["macros"] }
 
 [build-dependencies]
-ethcontract-generate = { path = "../../generate" }
+ethcontract-generate = { path = "../../ethcontract-generate" }
