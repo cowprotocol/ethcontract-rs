@@ -23,8 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.continue-on-error }}
     env:
-      PK: ${{ secrets.DOCKER_NAME }}
-      INFURA_PROJECT_ID: ${{ secrets.DOCKER_PASSWORD }}
+      ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+      INFURA_PROJECT_ID: ${{ secrets.INFURA_PROJECT_ID }}
+      PK: ${{ secrets.PK }}
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
