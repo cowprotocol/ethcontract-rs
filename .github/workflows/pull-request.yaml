@@ -1,0 +1,60 @@
+name: pull request
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  rust:
+    strategy:
+      matrix:
+        include:
+          - rust: 1.47.0
+            examples: false
+            continue-on-error: false
+          - rust: stable
+            examples: true
+            continue-on-error: false
+          - rust: beta
+            examples: false
+            continue-on-error: true
+          - rust: nightly
+            examples: false
+            continue-on-error: true
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.continue-on-error }}
+    env:
+      PK: ${{ secrets.DOCKER_NAME }}
+      INFURA_PROJECT_ID: ${{ secrets.DOCKER_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          profile: minimal
+          components: rustfmt, clippy
+          default: true
+      - uses: Swatinem/rust-cache@v1
+      - run: cargo fmt -- --check
+      - run: cd examples/truffle && yarn --frozen-lockfile && yarn build
+      - run: cargo clippy --all-features --all-targets -- -D warnings
+      - run: cargo test --all-features
+      - run: |
+          if ${{ matrix.examples }}; then
+            # `--log` makes `truffle develop` non interactive
+            (cd examples/truffle && yarn -s run start --log > /dev/null) &
+            # wait for truffle to start
+            while ! curl --silent http://127.0.0.1:9545 -o /dev/null; do
+              sleep 1
+            done
+            cargo run --example abi
+            cargo run --example async
+            cargo run --example deployments
+            cargo run --example events
+            cargo run --package examples-generate
+            cargo run --example linked
+            if [ "$PK" ] && [ "$INFURA_PROJECT_ID" ]; then
+              cargo run --example rinkeby
+              cargo run --example sources
+            fi
+            kill %1
+          fi
