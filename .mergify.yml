@@ -2,7 +2,7 @@ pull_request_rules:
   - name: Merge approved and green PRs with merge-when-green label
     conditions:
       - "#approved-reviews-by>=1"
-      - status-success=Travis CI - Pull Request
+      - status-success~=^rust \(.*, false\)$
       - base=main
       - label=merge when green
     actions:
@@ -13,7 +13,7 @@ pull_request_rules:
   - name: Automatic merge for Dependabot pull requests
     conditions:
       - author~=^dependabot(|-preview)\[bot\]$
-      - status-success=Travis CI - Pull Request
+      - status-success~=^rust \(.*, false\)$
       - base=main
     actions:
       merge:
