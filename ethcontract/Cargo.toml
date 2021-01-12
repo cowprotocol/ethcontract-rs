@@ -30,7 +30,7 @@ ethcontract-derive = { version = "0.9.1", path = "../ethcontract-derive", option
 futures = "0.3"
 futures-timer = "3.0"
 hex = "0.4"
-jsonrpc-core = "15.0"
+jsonrpc-core = "16.0"
 lazy_static = "1.4"
 primitive-types = { version = "0.7.3", features = ["fp-conversion"] }
 secp256k1 = { version = "0.20", features = ["recovery"] }
