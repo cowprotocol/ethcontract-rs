@@ -67,9 +67,3 @@ for manifest in ethcontract*/Cargo.toml; do
 	msg "  - $manifest"
 	sed -i -E -e 's/^((ethcontract-[a-z]+ = \{ )?version) = "[0-9\.]+"/\1 = "'"$version"'"/g' "$manifest"
 done
-
-msg "Updating npm packages with new version '$version':"
-for package in examples/*/package.json; do
-	msg "  - $package"
-	sed -i -E -e 's/^(  "version":) "[0-9\.]+"/\1 "'"$version"'"/g' "$package"
-done
