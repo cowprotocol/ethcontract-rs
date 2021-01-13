@@ -2,8 +2,8 @@
 
 set -e
 
-token=$CARGO_TOKEN
-tag=$TRAVIS_TAG
+token=""
+tag=""
 options=""
 while [[ $# -gt 0 ]]; do
 	case $1 in
@@ -36,6 +36,11 @@ EOF
 	esac
 	shift
 done
+
+if  [[ -z "$tag" || -z "$token" ]]; then
+	>&2 echo "ERROR: missing tag and/or token parameters"
+	exit 1
+fi
 
 function check_manifest_version {
 	version=$(cat $1 | grep '^version' | sed -n 's/version = "\(.*\)"/v\1/p')
