@@ -26,8 +26,7 @@ pub fn decode_reason(bytes: &[u8]) -> Option<String> {
         .ok()?
         .pop()
         .expect("decoded single parameter will yield single token")
-        .to_string()
-        .expect("decoded string parameter will always be a string");
+        .to_string();
 
     Some(reason)
 }
