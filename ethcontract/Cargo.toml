@@ -1,6 +1,6 @@
 [package]
 name = "ethcontract"
-version = "0.10.0"
+version = "0.10.1"
 authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -25,8 +25,8 @@ ws-tokio = ["web3/ws-tokio"]
 ws-tls-tokio = ["web3/ws-tls-tokio"]
 
 [dependencies]
-ethcontract-common = { version = "0.10.0", path = "../ethcontract-common" }
-ethcontract-derive = { version = "0.10.0", path = "../ethcontract-derive", optional = true}
+ethcontract-common = { version = "0.10.1", path = "../ethcontract-common" }
+ethcontract-derive = { version = "0.10.1", path = "../ethcontract-derive", optional = true}
 futures = "0.3"
 futures-timer = "3.0"
 hex = "0.4"
