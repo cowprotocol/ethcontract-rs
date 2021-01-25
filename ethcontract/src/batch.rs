@@ -53,7 +53,7 @@ impl<T: Web3BatchTransport> CallBatch<T> {
             }))
             .await?;
         for (result, (_, sender)) in results.into_iter().zip(self.requests.into_iter()) {
-            sender.send(result.and_then(helpers::decode)).unwrap();
+            let _ = sender.send(result.and_then(helpers::decode));
         }
         Ok(())
     }

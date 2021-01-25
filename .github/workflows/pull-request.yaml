@@ -49,6 +49,7 @@ jobs:
             done
             cargo run --package examples --example abi
             cargo run --package examples --example async
+            cargo run --package examples --example batch
             cargo run --package examples --example deployments
             cargo run --package examples --example events
             cargo run --package examples-generate
