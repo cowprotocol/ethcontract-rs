@@ -29,6 +29,9 @@ impl<T: Web3BatchTransport> CallBatch<T> {
 
     /// Adds a call request to the current batch. The resulting future can only resolve after
     /// the batch has been resolved via `execute_all`.
+    /// Explicitly returns a Future instead of being declared `async` so that we can split the
+    /// logic into a synchronous and asynchronous section and don't want to capture `&mut self`
+    /// in the future.
     /// Panics, if the batch is dropped before executing.
     pub fn push(
         &mut self,

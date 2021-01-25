@@ -29,19 +29,16 @@ async fn main() {
         .expect("transfer 1->2 failed");
 
     let mut batch = CallBatch::new(web3.transport());
-    let mut calls = Vec::new();
-    calls.push(
+    let calls = vec![
         instance
             .balance_of(accounts[1])
             .view()
             .batch_call(&mut batch),
-    );
-    calls.push(
         instance
             .balance_of(accounts[2])
             .view()
             .batch_call(&mut batch),
-    );
+    ];
     batch.execute_all().await.unwrap();
     for (id, call) in calls.into_iter().enumerate() {
         println!("Call {} returned {}", id, call.await.unwrap());
