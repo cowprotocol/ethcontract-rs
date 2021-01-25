@@ -93,6 +93,7 @@
 #[path = "test/macros.rs"]
 mod test_macros;
 
+pub mod batch;
 pub mod contract;
 pub mod errors;
 mod int;
