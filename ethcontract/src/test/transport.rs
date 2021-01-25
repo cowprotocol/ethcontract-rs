@@ -74,7 +74,7 @@ impl BatchTransport for TestTransport {
                 return future::err(Error::Unreachable);
             }
         };
-        future::ok(responses.map(|value| Ok(value.clone())).collect())
+        future::ok(responses.map(Ok).collect())
     }
 }
 

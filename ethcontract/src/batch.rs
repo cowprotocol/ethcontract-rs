@@ -8,14 +8,15 @@ use web3::{
     types::{BlockId, BlockNumber, Bytes, CallRequest},
     BatchTransport as Web3BatchTransport,
 };
+
 /// Struct allowing to batch multiple calls into a single Node request
 pub struct CallBatch<T: Web3BatchTransport> {
     inner: T,
-    requests: Vec<(
-        (CallRequest, Option<BlockId>),
-        Sender<Result<Bytes, Web3Error>>,
-    )>,
+    requests: Vec<(Request, CompletionHandler)>,
 }
+
+type Request = (CallRequest, Option<BlockId>);
+type CompletionHandler = Sender<Result<Bytes, Web3Error>>;
 
 impl<T: Web3BatchTransport> CallBatch<T> {
     /// Create a new instance from a BatchTransport
