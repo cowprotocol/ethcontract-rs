@@ -2,15 +2,18 @@
 //! intended to be used directly but to be used by a contract `Instance` with
 //! [Instance::method](ethcontract::contract::Instance::method).
 
-use crate::errors::{revert, ExecutionError, MethodError};
 use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
+use crate::{
+    batch::CallBatch,
+    errors::{revert, ExecutionError, MethodError},
+};
 use ethcontract_common::abi::{Function, Token};
 use std::marker::PhantomData;
-use web3::api::Web3;
 use web3::contract::tokens::Detokenize;
 use web3::contract::Error as Web3ContractError;
 use web3::types::{Address, BlockId, Bytes, CallRequest, U256};
 use web3::Transport;
+use web3::{api::Web3, BatchTransport};
 
 /// A void type to represent methods with empty return types.
 ///
@@ -255,29 +258,54 @@ impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
     /// Call a contract method. Contract calls do not modify the blockchain and
     /// as such do not require gas or signing.
     pub async fn call(self) -> Result<R::Output, MethodError> {
-        let function = self.m.function;
-        let bytes = self
-            .m
-            .web3
-            .eth()
-            .call(
-                CallRequest {
-                    from: self.m.tx.from.map(|account| account.address()),
-                    to: Some(self.m.tx.to.unwrap_or_default()),
-                    gas: self.m.tx.gas,
-                    gas_price: self.m.tx.gas_price.and_then(|gas_price| gas_price.value()),
-                    value: self.m.tx.value,
-                    data: self.m.tx.data,
-                },
-                self.block,
-            )
-            .await
-            .map_err(|err| MethodError::new(&function, err))?;
-        let result = decode_geth_call_result::<R>(&function, bytes.0)
-            .map_err(|err| MethodError::new(&function, err))?;
-
-        Ok(result)
+        let eth = &self.m.web3.eth();
+        let (function, call, block) = self.decompose();
+        let future = eth.call(call, block);
+        convert_response::<_, R>(future, function).await
     }
+
+    /// Adds this view method to a batch. Allows execution with other contract calls in one roundtrip
+    /// The returned future only resolve once `batch` is resolved. Panics, if `batch` is dropped before
+    /// executing
+    pub fn batch_call<B: BatchTransport>(
+        self,
+        batch: &mut CallBatch<B>,
+    ) -> impl std::future::Future<Output = Result<R::Output, MethodError>> {
+        let (function, call, block) = self.decompose();
+        let future = batch.push(call, block);
+        async move { convert_response::<_, R>(future, function).await }
+    }
+
+    fn decompose(self) -> (Function, CallRequest, Option<BlockId>) {
+        (
+            self.m.function,
+            CallRequest {
+                from: self.m.tx.from.map(|account| account.address()),
+                to: Some(self.m.tx.to.unwrap_or_default()),
+                gas: self.m.tx.gas,
+                gas_price: self.m.tx.gas_price.and_then(|gas_price| gas_price.value()),
+                value: self.m.tx.value,
+                data: self.m.tx.data,
+            },
+            self.block,
+        )
+    }
+}
+
+async fn convert_response<
+    F: std::future::Future<Output = Result<Bytes, web3::Error>>,
+    R: Detokenizable,
+>(
+    future: F,
+    function: Function,
+) -> Result<R::Output, MethodError> {
+    let bytes = future
+        .await
+        .map_err(|err| MethodError::new(&function, err))?;
+    let result = decode_geth_call_result::<R>(&function, bytes.0)
+        .map_err(|err| MethodError::new(&function, err))?;
+
+    Ok(result)
 }
 
 /// Decodes the raw bytes result from an `eth_call` request to check for reverts

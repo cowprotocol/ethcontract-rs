@@ -4,9 +4,9 @@
 use jsonrpc_core::{Call, Value};
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
-use web3::error::Error;
 use web3::futures::future::{self, Ready};
 use web3::helpers;
+use web3::{error::Error, BatchTransport};
 use web3::{RequestId, Transport};
 
 /// Type alias for request method and value pairs
@@ -44,6 +44,37 @@ impl Transport for TestTransport {
                 future::err(Error::Unreachable)
             }
         }
+    }
+}
+
+impl BatchTransport for TestTransport {
+    type Batch = Ready<Result<Vec<Result<Value, Error>>, Error>>;
+
+    fn send_batch<T>(&self, requests: T) -> Self::Batch
+    where
+        T: IntoIterator<Item = (RequestId, Call)>,
+    {
+        let mut requests: Vec<_> = requests.into_iter().collect();
+
+        // Only send the first request to receive a response for all requests in the batch
+        let (id, call) = match requests.pop() {
+            Some(request) => request,
+            None => return future::ok(Vec::new()),
+        };
+
+        let responses = match self
+            .send(id, call)
+            .into_inner()
+            .ok()
+            .and_then(|value| value.as_array().cloned())
+        {
+            Some(array) => array.into_iter(),
+            None => {
+                println!("Response should return a list of values");
+                return future::err(Error::Unreachable);
+            }
+        };
+        future::ok(responses.map(Ok).collect())
     }
 }
 
