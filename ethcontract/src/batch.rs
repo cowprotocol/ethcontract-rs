@@ -40,7 +40,13 @@ impl<T: Web3BatchTransport> CallBatch<T> {
     ) -> impl std::future::Future<Output = Result<Bytes, Web3Error>> {
         let (tx, rx) = channel();
         self.requests.push(((call, block), tx));
-        async move { rx.await.expect("Batch has been dropped without executing") }
+        async move {
+            rx.await.unwrap_or_else(|_| {
+                Err(Web3Error::Transport(
+                    "Batch has been dropped without executing".to_owned(),
+                ))
+            })
+        }
     }
 
     /// Execute and resolve all enqueued CallRequests in a single RPC call
@@ -88,5 +94,19 @@ mod tests {
         let results = join_all(results).immediate();
         assert_eq!(results[0].clone().unwrap().0, vec![1u8]);
         assert_eq!(results[1].clone().unwrap().0, vec![2u8]);
+    }
+
+    #[test]
+    fn resolves_calls_to_error_if_dropped() {
+        let future = {
+            let transport = TestTransport::new();
+            let mut batch = CallBatch::new(transport);
+            batch.push(CallRequest::default(), None)
+        };
+
+        assert!(matches!(
+            future.immediate().unwrap_err(),
+            Web3Error::Transport(_)
+        ));
     }
 }
