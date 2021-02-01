@@ -51,7 +51,7 @@ impl<T: Web3BatchTransport> CallBatch<T> {
 
     /// Execute and resolve all enqueued CallRequests in a single RPC call
     pub async fn execute_all(self) -> Result<(), Web3Error> {
-        let results = self
+        let batch_result = self
             .inner
             .send_batch(self.requests.iter().map(|((request, block), _)| {
                 let req = helpers::serialize(request);
@@ -60,11 +60,25 @@ impl<T: Web3BatchTransport> CallBatch<T> {
                 let (id, request) = self.inner.prepare("eth_call", vec![req, block]);
                 (id, request)
             }))
-            .await?;
-        for (result, (_, sender)) in results.into_iter().zip(self.requests.into_iter()) {
-            let _ = sender.send(result.and_then(helpers::decode));
+            .await;
+        for (i, (_, sender)) in self.requests.into_iter().enumerate() {
+            let _ = match &batch_result {
+                Ok(results) => sender.send(
+                    results
+                        .get(i)
+                        .unwrap_or(&Err(Web3Error::Decoder(
+                            "Batch result did not contain enough responses".to_owned(),
+                        )))
+                        .clone()
+                        .and_then(helpers::decode),
+                ),
+                Err(err) => sender.send(Err(Web3Error::Transport(format!(
+                    "Batch failed with: {}",
+                    err
+                )))),
+            };
         }
-        Ok(())
+        batch_result.map(|_| ())
     }
 }
 
@@ -108,5 +122,18 @@ mod tests {
             future.immediate().unwrap_err(),
             Web3Error::Transport(_)
         ));
+    }
+
+    #[test]
+    fn fails_all_calls_if_batch_fails() {
+        let transport = TestTransport::new();
+        let mut batch = CallBatch::new(transport);
+        let call = batch.push(CallRequest::default(), None);
+
+        assert!(batch.execute_all().immediate().is_err());
+        match call.immediate().unwrap_err() {
+            Web3Error::Transport(reason) => assert!(reason.starts_with("Batch failed with:")),
+            _ => panic!("Wrong Error type"),
+        };
     }
 }
