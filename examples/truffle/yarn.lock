@@ -3587,10 +3587,10 @@ truffle-plugin-verify@^0.5.4:
     delay "4.3.0"
     querystring "0.2.0"
 
-truffle@^5.1.62:
-  version "5.1.62"
-  resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.1.62.tgz#819b8280615345bf42bbba7967f2dc9d39347869"
-  integrity sha512-TWgZ3xSSb8us4ZkHEHRghJWivfewjEy7yd8nARd7EHvoOi5lcUmKnbsunP+G7u/AO47gRoEqwFdPuGPdXrBM1A==
+truffle@^5.1.64:
+  version "5.1.64"
+  resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.1.64.tgz#f89dcd3711a8c872c8c5dfd5527e49dcded4c175"
+  integrity sha512-qobAgDRRK8rUr6SjH8gmacp1a50XJFD2zX1tCtxdk3RXl3yCSEBxHP1srW+jPoPzL6Ua6C0vbbbjVbemrTrtAQ==
   dependencies:
     app-module-path "^2.2.0"
     mocha "8.1.2"
