@@ -51,6 +51,10 @@ impl<T: Web3BatchTransport> CallBatch<T> {
 
     /// Execute and resolve all enqueued CallRequests in a single RPC call
     pub async fn execute_all(self) -> Result<(), Web3Error> {
+        if self.requests.is_empty() {
+            return Ok(());
+        }
+
         let batch_result = self
             .inner
             .send_batch(self.requests.iter().map(|((request, block), _)| {
@@ -135,5 +139,12 @@ mod tests {
             Web3Error::Transport(reason) => assert!(reason.starts_with("Batch failed with:")),
             _ => panic!("Wrong Error type"),
         };
+    }
+
+    #[test]
+    fn doesnt_issue_request_on_empty_batch() {
+        let transport = TestTransport::new();
+        let batch = CallBatch::new(transport);
+        assert!(batch.execute_all().immediate().is_ok());
     }
 }
