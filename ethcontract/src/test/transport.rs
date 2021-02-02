@@ -59,7 +59,7 @@ impl BatchTransport for TestTransport {
         // Only send the first request to receive a response for all requests in the batch
         let (id, call) = match requests.pop() {
             Some(request) => request,
-            None => return future::ok(Vec::new()),
+            None => return future::err(Error::Unreachable),
         };
 
         let responses = match self
