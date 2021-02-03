@@ -20,4 +20,3 @@ proc-macro2 = "1.0"
 quote = "1.0"
 syn = "1.0.12"
 url = "2.1"
-web3 = { version = "0.15", default-features = false }

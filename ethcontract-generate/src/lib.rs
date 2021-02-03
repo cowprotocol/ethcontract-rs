@@ -19,13 +19,12 @@ pub use crate::source::Source;
 pub use crate::util::parse_address;
 use anyhow::Result;
 use contract::Deployment;
-pub use ethcontract_common::Address;
+pub use ethcontract_common::{Address, TransactionHash};
 use proc_macro2::TokenStream;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use web3::types::H256;
 
 /// Internal global arguments passed to the generators for each individual
 /// component that control expansion.
@@ -169,7 +168,7 @@ impl Builder {
         mut self,
         network_id: u32,
         address: Address,
-        transaction_hash: Option<H256>,
+        transaction_hash: Option<TransactionHash>,
     ) -> Self {
         let deployment = Deployment {
             address,

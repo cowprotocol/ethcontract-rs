@@ -1,9 +1,8 @@
 use crate::contract::Context;
 use crate::util::expand_doc;
-use ethcontract_common::Address;
+use ethcontract_common::{Address, TransactionHash};
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
-use web3::types::H256;
 
 pub(crate) fn expand(cx: &Context) -> TokenStream {
     let artifact_json = &cx.artifact_json;
@@ -90,7 +89,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             pub fn with_transaction<F, T>(
                 web3: &self::ethcontract::web3::api::Web3<T>,
                 address: self::ethcontract::Address,
-                transaction_hash: Option<self::ethcontract::H256>,
+                transaction_hash: Option<self::ethcontract::TransactionHash>,
             ) -> Self
             where
                 F: std::future::Future<
@@ -123,7 +122,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
 
             /// Returns the hash for the transaction that deployed the contract
             /// if it is known, `None` otherwise.
-            pub fn transaction_hash(&self) -> Option<self::ethcontract::H256> {
+            pub fn transaction_hash(&self) -> Option<self::ethcontract::TransactionHash> {
                 self.raw_instance().transaction_hash()
             }
 
@@ -178,7 +177,7 @@ fn expand_address(address: Address) -> TokenStream {
 
 /// Expands a transaction hash into a literal representation that can be used
 /// with quasi-quoting for code generation.
-fn expand_transaction_hash(hash: Option<H256>) -> TokenStream {
+fn expand_transaction_hash(hash: Option<TransactionHash>) -> TokenStream {
     let hash = match hash {
         Some(hash) => hash,
         None => return quote! { None },
@@ -186,7 +185,7 @@ fn expand_transaction_hash(hash: Option<H256>) -> TokenStream {
 
     let bytes = hash.as_bytes().iter().copied().map(Literal::u8_unsuffixed);
     quote! {
-        self::ethcontract::H256([#( #bytes ),*])
+        self::ethcontract::TransactionHash([#( #bytes ),*])
     }
 }
 
@@ -220,7 +219,7 @@ mod tests {
         assert_quote!(
             expand_transaction_hash(Some("000102030405060708090a0b0c0d0e0f10111213000000000000000000000000".parse().unwrap())),
             {
-                self::ethcontract::H256([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+                self::ethcontract::TransactionHash([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
             },
         );
     }
