@@ -19,6 +19,12 @@ use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
 use syn::{Path, Visibility};
+use web3::types::H256;
+
+pub(crate) struct Deployment {
+    pub address: Address,
+    pub transaction_hash: Option<H256>,
+}
 
 /// Internal shared context for generating smart contract bindings.
 pub(crate) struct Context {
@@ -39,7 +45,7 @@ pub(crate) struct Context {
     /// The contract name as an identifier.
     contract_name: Ident,
     /// Additional contract deployments.
-    deployments: HashMap<u32, Address>,
+    deployments: HashMap<u32, Deployment>,
     /// Manually specified method aliases.
     method_aliases: HashMap<String, Ident>,
     /// Derives added to event structs and enums.

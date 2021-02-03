@@ -18,12 +18,14 @@ mod util;
 pub use crate::source::Source;
 pub use crate::util::parse_address;
 use anyhow::Result;
+use contract::Deployment;
 pub use ethcontract_common::Address;
 use proc_macro2::TokenStream;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use web3::types::H256;
 
 /// Internal global arguments passed to the generators for each individual
 /// component that control expansion.
@@ -40,8 +42,8 @@ pub(crate) struct Args {
     contract_mod_override: Option<String>,
     /// Override the contract name to use for the generated type.
     contract_name_override: Option<String>,
-    /// Manually specified deployed contract addresses.
-    deployments: HashMap<u32, Address>,
+    /// Manually specified deployed contract address and transaction hash.
+    deployments: HashMap<u32, Deployment>,
     /// Manually specified contract method aliases.
     method_aliases: HashMap<String, String>,
     /// Derives added to event structs and enums.
@@ -154,17 +156,26 @@ impl Builder {
         self
     }
 
-    /// Manually adds specifies the deployed address of a contract for a given
-    /// network. Note that manually specified deployments take precedence over
-    /// deployments in the Truffle artifact (in the `networks` property of the
-    /// artifact).
+    /// Manually adds specifies the deployed address and deployment transaction
+    /// hash of a contract for a given network. Note that manually specified
+    /// deployments take precedence over deployments in the Truffle artifact (in
+    /// the `networks` property of the artifact).
     ///
     /// This is useful for integration test scenarios where the address of a
     /// contract on the test node is deterministic (for example using
     /// `ganache-cli -d`) but the contract address is not part of the Truffle
     /// artifact; or to override a deployment included in a Truffle artifact.
-    pub fn add_deployment(mut self, network_id: u32, address: Address) -> Self {
-        self.args.deployments.insert(network_id, address);
+    pub fn add_deployment(
+        mut self,
+        network_id: u32,
+        address: Address,
+        transaction_hash: Option<H256>,
+    ) -> Self {
+        let deployment = Deployment {
+            address,
+            transaction_hash,
+        };
+        self.args.deployments.insert(network_id, deployment);
         self
     }
 
@@ -182,6 +193,7 @@ impl Builder {
         self.add_deployment(
             network_id,
             parse_address(address).expect("failed to parse address"),
+            None,
         )
     }
 
