@@ -39,7 +39,7 @@ async fn main() {
             .view()
             .batch_call(&mut batch),
     ];
-    batch.execute_all().await.unwrap();
+    batch.execute_all(usize::MAX).await;
     for (id, call) in calls.into_iter().enumerate() {
         println!("Call {} returned {}", id, call.await.unwrap());
     }
