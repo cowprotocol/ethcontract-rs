@@ -133,7 +133,7 @@ impl ContractArgs {
                 Parameter::Crate(name) => builder.with_runtime_crate_name(name),
                 Parameter::Deployments(deployments) => {
                     deployments.into_iter().fold(builder, |builder, d| {
-                        builder.add_deployment(d.network_id, d.address)
+                        builder.add_deployment(d.network_id, d.address, None)
                     })
                 }
                 Parameter::Methods(methods) => methods.into_iter().fold(builder, |builder, m| {

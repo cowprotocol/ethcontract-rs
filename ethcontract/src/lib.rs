@@ -123,6 +123,7 @@ pub mod prelude {
     pub use crate::int::I256;
     pub use crate::secret::{Password, PrivateKey};
     pub use crate::transaction::{Account, GasPrice};
+    pub use ethcontract_common::TransactionHash;
     pub use web3::api::Web3;
     #[cfg(feature = "http")]
     pub use web3::transports::Http;
