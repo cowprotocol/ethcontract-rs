@@ -1,4 +1,4 @@
-pragma solidity ^0.6.0;
+pragma solidity ^0.8.0;
 
 /**
  * @dev Contract to illustract support for various Solidity types.
@@ -62,7 +62,7 @@ contract AbiTypes {
     uint64 value = this.getU64();
     bytes memory buf = new bytes(16);
     for (uint256 i = 16; i > 0; i--) {
-      buf[i-1] = byte(alphabet[value & 0xf]);
+      buf[i-1] = alphabet[value & 0xf];
       value >>= 4;
     }
     return string(buf);
@@ -81,7 +81,7 @@ contract AbiTypes {
     uint256 value = this.getU256();
     int32[3] memory buf = [int32(0), int32(0), int32(0)];
     for (uint256 i = 3; i > 0; i--) {
-      buf[i-1] = int32(value & 0xffffffff);
+      buf[i-1] = int32(uint32(value & 0xffffffff));
       value >>= 32;
     }
     return buf;
