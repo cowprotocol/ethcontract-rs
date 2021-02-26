@@ -1,8 +1,6 @@
 //! Module contains code for parsing and manipulating event data.
-
-use crate::errors::ExecutionError;
-use ethcontract_common::abi::{Event as AbiEvent, RawLog as AbiRawLog};
-use web3::contract::tokens::Detokenize;
+use crate::{errors::ExecutionError, tokens::Tokenize};
+use ethcontract_common::abi::{Event as AbiEvent, RawLog as AbiRawLog, Token};
 use web3::types::{Log, H256};
 
 /// A contract event
@@ -172,7 +170,7 @@ impl RawLog {
     /// Decode raw log data into a tokenizable for a matching event ABI entry.
     pub fn decode<D>(self, event: &AbiEvent) -> Result<D, ExecutionError>
     where
-        D: Detokenize,
+        D: Tokenize,
     {
         let event_log = event.parse_log(AbiRawLog {
             topics: self.topics,
@@ -184,7 +182,7 @@ impl RawLog {
             .into_iter()
             .map(|param| param.value)
             .collect::<Vec<_>>();
-        let data = D::from_tokens(tokens)?;
+        let data = D::from_token(Token::Tuple(tokens))?;
 
         Ok(data)
     }

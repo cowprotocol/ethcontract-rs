@@ -60,6 +60,26 @@ async fn calls(instance: &AbiTypes) {
 
     debug_call!(instance.get_array());
     debug_call!(instance.get_fixed_array());
+
+    let value = (4, 2);
+    let result = instance.abiv_2_struct(value).call().await.unwrap();
+    assert_eq!(result, value);
+
+    let value = vec![(4, 2), (5, 3)];
+    let result = instance
+        .abiv_2_array_of_struct(value.clone())
+        .call()
+        .await
+        .unwrap();
+    assert_eq!(result, value);
+
+    let value = [vec![(4, 2)], vec![(5, 3), (6, 4)], vec![]];
+    let result = instance
+        .abiv_2_array_of_array_of_struct(value.clone())
+        .call()
+        .await
+        .unwrap();
+    assert_eq!(result, value);
 }
 
 async fn events(instance: &AbiTypes) {

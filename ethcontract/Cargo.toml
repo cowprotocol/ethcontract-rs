@@ -25,6 +25,7 @@ ws-tokio = ["web3/ws-tokio"]
 ws-tls-tokio = ["web3/ws-tls-tokio"]
 
 [dependencies]
+arrayvec = "0.5"
 ethcontract-common = { version = "0.11.3", path = "../ethcontract-common" }
 ethcontract-derive = { version = "0.11.3", path = "../ethcontract-derive", optional = true}
 futures = "0.3"

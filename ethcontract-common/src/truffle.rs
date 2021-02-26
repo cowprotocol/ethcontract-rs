@@ -1,8 +1,8 @@
 //! Module for reading and examining data produced by truffle.
 
+use crate::abi::Contract as Abi;
 use crate::errors::ArtifactError;
 use crate::{bytecode::Bytecode, DeploymentInformation};
-use ethabi::Contract as Abi;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
@@ -39,6 +39,7 @@ impl Artifact {
                 functions: HashMap::new(),
                 events: HashMap::new(),
                 fallback: false,
+                receive: false,
             },
             bytecode: Default::default(),
             networks: HashMap::new(),

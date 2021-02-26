@@ -43,6 +43,9 @@ pub(crate) fn expand(kind: &ParamType) -> Result<TokenStream> {
             let size = Literal::usize_unsuffixed(*n);
             Ok(quote! { [#inner; #size] })
         }
-        ParamType::Tuple(_) => Err(anyhow!("ABIEncoderV2 is currently not supported")),
+        ParamType::Tuple(t) => {
+            let inner = t.iter().map(expand).collect::<Result<Vec<_>>>()?;
+            Ok(quote! { (#(#inner,)*) })
+        }
     }
 }

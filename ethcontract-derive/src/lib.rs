@@ -342,6 +342,7 @@ impl Parse for Method {
                 })
                 .collect::<ParseResult<Vec<_>>>()?;
 
+            #[allow(deprecated)]
             Function {
                 name,
                 inputs,
@@ -350,6 +351,7 @@ impl Parse for Method {
                 //   affect its signature.
                 outputs: vec![],
                 constant: false,
+                state_mutability: Default::default(),
             }
         };
         let signature = function.abi_signature();

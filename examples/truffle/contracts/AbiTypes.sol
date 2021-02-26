@@ -87,15 +87,15 @@ contract AbiTypes {
     return buf;
   }
 
-  event ValueUint(uint8, uint16, uint32, uint64, uint128, uint256 indexed value);
-  event ValueInt(int8, int16, int32, int64, int128, int256 indexed value);
+  event ValueUint(uint8 a, uint16 b, uint32 c, uint64 d, uint128 e, uint256 indexed value);
+  event ValueInt(int8 a, int16 b, int32 c, int64 d, int128 e, int256 indexed value);
 
   event ValueBool(bool);
 
-  event ValueBytes(string id, bytes, bytes6, address whoami);
-  event ValueArray(uint64[], int32[3]);
+  event ValueBytes(string id, bytes a, bytes6 b, address whoami);
+  event ValueArray(uint64[] a, int32[3] b);
 
-  event ValueIndexed(string indexed, uint64[] indexed);
+  event ValueIndexed(string indexed a, uint64[] indexed b);
 
   event Values(bytes32 indexed block, address sender) anonymous;
 
@@ -107,5 +107,22 @@ contract AbiTypes {
     emit ValueArray(getArray(), getFixedArray());
     emit ValueIndexed(getString(), getArray());
     emit Values(blockhash(block.number - 1), msg.sender);
+  }
+
+  // Abi v2
+
+  struct S {
+    uint8 u0;
+    uint16 u1;
+  }
+
+  function abiv2Struct(S calldata s) public pure returns (S calldata) {
+    return s;
+  }
+  function abiv2ArrayOfStruct(S[] calldata s) public view returns (S[] calldata) {
+    return s;
+  }
+  function abiv2ArrayOfArrayOfStruct(S[][3] calldata s) public view returns (S[][3] calldata) {
+    return s;
   }
 }
