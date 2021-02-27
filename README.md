@@ -36,7 +36,7 @@ The minimum supported Rust version is 1.42.
 
 As an alternative to the procedural macro, a generator API is provided for
 generating contract bindings from `build.rs` scripts. More information can be
-found in the `ethcontract-generate` [README](generate/README.md).
+found in the `ethcontract-generate` [README](ethcontract-generate/README.md).
 
 ## Running the Examples
 
