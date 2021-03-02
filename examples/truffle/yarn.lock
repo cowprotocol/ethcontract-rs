@@ -2276,10 +2276,10 @@ tough-cookie@~2.5.0:
     psl "^1.1.28"
     punycode "^2.1.1"
 
-truffle-plugin-verify@^0.5.5:
-  version "0.5.5"
-  resolved "https://registry.yarnpkg.com/truffle-plugin-verify/-/truffle-plugin-verify-0.5.5.tgz#2617fabd3edb9f7278eb8980cd67d98cb3bce65a"
-  integrity sha512-JQ0wLFflTZCTfnrSt1sSL0+1ZfUcwfCY4Ze14iDkg5ToI2G5QZv5ZoiIdE2RgtmeisUCK7+SgtIOKVMlNELulw==
+truffle-plugin-verify@^0.5.6:
+  version "0.5.6"
+  resolved "https://registry.yarnpkg.com/truffle-plugin-verify/-/truffle-plugin-verify-0.5.6.tgz#e264e1d32dfcb1445133f4486f29ea626781bb80"
+  integrity sha512-i2z60Z2dmDAOViYD4dkoC4MIT0BJoAapga85YpdFxjA6Y280n2VUA8mztV+kIOVkVsQSWYn2RBT0WOiZSvBXow==
   dependencies:
     axios "^0.21.1"
     cli-logger "^0.5.40"
