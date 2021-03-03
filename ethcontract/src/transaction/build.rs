@@ -126,11 +126,16 @@ struct TransactionRequestOptions(TransactionOptions, Option<TransactionCondition
 impl TransactionRequestOptions {
     /// Builds a `TransactionRequest` from a `TransactionRequestOptions` by
     /// specifying the missing parameters.
-    fn build_request(self, from: Address, gas_price: Option<U256>) -> TransactionRequest {
+    fn build_request(
+        self,
+        from: Address,
+        gas_price: Option<U256>,
+        gas: Option<U256>,
+    ) -> TransactionRequest {
         TransactionRequest {
             from,
             to: self.0.to,
-            gas: self.0.gas,
+            gas: gas,
             gas_price,
             value: self.0.value,
             data: self.0.data,
@@ -156,9 +161,10 @@ async fn build_transaction_request_for_local_signing<T: Transport>(
             .get(0)
             .ok_or(ExecutionError::NoLocalAccounts)?,
     };
+    let gas = resolve_gas_limit(&web3, from, gas_price, &options.0).await?;
     let gas_price = gas_price.resolve_for_transaction_request(&web3).await?;
 
-    let request = options.build_request(from, gas_price);
+    let request = options.build_request(from, gas_price, Some(gas));
 
     Ok(request)
 }
@@ -171,9 +177,10 @@ async fn build_transaction_signed_with_locked_account<T: Transport>(
     gas_price: GasPrice,
     options: TransactionRequestOptions,
 ) -> Result<Bytes, ExecutionError> {
+    let gas = resolve_gas_limit(&web3, from, gas_price, &options.0).await?;
     let gas_price = gas_price.resolve_for_transaction_request(&web3).await?;
 
-    let request = options.build_request(from, gas_price);
+    let request = options.build_request(from, gas_price, Some(gas));
     let signed_tx = web3.personal().sign_transaction(request, &password).await?;
 
     Ok(signed_tx.raw)
@@ -191,24 +198,7 @@ async fn build_offline_signed_transaction<T: Transport>(
     gas_price: GasPrice,
     options: TransactionOptions,
 ) -> Result<Bytes, ExecutionError> {
-    let gas = match options.gas {
-        Some(value) => value,
-        None => {
-            web3.eth()
-                .estimate_gas(
-                    CallRequest {
-                        from: Some(key.public_address()),
-                        to: options.to,
-                        gas: None,
-                        gas_price: gas_price.value(),
-                        value: options.value,
-                        data: options.data.clone(),
-                    },
-                    None,
-                )
-                .await?
-        }
-    };
+    let gas = resolve_gas_limit(&web3, key.public_address(), gas_price, &options).await?;
     let gas_price = gas_price.resolve(&web3).await?;
 
     let signed = web3
@@ -228,6 +218,31 @@ async fn build_offline_signed_transaction<T: Transport>(
         .await?;
 
     Ok(signed.raw_transaction)
+}
+
+async fn resolve_gas_limit<T: Transport>(
+    web3: &Web3<T>,
+    from: Address,
+    gas_price: GasPrice,
+    options: &TransactionOptions,
+) -> Result<U256, ExecutionError> {
+    match options.gas {
+        Some(value) => Ok(value),
+        None => Ok(web3
+            .eth()
+            .estimate_gas(
+                CallRequest {
+                    from: Some(from),
+                    to: options.to,
+                    gas: None,
+                    gas_price: gas_price.value(),
+                    value: options.value,
+                    data: options.data.clone(),
+                },
+                None,
+            )
+            .await?),
+    }
 }
 
 #[cfg(test)]
