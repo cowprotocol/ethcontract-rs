@@ -1062,10 +1062,10 @@
     "@nodelib/fs.scandir" "2.1.4"
     fastq "^1.6.0"
 
-"@openzeppelin/contracts@4.0.0-beta.0":
-  version "4.0.0-beta.0"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.0.0-beta.0.tgz#e16c9f5f667b05e5bf86ecbf32ed92f145a7c890"
-  integrity sha512-O/LC1F04y6PiXuU6oDRmNUIlVwoEC9mS8Lmij6nRt4N1em0fLvirK33QiDc5IgheRZQ7QJ3pyPNCRhNiZNKfLQ==
+"@openzeppelin/contracts@4.0.0-beta.1":
+  version "4.0.0-beta.1"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.0.0-beta.1.tgz#23476cf3e4e3fdd9deb246457e7edea4aebe7228"
+  integrity sha512-O+zuP2DbZPHlX/ViTmewpVU12k7vi4YU6fzWRXDKzJql7RHF5mFOL/z3cILp4iVoz8wH+drFYXnQMaj8/Sc0BQ==
 
 "@protobufjs/aspromise@^1.1.1", "@protobufjs/aspromise@^1.1.2":
   version "1.1.2"
