@@ -8807,7 +8807,7 @@ truffle-plugin-verify@^0.5.6:
     delay "^5.0.0"
     querystring "^0.2.1"
 
-truffle@^5.1.62:
+truffle@^5.2.2:
   version "5.2.2"
   resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.2.2.tgz#2e00cb73b5c2430fe79f81bcbc35df357087705f"
   integrity sha512-66wAdFM/n1Mf1o227hhOteAJCgF9pIPKywbQ0u21qyD2LahU4VZsOjci6GY0Iv/5nDWm57GM+GNhikSdSTKvRQ==
