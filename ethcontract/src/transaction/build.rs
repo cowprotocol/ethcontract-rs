@@ -135,7 +135,7 @@ impl TransactionRequestOptions {
         TransactionRequest {
             from,
             to: self.0.to,
-            gas: gas,
+            gas,
             gas_price,
             value: self.0.value,
             data: self.0.data,
