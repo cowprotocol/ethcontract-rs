@@ -41,8 +41,7 @@ jobs:
       - run: cargo test --all-features
       - run: |
           if ${{ matrix.examples }}; then
-            # `--log` makes `truffle develop` non interactive
-            (cd examples/truffle && yarn -s run start --log > /dev/null) &
+            (cd examples/truffle && yarn -s run start > /dev/null) &
             # wait for truffle to start
             while ! curl --silent http://127.0.0.1:9545 -o /dev/null; do
               sleep 1
