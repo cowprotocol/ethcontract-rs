@@ -1228,10 +1228,10 @@
     original-require "^1.0.1"
     source-map-support "^0.5.19"
 
-"@truffle/db@^0.5.2":
-  version "0.5.2"
-  resolved "https://registry.yarnpkg.com/@truffle/db/-/db-0.5.2.tgz#34a626efea750de405c911f6dee5a95f6d970539"
-  integrity sha512-bp9/WkB8coWF1Ctqgt+hshAMNrKWi2+VILAqKpAjgr3FkUcFO05OkguT0zwH4J0uHeGMCN0+dQ2ulXhORbmXNg==
+"@truffle/db@^0.5.3":
+  version "0.5.3"
+  resolved "https://registry.yarnpkg.com/@truffle/db/-/db-0.5.3.tgz#1223ee5c9b9f112abf5883f647d46ae1e45d5dbd"
+  integrity sha512-cNQJgcqC77xAIvFrS9R1XHmppOnlZmVZvcEqHOv0PGzcf0XA+hUkUgiOHFYn5bwTvGxLMrBlBmAnBprKlJYsRg==
   dependencies:
     "@truffle/abi-utils" "^0.1.4"
     "@truffle/code-utils" "^1.2.23"
@@ -1254,10 +1254,10 @@
     source-map-support "^0.5.19"
     web3-utils "1.2.9"
 
-"@truffle/debugger@^8.0.16":
-  version "8.0.16"
-  resolved "https://registry.yarnpkg.com/@truffle/debugger/-/debugger-8.0.16.tgz#5f079616399e4fbbab7ac622bbe55977d91725e8"
-  integrity sha512-+NpsF92yrKBnArGx+RUq2uQPex4E4QPN68/w/+8Z4fYjpi2xQwLZ6HwYaTNWQ3g5XOKiQQOs50mp2pbuMTQeLw==
+"@truffle/debugger@^8.0.17":
+  version "8.0.17"
+  resolved "https://registry.yarnpkg.com/@truffle/debugger/-/debugger-8.0.17.tgz#a13cd3c967bf045e71a00bd711fb371effa06752"
+  integrity sha512-CpxsW3edO0gPygLUmIkhFC4hgONltYuhJIM8jhdYL4KpDe8hRlFjWeiveH++iJX/1ka1A2Wbyk9G/TtCdiLY4Q==
   dependencies:
     "@truffle/abi-utils" "^0.1.5"
     "@truffle/codec" "^0.10.1"
@@ -8807,17 +8807,17 @@ truffle-plugin-verify@^0.5.6:
     delay "^5.0.0"
     querystring "^0.2.1"
 
-truffle@^5.2.2:
-  version "5.2.2"
-  resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.2.2.tgz#2e00cb73b5c2430fe79f81bcbc35df357087705f"
-  integrity sha512-66wAdFM/n1Mf1o227hhOteAJCgF9pIPKywbQ0u21qyD2LahU4VZsOjci6GY0Iv/5nDWm57GM+GNhikSdSTKvRQ==
+truffle@^5.2.3:
+  version "5.2.3"
+  resolved "https://registry.yarnpkg.com/truffle/-/truffle-5.2.3.tgz#6c1585da56b704397017833ea6b62e18303b924f"
+  integrity sha512-iOeOSaCZtQ+TWsEh6yc6Al+RVkWTsJQnceXNYSCYR86QcXssGY5CqDQ2JwIxwAN4YMRf4GZ/LRAPul6qX36b6A==
   dependencies:
-    "@truffle/debugger" "^8.0.16"
+    "@truffle/debugger" "^8.0.17"
     app-module-path "^2.2.0"
     mocha "8.1.2"
     original-require "^1.0.1"
   optionalDependencies:
-    "@truffle/db" "^0.5.2"
+    "@truffle/db" "^0.5.3"
 
 ts-invariant@^0.4.0:
   version "0.4.4"
