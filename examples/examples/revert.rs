@@ -13,7 +13,7 @@ async fn _contract_ropsten() -> Revert {
 }
 
 async fn contract_ganache() -> Revert {
-    let http = Http::new("http://localhost:8545").unwrap();
+    let http = Http::new("http://localhost:9545").unwrap();
     let web3 = Web3::new(http);
     Revert::builder(&web3).deploy().await.unwrap()
 }
