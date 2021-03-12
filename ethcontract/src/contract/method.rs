@@ -5,7 +5,7 @@
 use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
 use crate::{
     batch::CallBatch,
-    errors::{revert, ExecutionError, MethodError},
+    errors::{ExecutionError, MethodError},
 };
 use ethcontract_common::abi::{Function, Token};
 use std::marker::PhantomData;
@@ -302,40 +302,11 @@ async fn convert_response<
     let bytes = future
         .await
         .map_err(|err| MethodError::new(&function, err))?;
-    let result = decode_geth_call_result::<R>(&function, bytes.0)
+    let tokens = function
+        .decode_output(&bytes.0)
         .map_err(|err| MethodError::new(&function, err))?;
-
+    let result = R::from_tokens(tokens).map_err(|err| MethodError::new(&function, err))?;
     Ok(result)
-}
-
-/// Decodes the raw bytes result from an `eth_call` request to check for reverts
-/// and encoded revert messages.
-///
-/// This is required since Geth returns a success result from an `eth_call` that
-/// reverts (or if an invalid opcode is executed) while other nodes like Ganache
-/// encode this information in a JSON RPC error. On a revert or invalid opcode,
-/// the result is `0x` (empty data), while on a revert with message, it is an
-/// ABI encoded `Error(string)` function call data.
-fn decode_geth_call_result<R: Detokenizable>(
-    function: &Function,
-    bytes: Vec<u8>,
-) -> Result<R::Output, ExecutionError> {
-    if let Some(reason) = revert::decode_reason(&bytes) {
-        // This is an encoded revert message from Geth nodes.
-        Err(ExecutionError::Revert(Some(reason)))
-    } else if !R::is_void() && bytes.is_empty() {
-        // Geth does this on `revert()` without a message and `invalid()`,
-        // just treat them all as `invalid()` as generally contracts revert
-        // with messages. Unfortunately, for methods with empty return types
-        // errors cannot be distringuished from success in this case so do not
-        // error in those cases.
-        Err(ExecutionError::InvalidOpcode)
-    } else {
-        // just a plain ol' regular result, try and decode it
-        let tokens = function.decode_output(&bytes)?;
-        let result = R::from_tokens(tokens)?;
-        Ok(result)
-    }
 }
 
 #[cfg(test)]
@@ -480,57 +451,5 @@ mod tests {
         assert_eq!(tx.gas, Some(1.into()));
         assert_eq!(tx.gas_price, Some(2.into()));
         transport.assert_no_more_requests();
-    }
-
-    #[test]
-    fn method_call_geth_revert_with_message() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let address = addr!("0x0123456789012345678901234567890123456789");
-        let (function, data) = test_abi_function();
-        let tx = ViewMethodBuilder::<_, U256>::from_method(MethodBuilder::new(
-            web3, function, address, data,
-        ));
-
-        transport.add_response(json!(revert::encode_reason_hex("message"))); // call response
-        let result = tx.call().immediate();
-        assert!(
-            matches!(
-                &result,
-                Err(MethodError {
-                    inner: ExecutionError::Revert(Some(ref reason)),
-                    ..
-                }) if reason == "message"
-            ),
-            "unexpected result {:?}",
-            result
-        );
-    }
-
-    #[test]
-    fn method_call_geth_revert() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let address = addr!("0x0123456789012345678901234567890123456789");
-        let (function, data) = test_abi_function();
-        let tx = ViewMethodBuilder::<_, U256>::from_method(MethodBuilder::new(
-            web3, function, address, data,
-        ));
-
-        transport.add_response(json!("0x"));
-        let result = tx.call().immediate();
-        assert!(
-            matches!(
-                &result,
-                Err(MethodError {
-                    inner: ExecutionError::InvalidOpcode,
-                    ..
-                })
-            ),
-            "unexpected result {:?}",
-            result
-        );
     }
 }
