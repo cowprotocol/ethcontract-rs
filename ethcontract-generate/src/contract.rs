@@ -13,7 +13,7 @@ mod types;
 use crate::util;
 use crate::Args;
 use anyhow::{anyhow, Context as _, Result};
-use ethcontract_common::{Address, Artifact, TransactionHash};
+use ethcontract_common::{Address, Artifact, DeploymentInformation};
 use inflector::Inflector;
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
@@ -22,7 +22,7 @@ use syn::{Path, Visibility};
 
 pub(crate) struct Deployment {
     pub address: Address,
-    pub transaction_hash: Option<TransactionHash>,
+    pub deployment_information: Option<DeploymentInformation>,
 }
 
 /// Internal shared context for generating smart contract bindings.

@@ -10,7 +10,7 @@ use crate::errors::{DeployError, LinkError};
 use ethcontract_common::abi::{Error as AbiError, Result as AbiResult};
 use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::hash::H32;
-use ethcontract_common::{Abi, Artifact, Bytecode};
+use ethcontract_common::{Abi, Artifact, Bytecode, DeploymentInformation};
 use std::collections::HashMap;
 use std::hash::Hash;
 use web3::api::Web3;
@@ -32,7 +32,7 @@ pub struct Instance<T: Transport> {
     web3: Web3<T>,
     abi: Abi,
     address: Address,
-    transaction_hash: Option<H256>,
+    deployment_information: Option<DeploymentInformation>,
     /// Default method parameters to use when sending method transactions or
     /// querying method calls.
     pub defaults: MethodDefaults,
@@ -52,7 +52,7 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matching `Abi` is
     /// actually deployed at the given address.
     pub fn at(web3: Web3<T>, abi: Abi, address: Address) -> Self {
-        Instance::with_transaction(web3, abi, address, None)
+        Instance::with_deployment_info(web3, abi, address, None)
     }
 
     /// Creates a new contract instance with the specified `web3` provider with
@@ -63,11 +63,11 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matching `Abi` is
     /// actually deployed at the given address nor that the transaction hash,
     /// when provided, is actually for this contract deployment.
-    pub fn with_transaction(
+    pub fn with_deployment_info(
         web3: Web3<T>,
         abi: Abi,
         address: Address,
-        transaction_hash: Option<H256>,
+        deployment_information: Option<DeploymentInformation>,
     ) -> Self {
         let methods = create_mapping(&abi.functions, |function| function.selector());
         let events = create_mapping(&abi.events, |event| event.signature());
@@ -76,7 +76,7 @@ impl<T: Transport> Instance<T> {
             web3,
             abi,
             address,
-            transaction_hash,
+            deployment_information,
             defaults: MethodDefaults::default(),
             methods,
             events,
@@ -95,11 +95,11 @@ impl<T: Transport> Instance<T> {
             .get(&network_id)
             .ok_or(DeployError::NotFound(network_id))?;
 
-        Ok(Instance::with_transaction(
+        Ok(Instance::with_deployment_info(
             web3,
             artifact.abi,
             network.address,
-            network.transaction_hash,
+            network.deployment_information,
         ))
     }
 
@@ -154,8 +154,8 @@ impl<T: Transport> Instance<T> {
 
     /// Returns the hash for the transaction that deployed the contract if it is
     /// known, `None` otherwise.
-    pub fn transaction_hash(&self) -> Option<H256> {
-        self.transaction_hash
+    pub fn deployment_information(&self) -> Option<DeploymentInformation> {
+        self.deployment_information
     }
 
     /// Returns a method builder to setup a call or transaction on a smart
@@ -239,7 +239,7 @@ impl<T: Transport> Instance<T> {
     /// Returns a log stream that emits a log for every new event emitted after
     /// the stream was created for this contract instance.
     pub fn all_events(&self) -> AllEventsBuilder<T, RawLog> {
-        AllEventsBuilder::new(self.web3(), self.address(), self.transaction_hash())
+        AllEventsBuilder::new(self.web3(), self.address(), self.deployment_information())
     }
 }
 
@@ -309,7 +309,12 @@ impl<T: Transport> Deploy<T> for Instance<T> {
         transaction_hash: H256,
         cx: Self::Context,
     ) -> Self {
-        Instance::with_transaction(web3, cx.abi, address, Some(transaction_hash))
+        Instance::with_deployment_info(
+            web3,
+            cx.abi,
+            address,
+            Some(DeploymentInformation::TransactionHash(transaction_hash)),
+        )
     }
 }
 
@@ -350,14 +355,13 @@ mod tests {
 
         let network_id = "42";
         let address = addr!("0x0102030405060708091011121314151617181920");
-        let transaction_hash = Some(H256::repeat_byte(0x42));
         let artifact = {
             let mut artifact = Artifact::empty();
             artifact.networks.insert(
                 network_id.to_string(),
                 Network {
                     address,
-                    transaction_hash,
+                    deployment_information: Some(H256::repeat_byte(0x42).into()),
                 },
             );
             artifact
@@ -372,7 +376,12 @@ mod tests {
         transport.assert_no_more_requests();
 
         assert_eq!(instance.address(), address);
-        assert_eq!(instance.transaction_hash(), transaction_hash);
+        assert_eq!(
+            instance.deployment_information(),
+            Some(DeploymentInformation::TransactionHash(H256::repeat_byte(
+                0x42
+            )))
+        );
     }
 
     #[test]

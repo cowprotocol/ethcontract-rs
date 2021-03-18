@@ -1,4 +1,4 @@
-use ethcontract::prelude::*;
+use ethcontract::{common::DeploymentInformation, prelude::*};
 use futures::TryStreamExt as _;
 use std::env;
 
@@ -20,8 +20,11 @@ async fn main() {
         .expect("locating deployed contract failed");
 
     // Casting proxy token into actual token
-    let owl_token =
-        TokenOWL::with_transaction(&web3, owl_proxy.address(), owl_proxy.transaction_hash());
+    let owl_token = TokenOWL::with_deployment_info(
+        &web3,
+        owl_proxy.address(),
+        Some(DeploymentInformation::BlockNumber(12063584)),
+    );
     println!("Using OWL token at {:?}", owl_token.address());
     println!("Retrieving all past events (this could take a while)...");
     let event_history_stream = owl_token

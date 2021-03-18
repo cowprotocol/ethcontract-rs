@@ -19,6 +19,7 @@ pub use crate::source::Source;
 pub use crate::util::parse_address;
 use anyhow::Result;
 use contract::Deployment;
+use ethcontract_common::DeploymentInformation;
 pub use ethcontract_common::{Address, TransactionHash};
 use proc_macro2::TokenStream;
 use std::collections::HashMap;
@@ -156,7 +157,7 @@ impl Builder {
     }
 
     /// Manually adds specifies the deployed address and deployment transaction
-    /// hash of a contract for a given network. Note that manually specified
+    /// hash or block of a contract for a given network. Note that manually specified
     /// deployments take precedence over deployments in the Truffle artifact (in
     /// the `networks` property of the artifact).
     ///
@@ -168,11 +169,11 @@ impl Builder {
         mut self,
         network_id: u32,
         address: Address,
-        transaction_hash: Option<TransactionHash>,
+        deployment_information: Option<DeploymentInformation>,
     ) -> Self {
         let deployment = Deployment {
             address,
-            transaction_hash,
+            deployment_information,
         };
         self.args.deployments.insert(network_id, deployment);
         self

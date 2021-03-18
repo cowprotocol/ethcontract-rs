@@ -1,6 +1,6 @@
 use crate::contract::Context;
 use crate::util::expand_doc;
-use ethcontract_common::{Address, TransactionHash};
+use ethcontract_common::{Address, DeploymentInformation};
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 
@@ -19,14 +19,15 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
     let deployments = cx.deployments.iter().map(|(network_id, deployment)| {
         let network_id = Literal::string(&network_id.to_string());
         let address = expand_address(deployment.address);
-        let transaction_hash = expand_transaction_hash(deployment.transaction_hash);
+        let deployment_information =
+            expand_deployment_information(deployment.deployment_information);
 
         quote! {
             artifact.networks.insert(
                 #network_id.to_owned(),
                 self::ethcontract::common::truffle::Network {
                     address: #address,
-                    transaction_hash: #transaction_hash,
+                    deployment_information: #deployment_information,
                 },
             );
         }
@@ -74,7 +75,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
                    > + Send + Unpin + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
-                Contract::with_transaction(web3, address, None)
+                Contract::with_deployment_info(web3, address, None)
             }
 
 
@@ -86,10 +87,10 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             /// Note that this does not verify that a contract with a matching `Abi` is
             /// actually deployed at the given address nor that the transaction hash,
             /// when provided, is actually for this contract deployment.
-            pub fn with_transaction<F, T>(
+            pub fn with_deployment_info<F, T>(
                 web3: &self::ethcontract::web3::api::Web3<T>,
                 address: self::ethcontract::Address,
-                transaction_hash: Option<self::ethcontract::TransactionHash>,
+                deployment_information: Option<ethcontract::common::DeploymentInformation>,
             ) -> Self
             where
                 F: std::future::Future<
@@ -104,7 +105,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
                 let transport = DynTransport::new(web3.transport().clone());
                 let web3 = Web3::new(transport);
                 let abi = Self::artifact().abi.clone();
-                let instance = Instance::with_transaction(web3, abi, address, transaction_hash);
+                let instance = Instance::with_deployment_info(web3, abi, address, deployment_information);
 
                 Contract::from_raw(instance)
             }
@@ -120,10 +121,10 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
                 self.raw_instance().address()
             }
 
-            /// Returns the hash for the transaction that deployed the contract
+            /// Returns the deployment information of the contract
             /// if it is known, `None` otherwise.
-            pub fn transaction_hash(&self) -> Option<self::ethcontract::TransactionHash> {
-                self.raw_instance().transaction_hash()
+            pub fn deployment_information(&self) -> Option<ethcontract::common::DeploymentInformation> {
+                self.raw_instance().deployment_information()
             }
 
             /// Returns a reference to the default method options used by this
@@ -175,17 +176,20 @@ fn expand_address(address: Address) -> TokenStream {
     }
 }
 
-/// Expands a transaction hash into a literal representation that can be used
+/// Expands a deployment info into a literal representation that can be used
 /// with quasi-quoting for code generation.
-fn expand_transaction_hash(hash: Option<TransactionHash>) -> TokenStream {
-    let hash = match hash {
-        Some(hash) => hash,
+fn expand_deployment_information(deployment: Option<DeploymentInformation>) -> TokenStream {
+    match deployment {
+        Some(DeploymentInformation::BlockNumber(block)) => quote! {
+            Some(ethcontract::common::DeploymentInformation::BlockNumber(#block))
+        },
+        Some(DeploymentInformation::TransactionHash(hash)) => {
+            let bytes = hash.as_bytes().iter().copied().map(Literal::u8_unsuffixed);
+            quote! {
+                Some(ethcontract::common::DeploymentInformation::TransactionHash([#( #bytes ),*].into()))
+            }
+        }
         None => return quote! { None },
-    };
-
-    let bytes = hash.as_bytes().iter().copied().map(Literal::u8_unsuffixed);
-    quote! {
-        Some(self::ethcontract::TransactionHash([#( #bytes ),*]))
     }
 }
 
@@ -213,14 +217,23 @@ mod tests {
 
     #[test]
     #[rustfmt::skip]
-    fn expand_transaction_hash_value() {
-        assert_quote!(expand_transaction_hash(None), { None });
+    fn expand_deployment_information_value() {
+        assert_quote!(expand_deployment_information(None), { None });
 
         assert_quote!(
-            expand_transaction_hash(Some("000102030405060708090a0b0c0d0e0f10111213000000000000000000000000".parse().unwrap())),
+            expand_deployment_information(Some(DeploymentInformation::TransactionHash("000102030405060708090a0b0c0d0e0f10111213000000000000000000000000".parse().unwrap()))),
             {
-                Some(self::ethcontract::TransactionHash([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
+                Some(ethcontract::common::DeploymentInformation::TransactionHash([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0].into()))
             },
         );
+
+        assert_quote!(
+            expand_deployment_information(Some(DeploymentInformation::BlockNumber(42))),
+            {
+                Some(ethcontract::common::DeploymentInformation::BlockNumber(42u64))
+            },
+        );
+
+
     }
 }

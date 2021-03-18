@@ -157,7 +157,7 @@ This example retrieves the entire event history of token OWL contract and prints
 the total number of events since deployment.
 
 Note the special handling of the `tokenOWLProxy` contract and how it is cast into
-a `tokenOWL` instance using Contract's `with_transaction` feature.
+a `tokenOWL` instance using Contract's `with_deployment_info` feature.
 
 ```sh
 export INFURA_PROJECT_ID="Infura project ID"

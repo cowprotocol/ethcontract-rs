@@ -7,7 +7,10 @@ pub use self::data::{Event, EventMetadata, EventStatus, ParseLog, RawLog, Stream
 use crate::errors::{EventError, ExecutionError};
 use crate::log::LogFilterBuilder;
 pub use ethcontract_common::abi::Topic;
-use ethcontract_common::abi::{Event as AbiEvent, RawTopicFilter, Token};
+use ethcontract_common::{
+    abi::{Event as AbiEvent, RawTopicFilter, Token},
+    DeploymentInformation,
+};
 use futures::future::{self, TryFutureExt as _};
 use futures::stream::{self, Stream, StreamExt as _, TryStreamExt as _};
 use std::cmp;
@@ -176,17 +179,21 @@ pub struct AllEventsBuilder<T: Transport, E: ParseLog> {
     /// Note that if the contract was created from an existing deployment that
     /// includes the transaction hash, then this property will be automatically
     /// set.
-    pub deployment_transaction: Option<H256>,
+    pub deployment_information: Option<DeploymentInformation>,
     _events: PhantomData<E>,
 }
 
 impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
     /// Creates a new all events builder from a web3 provider and and address.
-    pub fn new(web3: Web3<T>, address: Address, deployment_transaction: Option<H256>) -> Self {
+    pub fn new(
+        web3: Web3<T>,
+        address: Address,
+        deployment_information: Option<DeploymentInformation>,
+    ) -> Self {
         AllEventsBuilder {
             web3: web3.clone(),
             filter: LogFilterBuilder::new(web3).address(vec![address]),
-            deployment_transaction,
+            deployment_information,
             _events: PhantomData,
         }
     }
@@ -280,13 +287,18 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
         self,
     ) -> Result<impl Stream<Item = Result<Event<E>, ExecutionError>>, ExecutionError> {
         let web3 = self.web3.clone();
-        let filter = match (self.filter.from_block, self.deployment_transaction) {
-            (Some(BlockNumber::Earliest), Some(tx)) => {
-                let deployment_block = block_number_from_transaction_hash(web3, tx).await?;
+        let deployment_block = match self.deployment_information {
+            Some(DeploymentInformation::BlockNumber(block)) => Some(block),
+            Some(DeploymentInformation::TransactionHash(hash)) => {
+                Some(block_number_from_transaction_hash(web3, hash).await?)
+            }
+            None => None,
+        };
+        let filter = match (self.filter.from_block, deployment_block) {
+            (Some(BlockNumber::Earliest), Some(deployment_block)) => {
                 self.filter.from_block(deployment_block.into())
             }
-            (Some(BlockNumber::Number(from_block)), Some(tx)) => {
-                let deployment_block = block_number_from_transaction_hash(web3, tx).await?;
+            (Some(BlockNumber::Number(from_block)), Some(deployment_block)) => {
                 let from_block = cmp::max(from_block.as_u64(), deployment_block);
                 self.filter.from_block(from_block.into())
             }
@@ -547,7 +559,7 @@ mod tests {
         transport.add_response(json!([]));
         transport.add_response(json!([log, log]));
 
-        let raw_events = AllEventsBuilder::<_, RawLog>::new(web3, address, Some(deployment))
+        let raw_events = AllEventsBuilder::<_, RawLog>::new(web3, address, Some(deployment.into()))
             .from_block(5.into())
             .to_block(BlockNumber::Pending)
             .topic0(Topic::This(signature))
