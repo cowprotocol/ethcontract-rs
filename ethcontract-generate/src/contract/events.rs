@@ -401,7 +401,7 @@ fn expand_all_events(cx: &Context) -> TokenStream {
                 self::ethcontract::dyns::DynAllEventsBuilder::new(
                     self.raw_instance().web3(),
                     self.address(),
-                    self.transaction_hash(),
+                    self.deployment_information(),
                 )
             }
         }

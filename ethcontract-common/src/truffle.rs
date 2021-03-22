@@ -1,13 +1,13 @@
 //! Module for reading and examining data produced by truffle.
 
-use crate::bytecode::Bytecode;
 use crate::errors::ArtifactError;
+use crate::{bytecode::Bytecode, DeploymentInformation};
 use ethabi::Contract as Abi;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
-use web3::types::{Address, H256};
+use web3::types::Address;
 
 /// Represents a truffle artifact.
 #[derive(Clone, Debug, Deserialize)]
@@ -74,7 +74,7 @@ pub struct Network {
     pub address: Address,
     /// The hash of the transaction that deployed the contract on this network.
     #[serde(rename = "transactionHash")]
-    pub transaction_hash: Option<H256>,
+    pub deployment_information: Option<DeploymentInformation>,
 }
 
 /// A contract's documentation.

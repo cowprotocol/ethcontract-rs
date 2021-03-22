@@ -158,7 +158,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
                 transaction_hash: self::ethcontract::H256,
                 _: Self::Context,
             ) -> Self {
-                Self::with_transaction(&web3, address, Some(transaction_hash))
+                Self::with_deployment_info(&web3, address, Some(transaction_hash.into()))
             }
         }
     })

@@ -37,7 +37,7 @@ async fn main() {
     println!(
         "Using contract at {:?} deployed with transaction {:?}",
         instance.address(),
-        instance.transaction_hash(),
+        instance.deployment_information(),
     );
 
     println!(
