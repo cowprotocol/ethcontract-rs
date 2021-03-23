@@ -47,11 +47,6 @@ pub enum Error {
     /// Tokenize::from_token token is tuple with wrong length.
     #[error("expected a different number of tokens in tuple")]
     TupleLengthMismatch,
-    /// Methods should only ever return 0 or 1 token because multiple return types are grouped into
-    /// into a tuple which is a single token. If a method nonetheless returns more than 1 token this
-    /// error occurs.
-    #[error("a method returned an unexpected number of tokens")]
-    WrongNumberOfTokensReturned,
 }
 
 /// Rust type and single token conversion.

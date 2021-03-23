@@ -3,11 +3,7 @@
 //! [Instance::method](ethcontract::contract::Instance::method).
 
 use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
-use crate::{
-    batch::CallBatch,
-    errors::MethodError,
-    tokens::{Error as TokenError, Tokenize},
-};
+use crate::{batch::CallBatch, errors::MethodError, tokens::Tokenize};
 use ethcontract_common::abi::{Function, Token};
 use std::marker::PhantomData;
 use web3::types::{Address, BlockId, Bytes, CallRequest, U256};
@@ -262,12 +258,10 @@ async fn convert_response<
     let token = match tokens.len() {
         0 => Token::Tuple(Vec::new()),
         1 => tokens.into_iter().next().unwrap(),
-        _ => {
-            return Err(MethodError::new(
-                &function,
-                TokenError::WrongNumberOfTokensReturned,
-            ))
-        }
+        // Older versions of solc emit a list of tokens as the return type of functions returning
+        // tuples instead of a single type that is a tuple. In order to be backwards compatible we
+        // accept this too.
+        _ => Token::Tuple(tokens),
     };
     let result = R::from_token(token).map_err(|err| MethodError::new(&function, err))?;
     Ok(result)
