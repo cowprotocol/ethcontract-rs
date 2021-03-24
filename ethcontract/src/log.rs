@@ -158,7 +158,12 @@ impl<T: Transport> LogFilterBuilder<T> {
             filter = filter.address(self.address);
         }
         if self.topics != TopicFilter::default() {
-            filter = filter.topic_filter(self.topics)
+            filter = filter.topics(
+                topic_to_option(self.topics.topic0),
+                topic_to_option(self.topics.topic1),
+                topic_to_option(self.topics.topic2),
+                topic_to_option(self.topics.topic3),
+            );
         }
         if let Some(limit) = self.limit {
             filter = filter.limit(limit)
@@ -208,6 +213,15 @@ impl<T: Transport> LogFilterBuilder<T> {
             Ok(stream)
         }
         .try_flatten_stream()
+    }
+}
+
+/// Converts a `Topic` to an equivalent `Option<Vec<T>>`, suitable for `FilterBuilder::topics`
+fn topic_to_option(topic: Topic<H256>) -> Option<Vec<H256>> {
+    match topic {
+        Topic::Any => None,
+        Topic::OneOf(v) => Some(v),
+        Topic::This(t) => Some(vec![t]),
     }
 }
 

@@ -60,6 +60,7 @@ fn expand_data_type(event: &Event, event_derives: &[Path]) -> Result<TokenStream
     let abi_signature_doc = util::expand_doc(&format!("`{}`", abi_signature));
 
     let params = expand_params(event)?;
+    let param_names = params.iter().map(|param| &param.0);
 
     let all_anonymous_fields = event.inputs.iter().all(|input| input.name.is_empty());
     let (data_type_definition, data_type_construction) = if all_anonymous_fields {
@@ -67,17 +68,6 @@ fn expand_data_type(event: &Event, event_derives: &[Path]) -> Result<TokenStream
     } else {
         expand_data_struct(&event_name, &params)
     };
-
-    let params_len = Literal::usize_unsuffixed(params.len());
-    let read_param_token = params
-        .iter()
-        .map(|(name, ty)| {
-            quote! {
-                let #name = <#ty as self::ethcontract::web3::contract::tokens::Tokenizable>
-                    ::from_token(tokens.next().unwrap())?;
-            }
-        })
-        .collect::<Vec<_>>();
 
     let derives = expand_derives(event_derives);
 
@@ -102,24 +92,16 @@ fn expand_data_type(event: &Event, event_derives: &[Path]) -> Result<TokenStream
             }
         }
 
-        impl self::ethcontract::web3::contract::tokens::Detokenize for #event_name {
-            fn from_tokens(
-                tokens: Vec<self::ethcontract::common::abi::Token>,
-            ) -> Result<Self, self::ethcontract::web3::contract::Error> {
-                if tokens.len() != #params_len {
-                    return Err(self::ethcontract::web3::contract::Error::InvalidOutputType(format!(
-                        "Expected {} tokens, got {}: {:?}",
-                        #params_len,
-                        tokens.len(),
-                        tokens
-                    )));
-                }
-
-                #[allow(unused_mut)]
-                let mut tokens = tokens.into_iter();
-                #( #read_param_token )*
-
+        impl self::ethcontract::tokens::Tokenize for #event_name {
+            fn from_token(
+                token: self::ethcontract::common::abi::Token,
+            ) -> Result<Self, self::ethcontract::tokens::Error> {
+                let (#(#param_names,)*) = self::ethcontract::tokens::Tokenize::from_token(token)?;
                 Ok(#data_type_construction)
+            }
+
+            fn into_token(self) -> self::ethcontract::common::abi::Token {
+                unimplemented!("events are only decoded, not encoded")
             }
         }
     })

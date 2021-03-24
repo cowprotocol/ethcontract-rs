@@ -1,7 +1,7 @@
 use crate::contract::{types, Context};
 use crate::util;
 use anyhow::{anyhow, Context as _, Result};
-use ethcontract_common::abi::{Function, Param};
+use ethcontract_common::abi::{Function, Param, StateMutability};
 use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::hash::H32;
 use inflector::Inflector;
@@ -104,10 +104,11 @@ fn expand_function(cx: &Context, function: &Function, alias: Option<Ident>) -> R
 
     let input = expand_inputs(&function.inputs)?;
     let outputs = expand_fn_outputs(&function.outputs)?;
-    let (method, result_type_name) = if function.constant {
-        (quote! { view_method }, quote! { DynViewMethodBuilder })
-    } else {
-        (quote! { method }, quote! { DynMethodBuilder })
+    let (method, result_type_name) = match function.state_mutability {
+        StateMutability::Pure | StateMutability::View => {
+            (quote! { view_method }, quote! { DynViewMethodBuilder })
+        }
+        _ => (quote! { method }, quote! { DynMethodBuilder }),
     };
     let result = quote! { self::ethcontract::dyns::#result_type_name<#outputs> };
     let arg = expand_inputs_call_arg(&function.inputs);
@@ -144,7 +145,7 @@ pub(crate) fn expand_inputs_call_arg(inputs: &[Param]) -> TokenStream {
 
 fn expand_fn_outputs(outputs: &[Param]) -> Result<TokenStream> {
     match outputs.len() {
-        0 => Ok(quote! { self::ethcontract::Void }),
+        0 => Ok(quote! { () }),
         1 => types::expand(&outputs[0].kind),
         _ => {
             let types = outputs
@@ -169,9 +170,7 @@ fn expand_fallback(cx: &Context) -> TokenStream {
             impl Contract {
                 /// Returns a method builder to setup a call to a smart
                 /// contract's fallback function.
-                pub fn fallback<D>(&self, data: D) -> self::ethcontract::dyns::DynMethodBuilder<
-                    self::ethcontract::Void,
-                >
+                pub fn fallback<D>(&self, data: D) -> self::ethcontract::dyns::DynMethodBuilder<()>
                 where
                     D: Into<Vec<u8>>,
                 {
@@ -218,9 +217,7 @@ mod tests {
 
     #[test]
     fn expand_fn_outputs_empty() {
-        assert_quote!(expand_fn_outputs(&[],).unwrap(), {
-            self::ethcontract::Void
-        });
+        assert_quote!(expand_fn_outputs(&[],).unwrap(), { () });
     }
 
     #[test]

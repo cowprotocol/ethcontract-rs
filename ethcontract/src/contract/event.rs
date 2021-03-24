@@ -6,6 +6,7 @@ mod data;
 pub use self::data::{Event, EventMetadata, EventStatus, ParseLog, RawLog, StreamEvent};
 use crate::errors::{EventError, ExecutionError};
 use crate::log::LogFilterBuilder;
+use crate::tokens::Tokenize;
 pub use ethcontract_common::abi::Topic;
 use ethcontract_common::{
     abi::{Event as AbiEvent, RawTopicFilter, Token},
@@ -17,14 +18,13 @@ use std::cmp;
 use std::marker::PhantomData;
 use std::time::Duration;
 use web3::api::Web3;
-use web3::contract::tokens::{Detokenize, Tokenizable};
 use web3::types::{Address, BlockNumber, H256};
 use web3::Transport;
 
 /// A builder for creating a filtered stream of contract events that are
 #[derive(Debug)]
 #[must_use = "event builders do nothing unless you stream them"]
-pub struct EventBuilder<T: Transport, E: Detokenize> {
+pub struct EventBuilder<T: Transport, E: Tokenize> {
     /// The underlying web3 instance.
     web3: Web3<T>,
     /// The event ABI data for encoding topic filters and decoding logs.
@@ -36,7 +36,7 @@ pub struct EventBuilder<T: Transport, E: Detokenize> {
     _event: PhantomData<E>,
 }
 
-impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
+impl<T: Transport, E: Tokenize> EventBuilder<T, E> {
     /// Creates a new event builder from a web3 provider and a contract event
     /// and address.
     pub fn new(web3: Web3<T>, event: AbiEvent, address: Address) -> Self {
@@ -74,7 +74,7 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
     /// actually `topic[1]`.
     pub fn topic0<P>(mut self, topic: Topic<P>) -> Self
     where
-        P: Tokenizable,
+        P: Tokenize,
     {
         self.topics.topic0 = tokenize_topic(topic);
         self
@@ -83,7 +83,7 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
     /// Adds a filter for the second indexed topic.
     pub fn topic1<P>(mut self, topic: Topic<P>) -> Self
     where
-        P: Tokenizable,
+        P: Tokenize,
     {
         self.topics.topic1 = tokenize_topic(topic);
         self
@@ -92,7 +92,7 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
     /// Adds a filter for the third indexed topic.
     pub fn topic2<P>(mut self, topic: Topic<P>) -> Self
     where
-        P: Tokenizable,
+        P: Tokenize,
     {
         self.topics.topic2 = tokenize_topic(topic);
         self
@@ -161,7 +161,7 @@ impl<T: Transport, E: Detokenize> EventBuilder<T, E> {
 /// Converts a tokenizable topic into a raw topic for filtering.
 fn tokenize_topic<P>(topic: Topic<P>) -> Topic<Token>
 where
-    P: Tokenizable,
+    P: Tokenize,
 {
     topic.map(|parameter| parameter.into_token())
 }

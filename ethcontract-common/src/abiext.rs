@@ -1,8 +1,8 @@
 //! This module implements extensions to the `ethabi` API.
 
+use crate::abi::{Event, Function, ParamType};
 use crate::errors::ParseParamTypeError;
 use crate::hash::{self, H32};
-use ethabi::{Event, Function, ParamType};
 use serde_json::json;
 
 /// Extension trait for `ethabi::Function`.

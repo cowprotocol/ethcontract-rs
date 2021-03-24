@@ -1,6 +1,5 @@
 //! This module contains an 256-bit signed integer implementation.
 
-use crate::common::abi::Token;
 use crate::errors::{ParseI256Error, TryFromBigIntError};
 use serde::{Deserialize, Serialize};
 use std::cmp;
@@ -10,7 +9,6 @@ use std::iter;
 use std::ops;
 use std::str;
 use std::{i128, i64, u64};
-use web3::contract::{self, tokens};
 use web3::types::U256;
 
 /// Compute the two's complement of a U256.
@@ -1213,26 +1211,11 @@ impl iter::Product for I256 {
     }
 }
 
-impl tokens::Tokenizable for I256 {
-    fn from_token(token: Token) -> Result<Self, contract::Error> {
-        // NOTE: U256 accepts both `Int` and `Uint` kind tokens. In fact, all
-        //   integer types are expected to accept both.
-        Ok(I256(U256::from_token(token)?))
-    }
-
-    fn into_token(self) -> Token {
-        Token::Int(self.0)
-    }
-}
-
-impl tokens::TokenizableItem for I256 {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use lazy_static::lazy_static;
     use serde_json::json;
-    use web3::contract::tokens::Tokenizable;
 
     lazy_static! {
         static ref MIN_ABS: U256 = U256::from(1) << 255;
@@ -1696,20 +1679,8 @@ mod tests {
     }
 
     #[test]
-    fn tokenization() {
+    fn json() {
         assert_eq!(json!(I256::from(42)), json!("0x2a"));
         assert_eq!(json!(I256::minus_one()), json!(U256::MAX));
-
-        assert_eq!(I256::from(42).into_token(), 42i32.into_token());
-        assert_eq!(I256::minus_one().into_token(), Token::Int(U256::MAX),);
-
-        assert_eq!(
-            I256::from_token(42i32.into_token()).unwrap(),
-            I256::from(42),
-        );
-        assert_eq!(
-            I256::from_token(U256::MAX.into_token()).unwrap(),
-            I256::minus_one(),
-        );
     }
 }

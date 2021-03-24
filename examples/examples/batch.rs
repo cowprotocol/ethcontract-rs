@@ -30,14 +30,8 @@ async fn main() {
 
     let mut batch = CallBatch::new(web3.transport());
     let calls = vec![
-        instance
-            .balance_of(accounts[1])
-            .view()
-            .batch_call(&mut batch),
-        instance
-            .balance_of(accounts[2])
-            .view()
-            .batch_call(&mut batch),
+        instance.balance_of(accounts[1]).batch_call(&mut batch),
+        instance.balance_of(accounts[2]).batch_call(&mut batch),
     ];
     batch.execute_all(usize::MAX).await;
     for (id, call) in calls.into_iter().enumerate() {

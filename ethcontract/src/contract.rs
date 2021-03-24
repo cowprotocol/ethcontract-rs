@@ -6,7 +6,10 @@ mod deploy;
 mod event;
 mod method;
 
-use crate::errors::{DeployError, LinkError};
+use crate::{
+    errors::{DeployError, LinkError},
+    tokens::Tokenize,
+};
 use ethcontract_common::abi::{Error as AbiError, Result as AbiResult};
 use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::hash::H32;
@@ -14,7 +17,6 @@ use ethcontract_common::{Abi, Artifact, Bytecode, DeploymentInformation};
 use std::collections::HashMap;
 use std::hash::Hash;
 use web3::api::Web3;
-use web3::contract::tokens::{Detokenize, Tokenize};
 use web3::types::{Address, Bytes, H256};
 use web3::Transport;
 
@@ -23,7 +25,7 @@ pub use self::event::{
     AllEventsBuilder, Event, EventBuilder, EventMetadata, EventStatus, ParseLog, RawLog,
     StreamEvent, Topic,
 };
-pub use self::method::{Detokenizable, MethodBuilder, MethodDefaults, ViewMethodBuilder, Void};
+pub use self::method::{MethodBuilder, MethodDefaults, ViewMethodBuilder};
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
@@ -164,7 +166,7 @@ impl<T: Transport> Instance<T> {
     pub fn method<P, R>(&self, signature: H32, params: P) -> AbiResult<MethodBuilder<T, R>>
     where
         P: Tokenize,
-        R: Detokenizable,
+        R: Tokenize,
     {
         let signature = signature.as_ref();
         let function = self
@@ -172,7 +174,11 @@ impl<T: Transport> Instance<T> {
             .get(signature)
             .map(|(name, index)| &self.abi.functions[name][*index])
             .ok_or_else(|| AbiError::InvalidName(hex::encode(&signature)))?;
-        let data = function.encode_input(&params.into_tokens())?;
+        let tokens = match params.into_token() {
+            ethcontract_common::abi::Token::Tuple(tokens) => tokens,
+            _ => unreachable!("function arguments are always tuples"),
+        };
+        let data = function.encode_input(&tokens)?;
 
         // take ownership here as it greatly simplifies dealing with futures
         // lifetime as it would require the contract Instance to live until
@@ -192,7 +198,7 @@ impl<T: Transport> Instance<T> {
     pub fn view_method<P, R>(&self, signature: H32, params: P) -> AbiResult<ViewMethodBuilder<T, R>>
     where
         P: Tokenize,
-        R: Detokenizable,
+        R: Tokenize,
     {
         Ok(self.method(signature, params)?.view())
     }
@@ -202,7 +208,7 @@ impl<T: Transport> Instance<T> {
     ///
     /// This method will error if the ABI does not contain an entry for a
     /// fallback function.
-    pub fn fallback<D>(&self, data: D) -> AbiResult<MethodBuilder<T, Void>>
+    pub fn fallback<D>(&self, data: D) -> AbiResult<MethodBuilder<T, ()>>
     where
         D: Into<Vec<u8>>,
     {
@@ -221,7 +227,7 @@ impl<T: Transport> Instance<T> {
     /// that emits events for the specified Solidity event by name.
     pub fn event<E>(&self, signature: H256) -> AbiResult<EventBuilder<T, E>>
     where
-        E: Detokenize,
+        E: Tokenize,
     {
         let event = self
             .events

@@ -2,12 +2,12 @@
 //! new contracts.
 
 use crate::errors::{DeployError, ExecutionError};
+use crate::tokens::Tokenize;
 use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
 use ethcontract_common::abi::Error as AbiError;
 use ethcontract_common::{Abi, Bytecode};
 use std::marker::PhantomData;
 use web3::api::Web3;
-use web3::contract::tokens::Tokenize;
 use web3::types::{Address, Bytes, H256, U256};
 use web3::Transport;
 
@@ -74,7 +74,10 @@ where
         }
 
         let code = bytecode.to_bytes()?;
-        let params = params.into_tokens();
+        let params = match params.into_token() {
+            ethcontract_common::abi::Token::Tuple(tokens) => tokens,
+            _ => unreachable!("function arguments are always tuples"),
+        };
         let data = match (I::abi(&context).constructor(), params.is_empty()) {
             (None, false) => return Err(AbiError::InvalidData.into()),
             (None, true) => code,

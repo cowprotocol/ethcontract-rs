@@ -40,6 +40,7 @@ mod tests {
     use ethcontract_common::abi::{Function, Param, Token};
 
     pub fn encode_reason(reason: &str) -> Vec<u8> {
+        #[allow(deprecated)]
         let revert = Function {
             name: "Error".into(),
             inputs: vec![Param {
@@ -48,6 +49,7 @@ mod tests {
             }],
             outputs: Vec::new(),
             constant: true,
+            state_mutability: Default::default(),
         };
         revert
             .encode_input(&[Token::String(reason.into())])

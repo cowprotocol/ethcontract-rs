@@ -13,7 +13,6 @@ use secp256k1::Error as Secp256k1Error;
 use std::num::ParseIntError;
 use thiserror::Error;
 use uint::FromDecStrErr;
-use web3::contract::Error as Web3ContractError;
 use web3::error::Error as Web3Error;
 use web3::types::{Log, TransactionReceipt, H256};
 
@@ -62,7 +61,7 @@ pub enum ExecutionError {
     /// An error occured while ABI decoding the result of a contract method
     /// call.
     #[error("abi decode error: {0}")]
-    AbiDecode(#[from] Web3ContractError),
+    AbiDecode(#[from] AbiError),
 
     /// An error occured while parsing chain ID received from a Web3 call.
     #[error("parse chain ID error: {0}")]
@@ -105,6 +104,10 @@ pub enum ExecutionError {
     /// A stream ended unexpectedly.
     #[error("log stream ended unexpectedly")]
     StreamEndedUnexpectedly,
+
+    /// A tokenization related error.
+    #[error("tokenization error: {0}")]
+    Tokenization(#[from] crate::tokens::Error),
 }
 
 impl From<Web3Error> for ExecutionError {
@@ -122,12 +125,6 @@ impl From<Web3Error> for ExecutionError {
         }
 
         ExecutionError::Web3(err)
-    }
-}
-
-impl From<AbiError> for ExecutionError {
-    fn from(err: AbiError) -> Self {
-        ExecutionError::AbiDecode(err.into())
     }
 }
 

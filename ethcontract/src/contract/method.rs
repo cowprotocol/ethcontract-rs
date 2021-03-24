@@ -3,65 +3,12 @@
 //! [Instance::method](ethcontract::contract::Instance::method).
 
 use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
-use crate::{
-    batch::CallBatch,
-    errors::{ExecutionError, MethodError},
-};
+use crate::{batch::CallBatch, errors::MethodError, tokens::Tokenize};
 use ethcontract_common::abi::{Function, Token};
 use std::marker::PhantomData;
-use web3::contract::tokens::Detokenize;
-use web3::contract::Error as Web3ContractError;
 use web3::types::{Address, BlockId, Bytes, CallRequest, U256};
 use web3::Transport;
 use web3::{api::Web3, BatchTransport};
-
-/// A void type to represent methods with empty return types.
-///
-/// This is used to work around the fact that `(): !Detokenize`.
-pub struct Void(());
-
-/// Represents a type can detokenize a result.
-pub trait Detokenizable {
-    /// The output that this type detokenizes into.
-    type Output;
-
-    /// Create an instance of `Output` by decoding tokens.
-    fn from_tokens(tokens: Vec<Token>) -> Result<Self::Output, ExecutionError>;
-
-    /// Returns true if this is an empty type.
-    fn is_void() -> bool {
-        false
-    }
-}
-
-impl Detokenizable for Void {
-    type Output = ();
-
-    fn from_tokens(tokens: Vec<Token>) -> Result<Self::Output, ExecutionError> {
-        if !tokens.is_empty() {
-            return Err(Web3ContractError::InvalidOutputType(format!(
-                "Expected no elements, got tokens: {:?}",
-                tokens
-            ))
-            .into());
-        }
-
-        Ok(())
-    }
-
-    fn is_void() -> bool {
-        true
-    }
-}
-
-impl<T: Detokenize> Detokenizable for T {
-    type Output = Self;
-
-    fn from_tokens(tokens: Vec<Token>) -> Result<Self::Output, ExecutionError> {
-        let result = <T as Detokenize>::from_tokens(tokens)?;
-        Ok(result)
-    }
-}
 
 /// Default options to be applied to `MethodBuilder` or `ViewMethodBuilder`.
 #[derive(Clone, Debug, Default)]
@@ -79,7 +26,7 @@ pub struct MethodDefaults {
 /// transactions. This is useful when dealing with view functions.
 #[derive(Debug, Clone)]
 #[must_use = "methods do nothing unless you `.call()` or `.send()` them"]
-pub struct MethodBuilder<T: Transport, R: Detokenizable> {
+pub struct MethodBuilder<T: Transport, R: Tokenize> {
     web3: Web3<T>,
     function: Function,
     /// transaction parameters
@@ -87,22 +34,25 @@ pub struct MethodBuilder<T: Transport, R: Detokenizable> {
     _result: PhantomData<R>,
 }
 
-impl<T: Transport> MethodBuilder<T, Void> {
+impl<T: Transport> MethodBuilder<T, ()> {
     /// Creates a new builder for a transaction invoking the fallback method.
     pub fn fallback(web3: Web3<T>, address: Address, data: Bytes) -> Self {
         // NOTE: We create a fake `Function` entry for the fallback method. This
         //   is OK since it is only ever used for error formatting purposes.
+
+        #[allow(deprecated)]
         let function = Function {
             name: "fallback".into(),
             inputs: vec![],
             outputs: vec![],
             constant: false,
+            state_mutability: Default::default(),
         };
         MethodBuilder::new(web3, function, address, data)
     }
 }
 
-impl<T: Transport, R: Detokenizable> MethodBuilder<T, R> {
+impl<T: Transport, R: Tokenize> MethodBuilder<T, R> {
     /// Creates a new builder for a transaction.
     pub fn new(web3: Web3<T>, function: Function, address: Address, data: Bytes) -> Self {
         MethodBuilder {
@@ -188,7 +138,7 @@ impl<T: Transport, R: Detokenizable> MethodBuilder<T, R> {
     /// as such do not require gas or signing. Note that doing a call with a
     /// block number requires first demoting the `MethodBuilder` into a
     /// `ViewMethodBuilder` and setting the block number for the call.
-    pub async fn call(self) -> Result<R::Output, MethodError> {
+    pub async fn call(self) -> Result<R, MethodError> {
         self.view().call().await
     }
 }
@@ -197,14 +147,14 @@ impl<T: Transport, R: Detokenizable> MethodBuilder<T, R> {
 /// directly send transactions and is for read only method calls.
 #[derive(Debug, Clone)]
 #[must_use = "view methods do nothing unless you `.call()` them"]
-pub struct ViewMethodBuilder<T: Transport, R: Detokenizable> {
+pub struct ViewMethodBuilder<T: Transport, R: Tokenize> {
     /// method parameters
     pub m: MethodBuilder<T, R>,
     /// optional block number
     pub block: Option<BlockId>,
 }
 
-impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
+impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
     /// Create a new `ViewMethodBuilder` by demoting a `MethodBuilder`.
     pub fn from_method(method: MethodBuilder<T, R>) -> Self {
         ViewMethodBuilder {
@@ -254,10 +204,10 @@ impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
     }
 }
 
-impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
+impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
     /// Call a contract method. Contract calls do not modify the blockchain and
     /// as such do not require gas or signing.
-    pub async fn call(self) -> Result<R::Output, MethodError> {
+    pub async fn call(self) -> Result<R, MethodError> {
         let eth = &self.m.web3.eth();
         let (function, call, block) = self.decompose();
         let future = eth.call(call, block);
@@ -270,7 +220,7 @@ impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
     pub fn batch_call<B: BatchTransport>(
         self,
         batch: &mut CallBatch<B>,
-    ) -> impl std::future::Future<Output = Result<R::Output, MethodError>> {
+    ) -> impl std::future::Future<Output = Result<R, MethodError>> {
         let (function, call, block) = self.decompose();
         let future = batch.push(call, block);
         async move { convert_response::<_, R>(future, function).await }
@@ -294,18 +244,26 @@ impl<T: Transport, R: Detokenizable> ViewMethodBuilder<T, R> {
 
 async fn convert_response<
     F: std::future::Future<Output = Result<Bytes, web3::Error>>,
-    R: Detokenizable,
+    R: Tokenize,
 >(
     future: F,
     function: Function,
-) -> Result<R::Output, MethodError> {
+) -> Result<R, MethodError> {
     let bytes = future
         .await
         .map_err(|err| MethodError::new(&function, err))?;
     let tokens = function
         .decode_output(&bytes.0)
         .map_err(|err| MethodError::new(&function, err))?;
-    let result = R::from_tokens(tokens).map_err(|err| MethodError::new(&function, err))?;
+    let token = match tokens.len() {
+        0 => Token::Tuple(Vec::new()),
+        1 => tokens.into_iter().next().unwrap(),
+        // Older versions of solc emit a list of tokens as the return type of functions returning
+        // tuples instead of a single type that is a tuple. In order to be backwards compatible we
+        // accept this too.
+        _ => Token::Tuple(tokens),
+    };
+    let result = R::from_token(token).map_err(|err| MethodError::new(&function, err))?;
     Ok(result)
 }
 
@@ -316,6 +274,7 @@ mod tests {
     use ethcontract_common::abi::{Param, ParamType};
 
     fn test_abi_function() -> (Function, Bytes) {
+        #[allow(deprecated)]
         let function = Function {
             name: "test".to_owned(),
             inputs: Vec::new(),
@@ -324,6 +283,7 @@ mod tests {
                 kind: ParamType::Uint(256),
             }],
             constant: false,
+            state_mutability: Default::default(),
         };
         let data = function
             .encode_input(&[])

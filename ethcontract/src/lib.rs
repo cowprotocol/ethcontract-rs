@@ -99,6 +99,7 @@ pub mod errors;
 mod int;
 pub mod log;
 pub mod secret;
+pub mod tokens;
 pub mod transaction;
 pub mod transport;
 
@@ -117,9 +118,7 @@ pub mod prelude {
     //! A prelude module for importing commonly used types when interacting with
     //! generated contracts.
 
-    pub use crate::contract::{
-        Event, EventMetadata, EventStatus, RawLog, StreamEvent, Topic, Void,
-    };
+    pub use crate::contract::{Event, EventMetadata, EventStatus, RawLog, StreamEvent, Topic};
     pub use crate::int::I256;
     pub use crate::secret::{Password, PrivateKey};
     pub use crate::transaction::{Account, GasPrice};
