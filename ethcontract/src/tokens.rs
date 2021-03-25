@@ -220,12 +220,48 @@ single_tokenize_array! {
     i8, i16, i32, i64, i128, u16, u32, u64, u128,
 }
 
-impl<T: TokenizeArray> Tokenize for Vec<T> {
+impl<T, const N: usize> TokenizeArray for [T; N] where T: TokenizeArray {}
+
+impl<T> TokenizeArray for Vec<T> where T: TokenizeArray {}
+
+impl<T, const N: usize> Tokenize for [T; N]
+where
+    T: TokenizeArray,
+{
+    fn from_token(token: Token) -> Result<Self, Error>
+    where
+        Self: Sized,
+    {
+        let tokens = match token {
+            Token::FixedArray(tokens) => tokens,
+            _ => return Err(Error::TypeMismatch),
+        };
+        let arr_vec = tokens
+            .into_iter()
+            .map(T::from_token)
+            .collect::<Result<ArrayVec<T, N>, _>>()?;
+        arr_vec
+            .into_inner()
+            .map_err(|_| Error::FixedArrayLengthsMismatch)
+    }
+
+    fn into_token(self) -> Token {
+        Token::FixedArray(
+            ArrayVec::from(self)
+                .into_iter()
+                .map(T::into_token)
+                .collect(),
+        )
+    }
+}
+
+impl<T> Tokenize for Vec<T>
+where
+    T: TokenizeArray,
+{
     fn from_token(token: Token) -> Result<Self, Error> {
         match token {
-            Token::FixedArray(tokens) | Token::Array(tokens) => {
-                tokens.into_iter().map(Tokenize::from_token).collect()
-            }
+            Token::Array(tokens) => tokens.into_iter().map(Tokenize::from_token).collect(),
             _ => Err(Error::TypeMismatch),
         }
     }
@@ -235,90 +271,20 @@ impl<T: TokenizeArray> Tokenize for Vec<T> {
     }
 }
 
-impl<T: TokenizeArray> TokenizeArray for Vec<T> {}
-
-macro_rules! impl_fixed_types {
-    ($num: expr) => {
-        impl<T> Tokenize for [T; $num]
-        where
-            T: TokenizeArray,
-        {
-            fn from_token(token: Token) -> Result<Self, Error>
-            where
-                Self: Sized,
-            {
-                let tokens = match token {
-                    Token::FixedArray(tokens) => tokens,
-                    _ => return Err(Error::TypeMismatch),
-                };
-                let arr_vec = tokens
-                    .into_iter()
-                    .map(T::from_token)
-                    .collect::<Result<ArrayVec<[T; $num]>, Error>>()?;
-                arr_vec
-                    .into_inner()
-                    .map_err(|_| Error::FixedArrayLengthsMismatch)
-            }
-
-            fn into_token(self) -> Token {
-                Token::FixedArray(
-                    ArrayVec::from(self)
-                        .into_iter()
-                        .map(T::into_token)
-                        .collect(),
-                )
-            }
+impl<const N: usize> Tokenize for [u8; N] {
+    fn from_token(token: Token) -> Result<Self, Error> {
+        match token {
+            Token::FixedBytes(bytes) => bytes
+                .try_into()
+                .map_err(|_| Error::FixedBytesLengthsMismatch),
+            _ => Err(Error::TypeMismatch),
         }
+    }
 
-        impl<T> TokenizeArray for [T; $num] where T: TokenizeArray {}
-
-        impl Tokenize for [u8; $num] {
-            fn from_token(token: Token) -> Result<Self, Error> {
-                match token {
-                    Token::FixedBytes(bytes) => {
-                        if bytes.len() != $num {
-                            return Err(Error::TypeMismatch);
-                        }
-
-                        let mut arr = [0; $num];
-                        arr.copy_from_slice(&bytes);
-                        Ok(arr)
-                    }
-                    _ => Err(Error::TypeMismatch),
-                }
-            }
-
-            fn into_token(self) -> Token {
-                Token::FixedBytes(self.to_vec())
-            }
-        }
-
-        impl TokenizeArray for [u8; $num] {}
-    };
+    fn into_token(self) -> Token {
+        Token::FixedBytes(self.to_vec())
+    }
 }
-
-impl_fixed_types!(1);
-impl_fixed_types!(2);
-impl_fixed_types!(3);
-impl_fixed_types!(4);
-impl_fixed_types!(5);
-impl_fixed_types!(6);
-impl_fixed_types!(7);
-impl_fixed_types!(8);
-impl_fixed_types!(9);
-impl_fixed_types!(10);
-impl_fixed_types!(11);
-impl_fixed_types!(12);
-impl_fixed_types!(13);
-impl_fixed_types!(14);
-impl_fixed_types!(15);
-impl_fixed_types!(16);
-impl_fixed_types!(32);
-impl_fixed_types!(64);
-impl_fixed_types!(128);
-impl_fixed_types!(256);
-impl_fixed_types!(512);
-impl_fixed_types!(1024);
 
 macro_rules! impl_single_tokenize_for_tuple {
     ($count: expr, $( $ty: ident : $no: tt, )*) => {
