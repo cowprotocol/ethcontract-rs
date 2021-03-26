@@ -1308,10 +1308,10 @@
     emittery "^0.4.1"
     ora "^3.4.0"
 
-"@truffle/hdwallet-provider@^1.0.42", "@truffle/hdwallet-provider@^1.2.4":
-  version "1.2.4"
-  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-1.2.4.tgz#e231902ab1acdebd594205080b0cba2fb1279fcf"
-  integrity sha512-WT8KCRwIlqNjpyE76mSa8OQBwpgnawKGQDlJ8NELQAHfj/8hZNhfptF4eyrMrQtaSY1pEPGyJ+Yeo2qpFfDhxw==
+"@truffle/hdwallet-provider@^1.0.42", "@truffle/hdwallet-provider@^1.2.5":
+  version "1.2.5"
+  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-1.2.5.tgz#da25d0632e792e66b8203ae65e464ac8f429354d"
+  integrity sha512-wEtUunnQ+eby/6Rlgo6mDqFOJtE+gs8GZL8oR/XaoOMEMv5WDLqSFpjZRLIOVVyzz9wtoBIZLqxUprxCv2DrTw==
   dependencies:
     "@ethereumjs/tx" "^3.0.2"
     "@trufflesuite/web3-provider-engine" "15.0.13-1"
@@ -1321,7 +1321,6 @@
     ethereum-protocol "^1.0.1"
     ethereumjs-util "^6.1.0"
     ethereumjs-wallet "^1.0.1"
-    source-map-support "^0.5.19"
 
 "@truffle/interface-adapter@^0.4.19":
   version "0.4.19"
