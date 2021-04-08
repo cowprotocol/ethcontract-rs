@@ -43,7 +43,7 @@ impl Source {
     /// - `npm:@org/package@1.0.0/path/to/contract.json` an npmjs package with
     ///   an optional version and path (defaulting to the latest version and
     ///   `index.js`). The contract artifact or ABI will be retrieved through
-    ///   `unpkg.io`.
+    ///   `unpkg.com`.
     pub fn parse<S>(source: S) -> Result<Self>
     where
         S: AsRef<str>,
@@ -193,9 +193,9 @@ fn get_etherscan_contract(address: Address) -> Result<String> {
     Ok(json)
 }
 
-/// Retrieves a Truffle artifact or ABI from an npm package through `unpkg.io`.
+/// Retrieves a Truffle artifact or ABI from an npm package through `unpkg.com`.
 fn get_npm_contract(package: &str) -> Result<String> {
-    let unpkg_url = format!("https://unpkg.io/{}", package);
+    let unpkg_url = format!("https://unpkg.com/{}", package);
     let json = util::http_get(&unpkg_url)
         .with_context(|| format!("failed to retrieve JSON from for npm package {}", package))?;
 
