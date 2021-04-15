@@ -27,10 +27,13 @@ pub(crate) fn expand(kind: &ParamType) -> Result<TokenStream> {
         },
         ParamType::Bool => Ok(quote! { bool }),
         ParamType::String => Ok(quote! { String }),
-        ParamType::Array(t) => {
-            let inner = expand(t)?;
-            Ok(quote! { Vec<#inner> })
-        }
+        ParamType::Array(t) => match **t {
+            ParamType::Uint(8) => Ok(quote! { self::ethcontract::BytesArray }),
+            _ => {
+                let inner = expand(t)?;
+                Ok(quote! { Vec<#inner> })
+            }
+        },
         ParamType::FixedBytes(n) => {
             // TODO(nlordell): what is the performance impact of returning large
             //   `FixedBytes` and `FixedArray`s with `web3`?

@@ -126,7 +126,9 @@ pub mod prelude {
     pub use web3::api::Web3;
     #[cfg(feature = "http")]
     pub use web3::transports::Http;
-    pub use web3::types::{Address, BlockId, BlockNumber, TransactionCondition, H160, H256, U256};
+    pub use web3::types::{
+        Address, BlockId, BlockNumber, BytesArray, TransactionCondition, H160, H256, U256,
+    };
 }
 
 pub mod dyns {

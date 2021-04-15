@@ -27,7 +27,7 @@ use crate::I256;
 use arrayvec::ArrayVec;
 use ethcontract_common::{abi::Token, TransactionHash};
 use std::convert::TryInto;
-use web3::types::{Address, U256};
+use web3::types::{Address, BytesArray, U256};
 
 /// A tokenization related error.
 #[derive(Debug, thiserror::Error)]
@@ -73,6 +73,28 @@ impl Tokenize for Vec<u8> {
 
     fn into_token(self) -> Token {
         Token::Bytes(self)
+    }
+}
+
+impl Tokenize for BytesArray {
+    fn from_token(token: Token) -> Result<Self, Error>
+    where
+        Self: Sized,
+    {
+        match token {
+            Token::FixedArray(tokens) | Token::Array(tokens) => {
+                let bytes = tokens
+                    .into_iter()
+                    .map(Tokenize::from_token)
+                    .collect::<Result<Vec<u8>, Error>>()?;
+                Ok(Self(bytes))
+            }
+            _ => Err(Error::TypeMismatch),
+        }
+    }
+
+    fn into_token(self) -> Token {
+        Token::Array(self.0.into_iter().map(Tokenize::into_token).collect())
     }
 }
 
@@ -216,7 +238,7 @@ macro_rules! single_tokenize_array {
 }
 
 single_tokenize_array! {
-    String, Address, U256, I256, Vec<u8>, bool,
+    String, Address, U256, I256, BytesArray, Vec<u8>, bool,
     i8, i16, i32, i64, i128, u16, u32, u64, u128,
 }
 
@@ -382,6 +404,14 @@ mod tests {
     fn tokenize_bytes() {
         assert!(matches!([0u8].into_token(), Token::FixedBytes(_)));
         assert!(matches!(vec![0u8].into_token(), Token::Bytes(_)));
+    }
+
+    #[test]
+    fn tokenize_bytes_array() {
+        assert!(matches!(
+            BytesArray(vec![1u8]).into_token(),
+            Token::Array(_)
+        ));
     }
 
     #[test]

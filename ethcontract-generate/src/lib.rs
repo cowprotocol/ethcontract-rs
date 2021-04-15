@@ -20,7 +20,7 @@ pub use crate::util::parse_address;
 use anyhow::Result;
 use contract::Deployment;
 use ethcontract_common::DeploymentInformation;
-pub use ethcontract_common::{Address, TransactionHash};
+pub use ethcontract_common::{Address, BytesArray, TransactionHash};
 use proc_macro2::TokenStream;
 use std::collections::HashMap;
 use std::fs::File;
