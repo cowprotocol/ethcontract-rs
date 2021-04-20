@@ -5,17 +5,6 @@
 // with ethabi we need to map them to ethabi tokens. Tokenize does this for base types like
 // u32 and compounds of other Tokenize in the form of vectors, arrays and tuples.
 //
-// This is complicated by `Vec<u8>` representing `Token::Bytes` (and `[u8; n]` `Token::FixedBytes`)
-// preventing us from having a generic `impl<T: Tokenize> for Vec<T>` as this would lead to
-// conflicting implementations. As a workaround we use an intermediate trait `TokenizeArray`
-// that is implemented for all types that implement `Tokenize` except `Vec<u8>` and
-// `[u8; n]` and then only implement `Tokenize` for vectors and arrays of
-// `TokenizeArray`.
-//
-// The drawback is that if a solidity function actually used an array of u8 instead of bytes then we
-// would not be able to interact with it. An alternative solution could be to use a Bytes new type
-// but this makes calling those functions slightly more annoying.
-//
 // In some cases like when passing arguments to `MethodBuilder` or decoding events we need to be
 // able to pack multiple types into a single generic parameter. This is accomplished by representing
 // the collection of arguments as a tuple.
@@ -60,19 +49,40 @@ pub trait Tokenize {
     fn into_token(self) -> Token;
 }
 
-impl Tokenize for Vec<u8> {
+/// Wrapper around Vec<u8> and [u8; N] representing Token::{Bytes, FixedBytes}. Distinguishes a list
+/// of u8 from bytes.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, PartialOrd, Ord)]
+pub struct Bytes<T>(pub T);
+
+impl Tokenize for Bytes<Vec<u8>> {
     fn from_token(token: Token) -> Result<Self, Error>
     where
         Self: Sized,
     {
         match token {
-            Token::Bytes(bytes) => Ok(bytes),
+            Token::Bytes(bytes) => Ok(Self(bytes)),
             _ => Err(Error::TypeMismatch),
         }
     }
 
     fn into_token(self) -> Token {
-        Token::Bytes(self)
+        Token::Bytes(self.0)
+    }
+}
+
+impl<const N: usize> Tokenize for Bytes<[u8; N]> {
+    fn from_token(token: Token) -> Result<Self, Error> {
+        match token {
+            Token::FixedBytes(bytes) => bytes
+                .try_into()
+                .map(Self)
+                .map_err(|_| Error::FixedBytesLengthsMismatch),
+            _ => Err(Error::TypeMismatch),
+        }
+    }
+
+    fn into_token(self) -> Token {
+        Token::FixedBytes(self.0.to_vec())
     }
 }
 
@@ -133,11 +143,12 @@ impl Tokenize for TransactionHash {
     where
         Self: Sized,
     {
-        <[u8; 32]>::from_token(token).map(Self)
+        let bytes = Bytes::from_token(token)?;
+        Ok(Self(bytes.0))
     }
 
     fn into_token(self) -> Token {
-        self.0.into_token()
+        Bytes(self.0).into_token()
     }
 }
 
@@ -202,31 +213,9 @@ impl Tokenize for bool {
     }
 }
 
-/// Marker trait for `Tokenize` types that are can tokenized to and from a `Token::Array` and
-/// `Token:FixedArray`. This is everything except `u8` because `Vec<u8>` and `[u8; n]` directly
-/// implement `Tokenize`.
-pub trait TokenizeArray: Tokenize {}
-
-macro_rules! single_tokenize_array {
-    ($($type: ty,)*) => {
-        $(
-            impl TokenizeArray for $type {}
-        )*
-    };
-}
-
-single_tokenize_array! {
-    String, Address, U256, I256, Vec<u8>, bool,
-    i8, i16, i32, i64, i128, u16, u32, u64, u128,
-}
-
-impl<T, const N: usize> TokenizeArray for [T; N] where T: TokenizeArray {}
-
-impl<T> TokenizeArray for Vec<T> where T: TokenizeArray {}
-
 impl<T, const N: usize> Tokenize for [T; N]
 where
-    T: TokenizeArray,
+    T: Tokenize,
 {
     fn from_token(token: Token) -> Result<Self, Error>
     where
@@ -257,7 +246,7 @@ where
 
 impl<T> Tokenize for Vec<T>
 where
-    T: TokenizeArray,
+    T: Tokenize,
 {
     fn from_token(token: Token) -> Result<Self, Error> {
         match token {
@@ -271,28 +260,8 @@ where
     }
 }
 
-impl<const N: usize> Tokenize for [u8; N] {
-    fn from_token(token: Token) -> Result<Self, Error> {
-        match token {
-            Token::FixedBytes(bytes) => bytes
-                .try_into()
-                .map_err(|_| Error::FixedBytesLengthsMismatch),
-            _ => Err(Error::TypeMismatch),
-        }
-    }
-
-    fn into_token(self) -> Token {
-        Token::FixedBytes(self.to_vec())
-    }
-}
-
 macro_rules! impl_single_tokenize_for_tuple {
     ($count: expr, $( $ty: ident : $no: tt, )*) => {
-        impl<$($ty, )*> TokenizeArray for ($($ty,)*)
-        where
-            $($ty: Tokenize,)*
-        {}
-
         impl<$($ty, )*> Tokenize for ($($ty,)*)
         where
             $($ty: Tokenize,)*
@@ -371,6 +340,8 @@ mod tests {
         assert_single_tokenize_roundtrip("abcd".to_string());
         assert_single_tokenize_roundtrip(vec![0u8, 1u8, 2u8]);
         assert_single_tokenize_roundtrip([0u8, 1u8, 2u8]);
+        assert_single_tokenize_roundtrip(Bytes(vec![0u8, 1u8, 2u8]));
+        assert_single_tokenize_roundtrip(Bytes([0u8, 1u8, 2u8]));
         assert_single_tokenize_roundtrip(Address::from_low_u64_be(42));
         assert_single_tokenize_roundtrip(TransactionHash::from_low_u64_be(42));
         assert_single_tokenize_roundtrip(());
@@ -380,8 +351,10 @@ mod tests {
 
     #[test]
     fn tokenize_bytes() {
-        assert!(matches!([0u8].into_token(), Token::FixedBytes(_)));
-        assert!(matches!(vec![0u8].into_token(), Token::Bytes(_)));
+        assert!(matches!([0u8].into_token(), Token::FixedArray(_)));
+        assert!(matches!(vec![0u8].into_token(), Token::Array(_)));
+        assert!(matches!(Bytes([0u8]).into_token(), Token::FixedBytes(_)));
+        assert!(matches!(Bytes(vec![0u8]).into_token(), Token::Bytes(_)));
     }
 
     #[test]

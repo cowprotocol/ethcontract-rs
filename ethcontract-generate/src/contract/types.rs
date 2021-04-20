@@ -6,7 +6,7 @@ use quote::quote;
 pub(crate) fn expand(kind: &ParamType) -> Result<TokenStream> {
     match kind {
         ParamType::Address => Ok(quote! { self::ethcontract::Address }),
-        ParamType::Bytes => Ok(quote! { Vec<u8> }),
+        ParamType::Bytes => Ok(quote! { self::ethcontract::tokens::Bytes<Vec<u8>> }),
         ParamType::Int(n) => match n / 8 {
             1 => Ok(quote! { i8 }),
             2 => Ok(quote! { i16 }),
@@ -35,7 +35,7 @@ pub(crate) fn expand(kind: &ParamType) -> Result<TokenStream> {
             // TODO(nlordell): what is the performance impact of returning large
             //   `FixedBytes` and `FixedArray`s with `web3`?
             let size = Literal::usize_unsuffixed(*n);
-            Ok(quote! { [u8; #size] })
+            Ok(quote! { self::ethcontract::tokens::Bytes<[u8; #size]> })
         }
         ParamType::FixedArray(t, n) => {
             // TODO(nlordell): see above
