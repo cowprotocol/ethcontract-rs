@@ -121,6 +121,7 @@ pub mod prelude {
     pub use crate::contract::{Event, EventMetadata, EventStatus, RawLog, StreamEvent, Topic};
     pub use crate::int::I256;
     pub use crate::secret::{Password, PrivateKey};
+    pub use crate::tokens::Bytes;
     pub use crate::transaction::{Account, GasPrice};
     pub use ethcontract_common::TransactionHash;
     pub use web3::api::Web3;

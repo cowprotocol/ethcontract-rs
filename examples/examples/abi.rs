@@ -80,6 +80,33 @@ async fn calls(instance: &AbiTypes) {
         .await
         .unwrap();
     assert_eq!(result, value);
+
+    let vec = vec![1u8, 2, 3];
+    let array = [1u8, 2, 3];
+    let result = instance
+        .roundtrip_u8_array(vec.clone())
+        .call()
+        .await
+        .unwrap();
+    assert_eq!(result, vec);
+    let result = instance
+        .roundtrip_fixed_u8_array(array)
+        .call()
+        .await
+        .unwrap();
+    assert_eq!(result, array);
+    let result = instance
+        .roundtrip_bytes(Bytes(vec.clone()))
+        .call()
+        .await
+        .unwrap();
+    assert_eq!(result.0, vec);
+    let result = instance
+        .roundtrip_fixed_bytes(Bytes(array))
+        .call()
+        .await
+        .unwrap();
+    assert_eq!(result.0, array);
 }
 
 async fn events(instance: &AbiTypes) {

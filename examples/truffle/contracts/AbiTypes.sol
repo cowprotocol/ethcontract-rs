@@ -47,7 +47,6 @@ contract AbiTypes {
   function getBool() public view returns (bool) {
     return this.getU256() & 0x1 != 0;
   }
-
   function getBytes() public view returns (bytes memory) {
     return abi.encodePacked(this.getU32());
   }
@@ -125,4 +124,18 @@ contract AbiTypes {
   function abiv2ArrayOfArrayOfStruct(S[][3] calldata s) public view returns (S[][3] calldata) {
     return s;
   }
+
+  function roundtripBytes(bytes calldata a) public view returns (bytes calldata) {
+    return a;
+  }
+  function roundtripFixedBytes(bytes3 a) public view returns (bytes3) {
+    return a;
+  }
+  function roundtripU8Array(uint8[] calldata a) public view returns (uint8[] calldata) {
+    return a;
+  }
+  function roundtripFixedU8Array(uint8[3] calldata a) public view returns (uint8[3] calldata) {
+    return a;
+  }
+
 }
