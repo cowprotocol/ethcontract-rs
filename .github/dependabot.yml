@@ -1,0 +1,46 @@
+version: 2
+updates:
+- package-ecosystem: cargo
+  directory: "/"
+  schedule:
+    interval: daily
+    time: "02:00"
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: ethabi
+    versions:
+    - ">= 9.0.a, < 9.1"
+  - dependency-name: jsonrpc-core
+    versions:
+    - ">= 12.a, < 13"
+  - dependency-name: jsonrpc-core
+    versions:
+    - ">= 13.a, < 14"
+  - dependency-name: jsonrpc-core
+    versions:
+    - ">= 14.a, < 15"
+  - dependency-name: jsonrpc-core
+    versions:
+    - ">= 15.a, < 16"
+  - dependency-name: tokio
+    versions:
+    - "> 0.2"
+  - dependency-name: arrayvec
+    versions:
+    - 0.6.0
+    - 0.7.0
+  rebase-strategy: disabled
+- package-ecosystem: npm
+  directory: "/examples/truffle"
+  schedule:
+    interval: daily
+    time: "02:00"
+  open-pull-requests-limit: 10
+  versioning-strategy: increase
+  ignore:
+  - dependency-name: truffle
+    versions:
+    - 5.1.63
+    - 5.1.64
+    - 5.3.2
+  rebase-strategy: disabled
