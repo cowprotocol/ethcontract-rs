@@ -72,7 +72,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             where
                 F: std::future::Future<
                        Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
-                   > + Send + Unpin + 'static,
+                   > + Send + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
                 Contract::with_deployment_info(web3, address, None)
@@ -95,7 +95,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             where
                 F: std::future::Future<
                        Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
-                   > + Send + Unpin + 'static,
+                   > + Send + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
                 use self::ethcontract::Instance;
