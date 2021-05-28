@@ -195,6 +195,8 @@ impl<T: Transport> TransactionBuilder<T> {
                     gas_price,
                     value: self.value,
                     data: self.data.clone(),
+                    transaction_type: None,
+                    access_list: None,
                 },
                 None,
             )

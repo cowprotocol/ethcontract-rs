@@ -141,6 +141,8 @@ impl TransactionRequestOptions {
             data: self.0.data,
             nonce: self.0.nonce,
             condition: self.1,
+            transaction_type: None,
+            access_list: None,
         }
     }
 }
@@ -212,6 +214,8 @@ async fn build_offline_signed_transaction<T: Transport>(
                 value: options.value.unwrap_or_default(),
                 data: options.data.unwrap_or_default(),
                 chain_id,
+                transaction_type: None,
+                access_list: None,
             },
             &key,
         )
@@ -238,6 +242,8 @@ async fn resolve_gas_limit<T: Transport>(
                     gas_price: gas_price.value(),
                     value: options.value,
                     data: options.data.clone(),
+                    transaction_type: None,
+                    access_list: None,
                 },
                 None,
             )

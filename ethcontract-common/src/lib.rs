@@ -12,7 +12,7 @@ pub mod truffle;
 pub use crate::abiext::FunctionExt;
 pub use crate::bytecode::Bytecode;
 pub use crate::truffle::Artifact;
-pub use ethabi_fork_ethcontract::{self as abi, Contract as Abi};
+pub use ethabi::{self as abi, Contract as Abi};
 use serde::Deserialize;
 pub use web3::types::Address;
 pub use web3::types::H256 as TransactionHash;
