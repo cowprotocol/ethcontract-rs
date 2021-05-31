@@ -499,11 +499,13 @@ impl I256 {
     }
 
     /// Write to the slice in big-endian format.
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_big_endian(&self, bytes: &mut [u8]) {
         self.0.to_big_endian(bytes)
     }
 
     /// Write to the slice in little-endian format.
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_little_endian(&self, bytes: &mut [u8]) {
         self.0.to_little_endian(bytes)
     }
