@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/gnosis/ethcontract-rs.svg?branch=main)](https://travis-ci.org/gnosis/ethcontract-rs)
 [![Crates.io](https://img.shields.io/crates/v/ethcontract.svg)](https://crates.io/crates/ethcontract)
 [![Docs.rs](https://docs.rs/ethcontract/badge.svg)](https://docs.rs/ethcontract)
-[![Rustc Version](https://img.shields.io/badge/rustc-1.47+-lightgray.svg)](https://blog.rust-lang.org/2019/12/19/Rust-1.47.0.html)
+[![Rustc Version](https://img.shields.io/badge/rustc-1.52+-lightgray.svg)](https://blog.rust-lang.org/2021/05/06/Rust-1.52.0.html)
 
 # `ethcontract-rs`
 
@@ -30,7 +30,7 @@ for interacting with contract functions in a type-safe way.
 
 ### Minimum Supported Rust Version
 
-The minimum supported Rust version is 1.42.
+The minimum supported Rust version is 1.52.
 
 ## Generator API
 
