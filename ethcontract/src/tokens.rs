@@ -15,6 +15,7 @@
 use crate::I256;
 use arrayvec::ArrayVec;
 use ethcontract_common::{abi::Token, TransactionHash};
+use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 use web3::types::{Address, U256};
 
@@ -51,7 +52,9 @@ pub trait Tokenize {
 
 /// Wrapper around Vec<u8> and [u8; N] representing Token::{Bytes, FixedBytes}. Distinguishes a list
 /// of u8 from bytes.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize,
+)]
 pub struct Bytes<T>(pub T);
 
 impl Tokenize for Bytes<Vec<u8>> {
