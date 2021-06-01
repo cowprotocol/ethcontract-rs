@@ -2,7 +2,7 @@
 name = "examples-generate"
 version = "0.0.0"
 publish = false
-authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
+authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
 
