@@ -50,7 +50,7 @@ fn expand_functions(cx: &Context) -> Result<TokenStream> {
     if functions.is_empty() {
         // NOTE: The methods struct is still needed when there are no functions
         //   as it contains the the runtime instance. The code is setup this way
-        //   so that the contract can implement `Deref` targetting the methods
+        //   so that the contract can implement `Deref` targeting the methods
         //   struct and, therefore, call the methods directly.
         return Ok(quote! {
             #methods_attrs
@@ -60,7 +60,7 @@ fn expand_functions(cx: &Context) -> Result<TokenStream> {
 
     Ok(quote! {
         impl Contract {
-            /// Retrives a reference to type containing all the generated
+            /// Retrieves a reference to type containing all the generated
             /// contract methods. This can be used for methods where the name
             /// would collide with a common method (like `at` or `deployed`).
             pub fn methods(&self) -> &Methods {
@@ -233,7 +233,7 @@ mod tests {
     }
 
     #[test]
-    fn expand_fn_outputs_muliple() {
+    fn expand_fn_outputs_multiple() {
         assert_quote!(
             expand_fn_outputs(&[
                 Param {

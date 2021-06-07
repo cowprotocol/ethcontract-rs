@@ -117,7 +117,7 @@ impl Source {
 
     /// Retrieves the source JSON of the artifact this will either read the JSON
     /// from the file system or retrieve a contract ABI from the network
-    /// dependending on the source type.
+    /// depending on the source type.
     pub fn artifact_json(&self) -> Result<String> {
         match self {
             Source::Local(path) => get_local_contract(path),
@@ -202,7 +202,7 @@ fn get_npm_contract(package: &str) -> Result<String> {
     Ok(abi_or_artifact(json))
 }
 
-/// A best-effort coersion of an ABI or Truffle artifact JSON document into a
+/// A best-effort coercion of an ABI or Truffle artifact JSON document into a
 /// Truffle artifact JSON document.
 ///
 /// This method uses the fact that ABIs are arrays and Truffle artifacts are
