@@ -19,7 +19,7 @@ async fn main() {
         .expect("failed to get network ID");
     let instance = RustCoin::deployed(&web3)
         .await
-        .expect("faild to find deployment");
+        .expect("failed to find deployment");
 
     println!(
         "RustCoin deployed on networks {} at {:?}",

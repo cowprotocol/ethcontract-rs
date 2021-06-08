@@ -400,7 +400,7 @@ fn expand_event_enum(cx: &Context) -> TokenStream {
         let mut events = cx.artifact.abi.events().collect::<Vec<_>>();
 
         // NOTE: We sort the events by name so that the generated enum is
-        //   consistent. This also faciliates testing as so that the same ABI
+        //   consistent. This also facilitates testing as so that the same ABI
         //   yields consistent code.
         events.sort_unstable_by_key(|event| &event.name);
 
@@ -463,7 +463,7 @@ fn expand_event_parse_log(cx: &Context) -> TokenStream {
         .iter()
         .filter(|(event, _, _)| !event.anonymous)
         .map(|(event, struct_name, decode_event)| {
-            // These are all possible stardard (i.e. non-anonymous) events that
+            // These are all possible standard (i.e. non-anonymous) events that
             // the contract can produce, along with its signature and index in
             // the contract ABI. For these, we match topic 0 to the signature
             // and try to decode.
@@ -520,7 +520,7 @@ fn expand_event_parse_log(cx: &Context) -> TokenStream {
 /// Expands an event property type.
 ///
 /// Note that this is slightly different than an expanding a Solidity type as
-/// complex types like arrays and strings get emited as hashes when they are
+/// complex types like arrays and strings get emitted as hashes when they are
 /// indexed.
 fn expand_input_type(input: &EventParam) -> Result<TokenStream> {
     Ok(match (&input.kind, input.indexed) {

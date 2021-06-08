@@ -63,7 +63,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             /// Creates a new contract instance with the specified `web3`
             /// provider at the given `Address`.
             ///
-            /// Note that this does not verify that a contract with a maching
+            /// Note that this does not verify that a contract with a matching
             /// `Abi` is actually deployed at the given address.
             pub fn at<F, T>(
                 web3: &self::ethcontract::web3::api::Web3<T>,
