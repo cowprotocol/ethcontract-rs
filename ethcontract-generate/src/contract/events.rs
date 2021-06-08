@@ -122,7 +122,7 @@ fn expand_params(event: &Event) -> Result<Vec<(TokenStream, TokenStream)>> {
         .map(|(i, input)| {
             // NOTE: Events can contain nameless values.
             let name = util::expand_input_name(i, &input.name);
-            let ty = expand_input_type(&input)?;
+            let ty = expand_input_type(input)?;
 
             Ok((name, ty))
         })
@@ -349,7 +349,7 @@ fn expand_builder_topic_filter(topic_index: usize, param: &EventParam) -> Result
     } else {
         util::safe_ident(&param.name.to_snake_case())
     };
-    let ty = expand_input_type(&param)?;
+    let ty = expand_input_type(param)?;
 
     Ok(quote! {
         #doc
@@ -407,7 +407,7 @@ fn expand_event_enum(cx: &Context) -> TokenStream {
         events
             .into_iter()
             .map(|event| {
-                let struct_name = expand_struct_name(&event);
+                let struct_name = expand_struct_name(event);
                 quote! {
                     #struct_name(self::event_data::#struct_name)
                 }
@@ -434,12 +434,12 @@ fn expand_event_parse_log(cx: &Context) -> TokenStream {
             .abi
             .events()
             .map(|event| {
-                let struct_name = expand_struct_name(&event);
+                let struct_name = expand_struct_name(event);
 
                 let name = Literal::string(&event.name);
                 let decode_event = quote! {
                     log.clone().decode(
-                        &Contract::artifact()
+                        Contract::artifact()
                             .abi
                             .event(#name)
                             .expect("generated event decode")
@@ -791,7 +791,7 @@ mod tests {
                         .map(|topic| match topic {
                             #foo_signature => Ok(Event::Foo(
                                 log.clone().decode(
-                                    &Contract::artifact()
+                                    Contract::artifact()
                                         .abi
                                         .event("Foo")
                                         .expect("generated event decode")
@@ -805,7 +805,7 @@ mod tests {
                     }
 
                     if let Ok(data) = log.clone().decode(
-                        &Contract::artifact()
+                        Contract::artifact()
                             .abi
                             .event("Bar")
                             .expect("generated event decode")
