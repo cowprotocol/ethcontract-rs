@@ -113,13 +113,13 @@ pub enum ExecutionError {
 impl From<Web3Error> for ExecutionError {
     fn from(err: Web3Error) -> Self {
         if let Web3Error::Rpc(jsonrpc_err) = &err {
-            if let Some(err) = ganache::get_encoded_error(&jsonrpc_err) {
+            if let Some(err) = ganache::get_encoded_error(jsonrpc_err) {
                 return err;
             }
-            if let Some(err) = parity::get_encoded_error(&jsonrpc_err) {
+            if let Some(err) = parity::get_encoded_error(jsonrpc_err) {
                 return err;
             }
-            if let Some(err) = geth::get_encoded_error(&jsonrpc_err) {
+            if let Some(err) = geth::get_encoded_error(jsonrpc_err) {
                 return err;
             }
         }
