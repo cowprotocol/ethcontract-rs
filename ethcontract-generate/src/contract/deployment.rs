@@ -6,9 +6,9 @@ use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 
 pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
-    let deployed = expand_deployed(&cx);
+    let deployed = expand_deployed(cx);
     let deploy =
-        expand_deploy(&cx).context("error generating contract `deploy` associated function")?;
+        expand_deploy(cx).context("error generating contract `deploy` associated function")?;
 
     Ok(quote! {
         #deployed
@@ -95,7 +95,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
 
         let link = {
             let link_libraries = libs.iter().map(|(name, field)| {
-                let name_lit = Literal::string(&name);
+                let name_lit = Literal::string(name);
 
                 quote! {
                     bytecode.link(#name_lit, libs.#field).expect("valid library");

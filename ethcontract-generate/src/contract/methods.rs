@@ -29,7 +29,7 @@ fn expand_functions(cx: &Context) -> Result<TokenStream> {
         .functions()
         .map(|function| {
             let signature = function.abi_signature();
-            expand_function(&cx, function, aliases.remove(&signature))
+            expand_function(cx, function, aliases.remove(&signature))
                 .with_context(|| format!("error expanding function '{}'", signature))
         })
         .collect::<Result<Vec<_>>>()?;
