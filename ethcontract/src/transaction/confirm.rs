@@ -8,7 +8,6 @@
 
 use crate::errors::ExecutionError;
 use crate::transaction::TransactionResult;
-use futures::StreamExt as _;
 use futures_timer::Delay;
 use std::time::Duration;
 use web3::api::Web3;
