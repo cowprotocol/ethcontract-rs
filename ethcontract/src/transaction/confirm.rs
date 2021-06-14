@@ -120,35 +120,31 @@ impl<T: Transport> ConfirmationContext<'_, T> {
         };
         let tx = self.web3.eth().transaction_receipt(self.tx).await?;
 
-        let (target_block, tx_result) =
-            match tx.and_then(|tx| Some((tx.block_number?, tx))) {
-                Some((tx_block, tx)) => {
-                    let target_block = tx_block + self.params.confirmations;
+        let (target_block, tx_result) = match tx.and_then(|tx| Some((tx.block_number?, tx))) {
+            Some((tx_block, tx)) => {
+                let target_block = tx_block + self.params.confirmations;
 
-                    // This happens in two cases:
-                    // - we don't need additional confirmation, transaction receipt is enough,
-                    // - the transaction was mined before we queried `latest_block`, thus
-                    //   `latest_block >= tx_block`.
-                    if latest_block >= target_block || self.params.confirmations == 0 {
-                        return Ok(Check::Confirmed(tx));
-                    }
+                // This happens in two cases:
+                // - we don't need additional confirmation, transaction receipt is enough,
+                // - the transaction was mined before we queried `latest_block`, thus
+                //   `latest_block >= tx_block`.
+                if latest_block >= target_block || self.params.confirmations == 0 {
+                    return Ok(Check::Confirmed(tx));
+                }
 
-                    (
-                        target_block,
-                        TransactionResult::Receipt(tx),
-                    )
-                }
-                None => {
-                    // We know that transaction was not mined at block `latest_block` because
-                    // we've fetched `latest_block` before we've fetched transaction receipt.
-                    // Thus, we need to wait at least one block after the `latest_block`,
-                    // and then `self.params.confirmations` blocks on top of that.
-                    (
-                        latest_block + self.params.confirmations + 1,
-                        TransactionResult::Hash(self.tx),
-                    )
-                }
-            };
+                (target_block, TransactionResult::Receipt(tx))
+            }
+            None => {
+                // We know that transaction was not mined at block `latest_block` because
+                // we've fetched `latest_block` before we've fetched transaction receipt.
+                // Thus, we need to wait at least one block after the `latest_block`,
+                // and then `self.params.confirmations` blocks on top of that.
+                (
+                    latest_block + self.params.confirmations + 1,
+                    TransactionResult::Hash(self.tx),
+                )
+            }
+        };
 
         if let Some(block_timeout) = self.params.block_timeout {
             let starting_block = *self.starting_block.get_or_insert(latest_block);
@@ -166,16 +162,13 @@ impl<T: Transport> ConfirmationContext<'_, T> {
     /// and waits till the target block number is reached.
     ///
     /// This method returns the latest block number if it is known.
-    async fn wait_for_blocks(
-        &self,
-        target_block: U64,
-    ) -> Result<U64, ExecutionError> {
+    async fn wait_for_blocks(&self, target_block: U64) -> Result<U64, ExecutionError> {
         loop {
             delay(self.params.poll_interval).await;
             let latest_block = self.web3.eth().block_number().await?;
 
             if target_block <= latest_block {
-                break Ok(latest_block)
+                break Ok(latest_block);
             }
         }
     }
