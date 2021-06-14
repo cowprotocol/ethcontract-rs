@@ -85,17 +85,12 @@ pub async fn wait_for_confirmation<T: Transport>(
     };
 
     loop {
-        let (target_block, remaining_confirmations) = match context.check(latest_block).await? {
+        let target_block = match context.check(latest_block).await? {
             Check::Confirmed(tx) => return Ok(tx),
-            Check::Pending {
-                target_block,
-                remaining_confirmations,
-            } => (target_block, remaining_confirmations),
+            Check::Pending(target_block) => target_block,
         };
 
-        latest_block = context
-            .wait_for_blocks(target_block, remaining_confirmations)
-            .await?;
+        latest_block = Some(context.wait_for_blocks(target_block).await?);
     }
 }
 
@@ -125,27 +120,31 @@ impl<T: Transport> ConfirmationContext<'_, T> {
         };
         let tx = self.web3.eth().transaction_receipt(self.tx).await?;
 
-        let (target_block, remaining_confirmations, tx_result) =
+        let (target_block, tx_result) =
             match tx.and_then(|tx| Some((tx.block_number?, tx))) {
                 Some((tx_block, tx)) => {
                     let target_block = tx_block + self.params.confirmations;
-                    let remaining_confirmations = target_block.saturating_sub(latest_block);
 
-                    if remaining_confirmations.is_zero() {
+                    // This happens in two cases:
+                    // - we don't need additional confirmation, transaction receipt is enough,
+                    // - the transaction was mined before we queried `latest_block`, thus
+                    //   `latest_block >= tx_block`.
+                    if latest_block >= target_block || self.params.confirmations == 0 {
                         return Ok(Check::Confirmed(tx));
                     }
 
                     (
                         target_block,
-                        remaining_confirmations.as_usize(),
                         TransactionResult::Receipt(tx),
                     )
                 }
                 None => {
-                    let remaining_confirmations = self.params.confirmations + 1;
+                    // We know that transaction was not mined at block `latest_block` because
+                    // we've fetched `latest_block` before we've fetched transaction receipt.
+                    // Thus, we need to wait at least one block after the `latest_block`,
+                    // and then `self.params.confirmations` blocks on top of that.
                     (
-                        latest_block + remaining_confirmations,
-                        remaining_confirmations,
+                        latest_block + self.params.confirmations + 1,
                         TransactionResult::Hash(self.tx),
                     )
                 }
@@ -160,69 +159,25 @@ impl<T: Transport> ConfirmationContext<'_, T> {
             }
         }
 
-        Ok(Check::Pending {
-            target_block,
-            remaining_confirmations,
-        })
+        Ok(Check::Pending(target_block))
     }
 
-    /// Waits for blocks to be mined. This method tries to use a block filter to
-    /// wait for a certain number of blocks to be mined. If that fails, it falls
-    /// back to polling the latest block number to wait until a target block
-    /// number is reached.
+    /// Waits for blocks to be mined. This method polls the latest block number
+    /// and waits till the target block number is reached.
     ///
-    /// This method returns the latest block number if it is known. Specifically
-    /// if the polling method is used to query the latest block, then this will
-    /// return the `target_block` since the node is currently at that block
-    /// height. This method returns `None` otherwise as block filters can emit
-    /// block hashes for blocks at the same height because of re-orgs, so the
-    /// latest block needs to be queried after the waiting period as it is not
-    /// garanteed to be `target_block`.
+    /// This method returns the latest block number if it is known.
     async fn wait_for_blocks(
         &self,
         target_block: U64,
-        block_count: usize,
-    ) -> Result<Option<U64>, ExecutionError> {
-        match self.wait_for_blocks_with_filter(block_count).await {
-            Ok(_) => Ok(None),
-            Err(_) => {
-                // NOTE: In the case we fail to create a filter (usually because
-                //   the node doesn't support filters like Infura over HTTPS) or
-                //   we fail to query the filter (node is behind a load balancer
-                //   or cleaned up the filter) then fall back to polling.
-                self.wait_for_blocks_with_polling(target_block).await?;
-                Ok(Some(target_block))
-            }
-        }
-    }
-
-    /// Waits for a certain number of blocks to be mined using a block filter.
-    async fn wait_for_blocks_with_filter(&self, block_count: usize) -> Result<(), ExecutionError> {
-        let block_filter = self.web3.eth_filter().create_blocks_filter().await?;
-        let stream = block_filter.stream(self.params.poll_interval);
-        futures::pin_mut!(stream);
-
-        for _ in 0..block_count {
-            stream
-                .next()
-                .await
-                .ok_or(ExecutionError::StreamEndedUnexpectedly)??;
-        }
-
-        Ok(())
-    }
-
-    /// Waits for the block chain to reach the target height by polling the
-    /// current latest block.
-    async fn wait_for_blocks_with_polling(&self, target_block: U64) -> Result<(), ExecutionError> {
-        while {
+    ) -> Result<U64, ExecutionError> {
+        loop {
             delay(self.params.poll_interval).await;
             let latest_block = self.web3.eth().block_number().await?;
 
-            latest_block < target_block
-        } {}
-
-        Ok(())
+            if target_block <= latest_block {
+                break Ok(latest_block)
+            }
+        }
     }
 }
 
@@ -234,10 +189,12 @@ enum Check {
     Confirmed(TransactionReceipt),
     /// The transaction is not yet confirmed, and requires additional block
     /// confirmations.
-    Pending {
-        target_block: U64,
-        remaining_confirmations: usize,
-    },
+    ///
+    /// Contains estimated target block after which the transaction
+    /// should be mined and confirmed. Note that waiting for that block does
+    /// not guarantee that the transaction is confirmed. An additional
+    /// check is required.
+    Pending(U64),
 }
 
 /// Create a new delay that may resolve immediately when delayed for a zero
