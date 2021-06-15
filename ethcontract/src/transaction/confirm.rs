@@ -62,6 +62,33 @@ impl ConfirmParams {
             block_timeout: DEFAULT_BLOCK_TIMEOUT,
         }
     }
+
+    /// Set new value for [`confirmations`].
+    ///
+    /// [`confirmations`]: #structfield.confirmations
+    #[inline]
+    pub fn confirmations(mut self, confirmations: usize) -> Self {
+        self.confirmations = confirmations;
+        self
+    }
+
+    /// Set new value for [`poll_interval`].
+    ///
+    /// [`poll_interval`]: #structfield.poll_interval
+    #[inline]
+    pub fn poll_interval(mut self, poll_interval: Duration) -> Self {
+        self.poll_interval = poll_interval;
+        self
+    }
+
+    /// Set new value for [`block_timeout`].
+    ///
+    /// [`block_timeout`]: #structfield.block_timeout
+    #[inline]
+    pub fn block_timeout(mut self, block_timeout: Option<usize>) -> Self {
+        self.block_timeout = block_timeout;
+        self
+    }
 }
 
 impl Default for ConfirmParams {
