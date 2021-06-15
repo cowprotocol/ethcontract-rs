@@ -88,6 +88,15 @@ impl ConfirmParams {
         self
     }
 
+    /// Set new values for exponential backoff settings.
+    #[inline]
+    pub fn poll_interval(mut self, min: Duration, max: Duration, factor: f32) -> Self {
+        self.poll_interval_min = min;
+        self.poll_interval_max = max;
+        self.poll_interval_factor = factor;
+        self
+    }
+
     /// Set new value for [`poll_interval_min`].
     ///
     /// [`poll_interval_min`]: #structfield.poll_interval_min
