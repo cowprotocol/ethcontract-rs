@@ -294,8 +294,7 @@ mod tests {
         transport.add_response(json!(tx_hash));
         transport.add_response(json!("0x1"));
         transport.add_response(json!(null));
-        transport.add_response(json!("0xf0"));
-        transport.add_response(json!([H256::repeat_byte(2), H256::repeat_byte(3)]));
+        transport.add_response(json!("0x2"));
         transport.add_response(json!("0x3"));
         transport.add_response(json!({
             "transactionHash": tx_hash,
@@ -332,8 +331,7 @@ mod tests {
         transport.assert_request("eth_sendRawTransaction", &[json!(tx_raw)]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(tx_hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
+        transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(tx_hash)]);
         transport.assert_no_more_requests();

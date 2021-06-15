@@ -233,13 +233,7 @@ mod tests {
         // transaction pending
         transport.add_response(json!("0x1"));
         transport.add_response(json!(null));
-        // filter created
-        transport.add_response(json!("0xf0"));
-        // polled block filter for 1 new block
-        transport.add_response(json!([]));
-        transport.add_response(json!([]));
-        transport.add_response(json!([H256::repeat_byte(2)]));
-        // check transaction was mined
+        // poll for one block
         transport.add_response(json!("0x2"));
         transport.add_response(generate_tx_receipt(hash, 2));
 
@@ -250,10 +244,6 @@ mod tests {
         assert_eq!(confirm.transaction_hash, hash);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
         transport.assert_no_more_requests();
@@ -280,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn confirmations_with_filter() {
+    fn confirm_mined_transaction_when_mining_is_delayed() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
@@ -289,39 +279,66 @@ mod tests {
         // transaction pending
         transport.add_response(json!("0x1"));
         transport.add_response(json!(null));
-        // filter created
-        transport.add_response(json!("0xf0"));
-        // polled block filter 4 times
-        transport.add_response(json!([H256::repeat_byte(2), H256::repeat_byte(3)]));
-        transport.add_response(json!([]));
-        transport.add_response(json!([H256::repeat_byte(4)]));
-        transport.add_response(json!([H256::repeat_byte(5)]));
-        // check confirmation again - transaction mined on block 3 instead of 2
-        transport.add_response(json!("0x5"));
-        transport.add_response(generate_tx_receipt(hash, 3));
-        // needs to wait 1 more block - creating filter again and polling
-        transport.add_response(json!("0xf1"));
-        transport.add_response(json!([H256::repeat_byte(6)]));
-        // check confirmation one last time
-        transport.add_response(json!("0x6"));
-        transport.add_response(generate_tx_receipt(hash, 3));
+        // poll for one block
+        transport.add_response(json!("0x2"));
+        // transaction still not mined
+        transport.add_response(json!(null));
+        // poll for one more block
+        transport.add_response(json!("0x3"));
+        // now it's mined
+        transport.add_response(generate_tx_receipt(hash, 2));
 
-        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(3))
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::mined())
             .wait()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf1")]);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn confirm_mined_transaction_when_mining_is_ahead_of_us() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let hash = H256::repeat_byte(0xff);
+
+        // current block is 2, tx was mined on block 1
+        transport.add_response(json!("0x2"));
+        transport.add_response(generate_tx_receipt(hash, 1));
+
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::mined())
+            .immediate()
+            .expect("transaction confirmation failed");
+
+        assert_eq!(confirm.transaction_hash, hash);
+        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
+        transport.assert_no_more_requests();
+    }
+
+    #[test]
+    fn confirmations_when_mining_is_way_ahead_of_us() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+
+        let hash = H256::repeat_byte(0xff);
+
+        // current block is 3, tx was mined on block 1, so we can confirm it
+        transport.add_response(json!("0x3"));
+        transport.add_response(generate_tx_receipt(hash, 1));
+
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(2))
+            .immediate()
+            .expect("transaction confirmation failed");
+
+        assert_eq!(confirm.transaction_hash, hash);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
         transport.assert_no_more_requests();
@@ -337,8 +354,6 @@ mod tests {
         // transaction pending
         transport.add_response(json!("0x1"));
         transport.add_response(json!(null));
-        // filter created not supported
-        transport.add_response(json!({ "error": "eth_newBlockFilter not supported" }));
         // poll block number until new block is found
         transport.add_response(json!("0x1"));
         transport.add_response(json!("0x1"));
@@ -357,7 +372,6 @@ mod tests {
         assert_eq!(confirm.transaction_hash, hash);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);
@@ -369,41 +383,27 @@ mod tests {
     }
 
     #[test]
-    fn confirmations_with_polling_on_filter_error() {
+    fn confirmations_with_polling_when_mining_is_slightly_ahead_of_us() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
         let hash = H256::repeat_byte(0xff);
 
-        // transaction pending
-        transport.add_response(json!("0x1"));
-        transport.add_response(json!(null));
-        // filter created
-        transport.add_response(json!("0xf0"));
-        // polled block filter until failure
-        transport.add_response(json!([H256::repeat_byte(2)]));
-        transport.add_response(json!({ "error": "filter not found" }));
-        // poll block number until new block is found
+        // current block is 2, tx was mined on block 1
         transport.add_response(json!("0x2"));
-        transport.add_response(json!("0x2"));
+        transport.add_response(generate_tx_receipt(hash, 1));
+        // still waiting for one more block
         transport.add_response(json!("0x2"));
         transport.add_response(json!("0x3"));
-        // check transaction was mined - note that the block number doesn't get
-        // re-queried and is re-used from the polling loop.
-        transport.add_response(generate_tx_receipt(hash, 2));
+        transport.add_response(generate_tx_receipt(hash, 1));
 
-        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
-            .wait()
+        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(2))
+            .immediate()
             .expect("transaction confirmation failed");
 
         assert_eq!(confirm.transaction_hash, hash);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
-        transport.assert_request("eth_blockNumber", &[]);
-        transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
@@ -420,8 +420,6 @@ mod tests {
         // transaction pending
         transport.add_response(json!("0x1"));
         transport.add_response(json!(null));
-        // filter created not supported
-        transport.add_response(json!({ "error": "eth_newBlockFilter not supported" }));
         // poll block number which skipped 2
         transport.add_response(json!("0x4"));
         // check transaction was mined (`eth_blockNumber` request is reused)
@@ -434,14 +432,13 @@ mod tests {
         assert_eq!(confirm.transaction_hash, hash);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
         transport.assert_no_more_requests();
     }
 
     #[test]
-    fn confirmations_with_reorg_tx_receipt() {
+    fn confirmations_with_polling_reorg_tx_receipt() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
@@ -450,24 +447,19 @@ mod tests {
         // transaction pending
         transport.add_response(json!("0x1"));
         transport.add_response(json!(null));
-        // filter created - poll for 2 blocks
-        transport.add_response(json!("0xf0"));
-        transport.add_response(json!([H256::repeat_byte(2)]));
-        transport.add_response(json!([H256::repeat_byte(3)]));
-        // check confirmation again - transaction mined on block 3
+        // poll for 2 blocks
+        transport.add_response(json!("0x2"));
         transport.add_response(json!("0x3"));
+        // check confirmation again - transaction mined on block 3
         transport.add_response(generate_tx_receipt(hash, 3));
-        // needs to wait 1 more block - creating filter again and polling
-        transport.add_response(json!("0xf1"));
-        transport.add_response(json!([H256::repeat_byte(4)]));
-        // check confirmation - reorg happened, tx mined on block 4!
+        // needs to wait 1 more block
+        transport.add_response(json!("0x3"));
         transport.add_response(json!("0x4"));
+        // check confirmation - reorg happened, tx mined on block 4!
         transport.add_response(generate_tx_receipt(hash, 4));
         // wait for another block
-        transport.add_response(json!("0xf2"));
-        transport.add_response(json!([H256::repeat_byte(5)]));
-        // check confirmation - and we are satisfied.
         transport.add_response(json!("0x5"));
+        // check confirmation - and we are satisfied.
         transport.add_response(generate_tx_receipt(hash, 4));
 
         let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(1))
@@ -477,72 +469,12 @@ mod tests {
         assert_eq!(confirm.transaction_hash, hash);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
+        transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf1")]);
+        transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf2")]);
-        transport.assert_request("eth_blockNumber", &[]);
-        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_no_more_requests();
-    }
-
-    #[test]
-    fn confirmations_with_reorg_blocks() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let hash = H256::repeat_byte(0xff);
-
-        // transaction pending
-        transport.add_response(json!("0x1"));
-        transport.add_response(json!(null));
-        // filter created - poll for 2 blocks
-        transport.add_response(json!("0xf0"));
-        transport.add_response(json!([H256::repeat_byte(2)]));
-        transport.add_response(json!([H256::repeat_byte(3)]));
-        transport.add_response(json!([H256::repeat_byte(4)]));
-        // check confirmation again - transaction mined on block 3
-        transport.add_response(json!("0x4"));
-        transport.add_response(generate_tx_receipt(hash, 3));
-        // needs to wait 1 more block - creating filter again and polling
-        transport.add_response(json!("0xf1"));
-        transport.add_response(json!([H256::repeat_byte(5)]));
-        // check confirmation - reorg happened and block 4 was replaced
-        transport.add_response(json!("0x4"));
-        transport.add_response(generate_tx_receipt(hash, 3));
-        // wait for another block
-        transport.add_response(json!("0xf2"));
-        transport.add_response(json!([H256::repeat_byte(6)]));
-        // check confirmation - and we are satisfied.
-        transport.add_response(json!("0x5"));
-        transport.add_response(generate_tx_receipt(hash, 3));
-
-        let confirm = wait_for_confirmation(&web3, hash, ConfirmParams::with_confirmations(2))
-            .wait()
-            .expect("transaction confirmation failed");
-
-        assert_eq!(confirm.transaction_hash, hash);
-        transport.assert_request("eth_blockNumber", &[]);
-        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf0")]);
-        transport.assert_request("eth_blockNumber", &[]);
-        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf1")]);
-        transport.assert_request("eth_blockNumber", &[]);
-        transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf2")]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
         transport.assert_no_more_requests();
@@ -563,15 +495,10 @@ mod tests {
         // Initial check
         transport.add_response(json!("0x0"));
         transport.add_response(json!(null));
-        // Wait one block to mine plus number of confirmations
-        transport.add_response(json!("0xf1"));
-        transport.add_response(json!(vec![H256::zero(); 4]));
         // Check again, at block 4
         transport.add_response(json!("0x4"));
         transport.add_response(json!(null));
         // Wait for more blocks
-        transport.add_response(json!("0xf2"));
-        transport.add_response(json!(vec![H256::zero(); 4]));
         // Final check at block 8, since the earliest the transaction can be
         // confirmed is at block 12 which is past the block timeout.
         transport.add_response(json!("0x8"));
@@ -590,12 +517,8 @@ mod tests {
 
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf1")]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
-        transport.assert_request("eth_newBlockFilter", &[]);
-        transport.assert_request("eth_getFilterChanges", &[json!("0xf2")]);
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(hash)]);
         transport.assert_no_more_requests();
