@@ -9,6 +9,7 @@
 use crate::errors::ExecutionError;
 use crate::transaction::TransactionResult;
 use futures_timer::Delay;
+use std::cmp::min;
 use std::time::Duration;
 use web3::api::Web3;
 use web3::types::{TransactionReceipt, H256, U64};
@@ -24,23 +25,37 @@ pub struct ConfirmParams {
     /// values indicate that extra blocks should be waited for on top of the
     /// block where the transaction was mined.
     pub confirmations: usize,
-    /// The polling interval. This is used as the interval between consecutive
-    /// `eth_getFilterChanges` calls to get filter updates, or the interval to
-    /// wait between confirmation checks in case filters are not supported by
-    /// the node (for example when using Infura over HTTP(S)).
-    pub poll_interval: Duration,
+    /// Minimal delay between consecutive `eth_blockNumber` calls.
+    /// We wait for transaction confirmation by polling node for latest
+    /// block number. We use exponential backoff to control how often
+    /// we poll the node.
+    pub poll_interval_min: Duration,
+    /// Maximal delay between consecutive `eth_blockNumber` calls.
+    pub poll_interval_max: Duration,
+    /// Factor, by which the delay between consecutive `eth_blockNumber`
+    /// calls is multiplied after each call.
+    pub poll_interval_factor: f32,
     /// The maximum number of blocks to wait for a transaction to get confirmed.
     pub block_timeout: Option<usize>,
 }
 
-/// The default poll interval to use for confirming transactions.
-///
-/// Note that this is currently 7 seconds as this is what was chosen in `web3`
-/// crate.
+/// Default minimal delay between polling the node for transaction confirmation.
 #[cfg(not(test))]
-pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(7);
+const DEFAULT_POLL_INTERVAL_MIN: Duration = Duration::from_millis(250);
 #[cfg(test)]
-pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(0);
+const DEFAULT_POLL_INTERVAL_MIN: Duration = Duration::from_millis(0);
+
+/// Default maximal delay between polling the node for transaction confirmation.
+#[cfg(not(test))]
+const DEFAULT_POLL_INTERVAL_MAX: Duration = Duration::from_millis(7000);
+#[cfg(test)]
+const DEFAULT_POLL_INTERVAL_MAX: Duration = Duration::from_millis(0);
+
+/// Default factor for increasing delays between node polls.
+#[cfg(not(test))]
+const DEFAULT_POLL_INTERVAL_FACTOR: f32 = 1.7;
+#[cfg(test)]
+const DEFAULT_POLL_INTERVAL_FACTOR: f32 = 0.0;
 
 /// The default block timeout to use for confirming transactions.
 pub const DEFAULT_BLOCK_TIMEOUT: Option<usize> = Some(25);
@@ -57,7 +72,9 @@ impl ConfirmParams {
     pub fn with_confirmations(count: usize) -> Self {
         ConfirmParams {
             confirmations: count,
-            poll_interval: DEFAULT_POLL_INTERVAL,
+            poll_interval_min: DEFAULT_POLL_INTERVAL_MIN,
+            poll_interval_max: DEFAULT_POLL_INTERVAL_MAX,
+            poll_interval_factor: DEFAULT_POLL_INTERVAL_FACTOR,
             block_timeout: DEFAULT_BLOCK_TIMEOUT,
         }
     }
@@ -71,12 +88,39 @@ impl ConfirmParams {
         self
     }
 
-    /// Set new value for [`poll_interval`].
-    ///
-    /// [`poll_interval`]: #structfield.poll_interval
+    /// Set new values for exponential backoff settings.
     #[inline]
-    pub fn poll_interval(mut self, poll_interval: Duration) -> Self {
-        self.poll_interval = poll_interval;
+    pub fn poll_interval(mut self, min: Duration, max: Duration, factor: f32) -> Self {
+        self.poll_interval_min = min;
+        self.poll_interval_max = max;
+        self.poll_interval_factor = factor;
+        self
+    }
+
+    /// Set new value for [`poll_interval_min`].
+    ///
+    /// [`poll_interval_min`]: #structfield.poll_interval_min
+    #[inline]
+    pub fn poll_interval_min(mut self, poll_interval_min: Duration) -> Self {
+        self.poll_interval_min = poll_interval_min;
+        self
+    }
+
+    /// Set new value for [`poll_interval_max`].
+    ///
+    /// [`poll_interval_max`]: #structfield.poll_interval_max
+    #[inline]
+    pub fn poll_interval_max(mut self, poll_interval_max: Duration) -> Self {
+        self.poll_interval_max = poll_interval_max;
+        self
+    }
+
+    /// Set new value for [`poll_interval_factor`].
+    ///
+    /// [`poll_interval_factor`]: #structfield.poll_interval_factor
+    #[inline]
+    pub fn poll_interval_factor(mut self, poll_interval_factor: f32) -> Self {
+        self.poll_interval_factor = poll_interval_factor;
         self
     }
 
@@ -189,13 +233,20 @@ impl<T: Transport> ConfirmationContext<'_, T> {
     ///
     /// This method returns the latest block number if it is known.
     async fn wait_for_blocks(&self, target_block: U64) -> Result<U64, ExecutionError> {
-        loop {
-            delay(self.params.poll_interval).await;
-            let latest_block = self.web3.eth().block_number().await?;
+        let mut cur_delay = self.params.poll_interval_min;
 
+        loop {
+            delay(cur_delay).await;
+
+            let latest_block = self.web3.eth().block_number().await?;
             if target_block <= latest_block {
                 break Ok(latest_block);
             }
+
+            cur_delay = min(
+                cur_delay.mul_f32(self.params.poll_interval_factor),
+                self.params.poll_interval_max,
+            );
         }
     }
 }
