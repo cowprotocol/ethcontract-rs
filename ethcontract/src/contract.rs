@@ -13,7 +13,7 @@ use crate::{
 use ethcontract_common::abi::{Error as AbiError, Result as AbiResult};
 use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::hash::H32;
-use ethcontract_common::{Abi, Artifact, Bytecode, DeploymentInformation};
+use ethcontract_common::{Abi, Contract, Bytecode, DeploymentInformation};
 use std::collections::HashMap;
 use std::hash::Hash;
 use web3::api::Web3;
@@ -86,44 +86,44 @@ impl<T: Transport> Instance<T> {
     }
 
     /// Locates a deployed contract based on the current network ID reported by
-    /// the `web3` provider from the given `Artifact`'s ABI and networks.
+    /// the `web3` provider from the given `Contract`'s ABI and networks.
     ///
-    /// Note that this does not verify that a contract with a matchin `Abi` is
+    /// Note that this does not verify that a contract with a matching `Abi` is
     /// actually deployed at the given address.
-    pub async fn deployed(web3: Web3<T>, artifact: Artifact) -> Result<Self, DeployError> {
+    pub async fn deployed(web3: Web3<T>, contract: Contract) -> Result<Self, DeployError> {
         let network_id = web3.net().version().await?;
-        let network = artifact
+        let network = contract
             .networks
             .get(&network_id)
             .ok_or(DeployError::NotFound(network_id))?;
 
         Ok(Instance::with_deployment_info(
             web3,
-            artifact.abi,
+            contract.abi,
             network.address,
             network.deployment_information,
         ))
     }
 
     /// Creates a contract builder with the specified `web3` provider and the
-    /// given `Artifact` byte code. This allows the contract deployment
+    /// given `Contract` byte code. This allows the contract deployment
     /// transaction to be configured before deploying the contract.
     pub fn builder<P>(
         web3: Web3<T>,
-        artifact: Artifact,
+        contract: Contract,
         params: P,
     ) -> Result<DeployBuilder<T, Self>, DeployError>
     where
         P: Tokenize,
     {
-        Linker::new(artifact).deploy(web3, params)
+        Linker::new(contract).deploy(web3, params)
     }
 
     /// Deploys a contract with the specified `web3` provider with the given
-    /// `Artifact` byte code and linking libraries.
+    /// `Contract` byte code and linking libraries.
     pub fn link_and_deploy<'a, P, I>(
         web3: Web3<T>,
-        artifact: Artifact,
+        contract: Contract,
         params: P,
         libraries: I,
     ) -> Result<DeployBuilder<T, Self>, DeployError>
@@ -131,7 +131,7 @@ impl<T: Transport> Instance<T> {
         P: Tokenize,
         I: Iterator<Item = (&'a str, Address)>,
     {
-        let mut linker = Linker::new(artifact);
+        let mut linker = Linker::new(contract);
         for (name, address) in libraries {
             linker = linker.library(name, address)?;
         }
@@ -259,11 +259,11 @@ pub struct Linker {
 }
 
 impl Linker {
-    /// Create a new linker for a contract artifact.
-    pub fn new(artifact: Artifact) -> Linker {
+    /// Create a new linker for a contract.
+    pub fn new(contract: Contract) -> Linker {
         Linker {
-            abi: artifact.abi,
-            bytecode: artifact.bytecode,
+            abi: contract.abi,
+            bytecode: contract.bytecode,
         }
     }
 
@@ -350,8 +350,8 @@ where
 mod tests {
     use super::*;
     use crate::test::prelude::*;
-    use ethcontract_common::truffle::Network;
-    use ethcontract_common::Artifact;
+    use ethcontract_common::contract::Network;
+    use ethcontract_common::Contract;
     use web3::types::H256;
 
     #[test]
@@ -361,20 +361,20 @@ mod tests {
 
         let network_id = "42";
         let address = addr!("0x0102030405060708091011121314151617181920");
-        let artifact = {
-            let mut artifact = Artifact::empty();
-            artifact.networks.insert(
+        let contract = {
+            let mut contract = Contract::empty();
+            contract.networks.insert(
                 network_id.to_string(),
                 Network {
                     address,
                     deployment_information: Some(H256::repeat_byte(0x42).into()),
                 },
             );
-            artifact
+            contract
         };
 
         transport.add_response(json!(network_id)); // get network ID response
-        let instance = Instance::deployed(web3, artifact)
+        let instance = Instance::deployed(web3, contract)
             .immediate()
             .expect("successful deployment");
 
@@ -398,7 +398,7 @@ mod tests {
         let network_id = "42";
 
         transport.add_response(json!(network_id)); // get network ID response
-        let err = Instance::deployed(web3, Artifact::empty())
+        let err = Instance::deployed(web3, Contract::empty())
             .immediate()
             .expect_err("unexpected success getting deployed contract");
 

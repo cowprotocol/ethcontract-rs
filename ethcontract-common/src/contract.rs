@@ -9,10 +9,10 @@ use std::fs::File;
 use std::path::Path;
 use web3::types::Address;
 
-/// Represents a truffle artifact.
+/// Represents a contract data.
 #[derive(Clone, Debug, Deserialize)]
-#[serde(default = "Artifact::empty")]
-pub struct Artifact {
+#[serde(default = "Contract::empty")]
+pub struct Contract {
     /// The contract name
     #[serde(rename = "contractName")]
     pub contract_name: String,
@@ -29,10 +29,10 @@ pub struct Artifact {
     pub userdoc: Documentation,
 }
 
-impl Artifact {
-    /// Creates an empty artifact instance.
+impl Contract {
+    /// Creates an empty contract instance.
     pub fn empty() -> Self {
-        Artifact {
+        Contract {
             contract_name: String::new(),
             abi: Abi {
                 constructor: None,
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn parse_empty() {
-        if let Err(err) = Artifact::from_json("{}") {
+        if let Err(err) = Contract::from_json("{}") {
             panic!("error parsing empty artifact: {:?}", err);
         }
     }

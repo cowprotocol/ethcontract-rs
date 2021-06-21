@@ -58,7 +58,7 @@ where
     T: Transport,
     I: Deploy<T>,
 {
-    /// Create a new deploy builder from a `web3` provider, artifact data and
+    /// Create a new deploy builder from a `web3` provider, contract data and
     /// deployment (constructor) parameters.
     pub fn new<P>(web3: Web3<T>, context: I::Context, params: P) -> Result<Self, DeployError>
     where
@@ -168,7 +168,7 @@ mod tests {
     use super::*;
     use crate::contract::{Instance, Linker};
     use crate::test::prelude::*;
-    use ethcontract_common::{Artifact, Bytecode};
+    use ethcontract_common::{Contract, Bytecode};
 
     type InstanceDeployBuilder<T> = DeployBuilder<T, Instance<T>>;
 
@@ -179,11 +179,11 @@ mod tests {
 
         let from = addr!("0x9876543210987654321098765432109876543210");
         let bytecode = Bytecode::from_hex_str("0x42").unwrap();
-        let artifact = Artifact {
+        let contract = Contract {
             bytecode: bytecode.clone(),
-            ..Artifact::empty()
+            ..Contract::empty()
         };
-        let linker = Linker::new(artifact);
+        let linker = Linker::new(contract);
         let tx = InstanceDeployBuilder::new(web3, linker, ())
             .expect("error creating deploy builder")
             .from(Account::Local(from, None))
@@ -214,8 +214,8 @@ mod tests {
         let transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
-        let artifact = Artifact::empty();
-        let linker = Linker::new(artifact);
+        let contract = Contract::empty();
+        let linker = Linker::new(contract);
         let error = InstanceDeployBuilder::new(web3, linker, ()).err().unwrap();
 
         assert_eq!(error.to_string(), DeployError::EmptyBytecode.to_string());

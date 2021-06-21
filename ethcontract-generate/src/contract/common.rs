@@ -9,7 +9,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
     let contract_name = &cx.contract_name;
 
     let doc_str = cx
-        .artifact
+        .contract
         .devdoc
         .details
         .as_deref()

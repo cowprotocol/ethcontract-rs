@@ -5,13 +5,13 @@
 
 pub mod abiext;
 pub mod bytecode;
+pub mod contract;
 pub mod errors;
 pub mod hash;
-pub mod truffle;
 
 pub use crate::abiext::FunctionExt;
 pub use crate::bytecode::Bytecode;
-pub use crate::truffle::Artifact;
+pub use crate::contract::Contract;
 pub use ethabi::{self as abi, Contract as Abi};
 use serde::Deserialize;
 pub use web3::types::Address;
