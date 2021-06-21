@@ -25,7 +25,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
         quote! {
             artifact.networks.insert(
                 #network_id.to_owned(),
-                self::ethcontract::common::truffle::Network {
+                self::ethcontract::common::contract::Network {
                     address: #address,
                     deployment_information: #deployment_information,
                 },
