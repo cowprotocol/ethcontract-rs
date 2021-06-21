@@ -168,7 +168,7 @@ mod tests {
     use super::*;
     use crate::contract::{Instance, Linker};
     use crate::test::prelude::*;
-    use ethcontract_common::{Contract, Bytecode};
+    use ethcontract_common::{Bytecode, Contract};
 
     type InstanceDeployBuilder<T> = DeployBuilder<T, Instance<T>>;
 

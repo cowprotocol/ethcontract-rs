@@ -13,7 +13,7 @@ use crate::{
 use ethcontract_common::abi::{Error as AbiError, Result as AbiResult};
 use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::hash::H32;
-use ethcontract_common::{Abi, Contract, Bytecode, DeploymentInformation};
+use ethcontract_common::{Abi, Bytecode, Contract, DeploymentInformation};
 use std::collections::HashMap;
 use std::hash::Hash;
 use web3::api::Web3;
