@@ -43,14 +43,14 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
         impl Contract {
             /// Retrieves the truffle artifact used to generate the type safe
             /// API for this contract.
-            pub fn artifact() -> &'static self::ethcontract::Artifact {
+            pub fn artifact() -> &'static self::ethcontract::Contract {
                 use self::ethcontract::private::lazy_static;
-                use self::ethcontract::Artifact;
+                use self::ethcontract::Contract;
 
                 lazy_static! {
-                    pub static ref ARTIFACT: Artifact = {
+                    pub static ref ARTIFACT: Contract = {
                         #[allow(unused_mut)]
-                        let mut artifact = Artifact::from_json(#artifact_json)
+                        let mut artifact = Contract::from_json(#artifact_json)
                             .expect("valid artifact JSON");
                         #( #deployments )*
 
