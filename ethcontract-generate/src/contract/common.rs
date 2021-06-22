@@ -9,7 +9,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
     let contract_name = &cx.contract_name;
 
     let doc_str = cx
-        .artifact
+        .contract
         .devdoc
         .details
         .as_deref()
@@ -25,7 +25,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
         quote! {
             artifact.networks.insert(
                 #network_id.to_owned(),
-                self::ethcontract::common::truffle::Network {
+                self::ethcontract::common::contract::Network {
                     address: #address,
                     deployment_information: #deployment_information,
                 },
@@ -43,14 +43,14 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
         impl Contract {
             /// Retrieves the truffle artifact used to generate the type safe
             /// API for this contract.
-            pub fn artifact() -> &'static self::ethcontract::Artifact {
+            pub fn artifact() -> &'static self::ethcontract::Contract {
                 use self::ethcontract::private::lazy_static;
-                use self::ethcontract::Artifact;
+                use self::ethcontract::Contract;
 
                 lazy_static! {
-                    pub static ref ARTIFACT: Artifact = {
+                    pub static ref ARTIFACT: Contract = {
                         #[allow(unused_mut)]
-                        let mut artifact = Artifact::from_json(#artifact_json)
+                        let mut artifact = Contract::from_json(#artifact_json)
                             .expect("valid artifact JSON");
                         #( #deployments )*
 

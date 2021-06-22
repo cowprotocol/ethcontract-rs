@@ -30,7 +30,7 @@ use std::path::Path;
 /// Internal global arguments passed to the generators for each individual
 /// component that control expansion.
 pub(crate) struct Args {
-    /// The source of the truffle artifact JSON for the contract whose bindings
+    /// The source of the artifact JSON for the contract whose bindings
     /// are being generated.
     artifact_source: Source,
     /// The runtime crate name to use.
@@ -51,7 +51,7 @@ pub(crate) struct Args {
 }
 
 impl Args {
-    /// Creates a new builder given the path to a contract's truffle artifact
+    /// Creates a new builder given the path to a contract's artifact
     /// JSON file.
     pub fn new(source: Source) -> Self {
         Args {
@@ -90,7 +90,7 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Creates a new builder given the path to a contract's truffle artifact
+    /// Creates a new builder given the path to a contract's artifact
     /// JSON file.
     pub fn new<P>(artifact_path: P) -> Self
     where
@@ -158,13 +158,11 @@ impl Builder {
 
     /// Manually adds specifies the deployed address and deployment transaction
     /// hash or block of a contract for a given network. Note that manually specified
-    /// deployments take precedence over deployments in the Truffle artifact (in
-    /// the `networks` property of the artifact).
+    /// deployments take precedence over deployments in the artifact.
     ///
     /// This is useful for integration test scenarios where the address of a
-    /// contract on the test node is deterministic (for example using
-    /// `ganache-cli -d`) but the contract address is not part of the Truffle
-    /// artifact; or to override a deployment included in a Truffle artifact.
+    /// contract on the test node is deterministic, but the contract address
+    /// is not in the artifact.
     pub fn add_deployment(
         mut self,
         network_id: u32,

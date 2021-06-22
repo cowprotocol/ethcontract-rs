@@ -23,7 +23,7 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
 /// Expands into a module containing all the event data structures from the ABI.
 fn expand_structs_mod(cx: &Context) -> Result<TokenStream> {
     let data_types = cx
-        .artifact
+        .contract
         .abi
         .events()
         .map(|event| expand_data_type(event, &cx.event_derives))
@@ -180,7 +180,7 @@ fn expand_data_tuple(
 /// streams for all non-anonymous contract events in the ABI.
 fn expand_filters(cx: &Context) -> Result<TokenStream> {
     let standard_events = cx
-        .artifact
+        .contract
         .abi
         .events()
         .filter(|event| !event.anonymous)
@@ -369,7 +369,7 @@ fn expand_builder_name(event: &Event) -> TokenStream {
 /// Expands into the `all_events` method on the root contract type if it
 /// contains events. Expands to nothing otherwise.
 fn expand_all_events(cx: &Context) -> TokenStream {
-    if cx.artifact.abi.events.is_empty() {
+    if cx.contract.abi.events.is_empty() {
         return quote! {};
     }
 
@@ -397,7 +397,7 @@ fn expand_all_events(cx: &Context) -> TokenStream {
 /// including anonymous types.
 fn expand_event_enum(cx: &Context) -> TokenStream {
     let variants = {
-        let mut events = cx.artifact.abi.events().collect::<Vec<_>>();
+        let mut events = cx.contract.abi.events().collect::<Vec<_>>();
 
         // NOTE: We sort the events by name so that the generated enum is
         //   consistent. This also facilitates testing as so that the same ABI
@@ -430,7 +430,7 @@ fn expand_event_enum(cx: &Context) -> TokenStream {
 fn expand_event_parse_log(cx: &Context) -> TokenStream {
     let all_events = {
         let mut all_events = cx
-            .artifact
+            .contract
             .abi
             .events()
             .map(|event| {
@@ -705,7 +705,7 @@ mod tests {
     fn expand_enum_for_all_events() {
         let context = {
             let mut context = Context::default();
-            context.artifact.abi.events.insert(
+            context.contract.abi.events.insert(
                 "Foo".into(),
                 vec![Event {
                     name: "Foo".into(),
@@ -717,7 +717,7 @@ mod tests {
                     anonymous: false,
                 }],
             );
-            context.artifact.abi.events.insert(
+            context.contract.abi.events.insert(
                 "Bar".into(),
                 vec![Event {
                     name: "Bar".into(),
@@ -750,7 +750,7 @@ mod tests {
     fn expand_parse_log_impl_for_all_events() {
         let context = {
             let mut context = Context::default();
-            context.artifact.abi.events.insert(
+            context.contract.abi.events.insert(
                 "Foo".into(),
                 vec![Event {
                     name: "Foo".into(),
@@ -762,7 +762,7 @@ mod tests {
                     anonymous: false,
                 }],
             );
-            context.artifact.abi.events.insert(
+            context.contract.abi.events.insert(
                 "Bar".into(),
                 vec![Event {
                     name: "Bar".into(),
@@ -777,7 +777,7 @@ mod tests {
             context
         };
 
-        let foo_signature = expand_hash(context.artifact.abi.event("Foo").unwrap().signature());
+        let foo_signature = expand_hash(context.contract.abi.event("Foo").unwrap().signature());
         let invalid_data = expand_invalid_data();
 
         assert_quote!(expand_event_parse_log(&context), {
