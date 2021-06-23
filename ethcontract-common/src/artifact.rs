@@ -12,13 +12,14 @@ use crate::errors::ArtifactError;
 use crate::Contract;
 
 pub mod truffle;
+pub mod hardhat;
 
 /// An entity that contains compiled contracts.
 pub trait Artifact {
     /// Describes where this artifact comes from. This could be anything:
     /// path to a json file, url, or something else. This function is used
     /// in error messages.
-    fn origin(&self) -> Option<&str>;
+    fn origin(&self) -> &str;
 
     /// Get contract by name. Pass an empty string to get an unnamed contract
     /// if an artifact implementation supports it.
@@ -33,7 +34,7 @@ pub trait Artifact {
 ///
 /// This is used to represent artifacts similar to truffle and waffle.
 pub struct SimpleArtifact {
-    origin: Option<String>,
+    origin: String,
     contract: Contract,
 }
 
@@ -41,7 +42,7 @@ impl SimpleArtifact {
     /// Create a new artifact by wrapping a contract into it.
     pub fn new(contract: Contract) -> Self {
         SimpleArtifact {
-            origin: None,
+            origin: "<unknown>".to_string(),
             contract,
         }
     }
@@ -49,7 +50,7 @@ impl SimpleArtifact {
     /// Create a new artifact with an origin information.
     pub fn with_origin(origin: String, contract: Contract) -> Self {
         SimpleArtifact {
-            origin: Some(origin),
+            origin,
             contract,
         }
     }
@@ -65,7 +66,7 @@ impl SimpleArtifact {
     }
 
     /// Set new origin for the artifact.
-    pub fn set_origin(&mut self, origin: Option<String>) {
+    pub fn set_origin(&mut self, origin: String) {
         self.origin = origin;
     }
 
@@ -81,8 +82,8 @@ impl SimpleArtifact {
 }
 
 impl Artifact for SimpleArtifact {
-    fn origin(&self) -> Option<&str> {
-        self.origin.as_deref()
+    fn origin(&self) -> &str {
+        &self.origin
     }
 
     fn contract(&self, name: &str) -> Result<Option<&Contract>, ArtifactError> {
