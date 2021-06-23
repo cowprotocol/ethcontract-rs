@@ -17,7 +17,6 @@ pub struct Contract {
     #[serde(rename = "contractName")]
     pub contract_name: String,
     /// The contract ABI
-    #[serde(with = "compat_solc_v0_6")]
     pub abi: Abi,
     /// The contract deployment bytecode.
     pub bytecode: Bytecode,
@@ -103,34 +102,5 @@ mod tests {
         if let Err(err) = Contract::from_json("{}") {
             panic!("error parsing empty artifact: {:?}", err);
         }
-    }
-}
-
-/// Deserialization implementation for compatibility with ABIs produced with
-/// solc v0.6. This is a known `ethabi` issue with an open PR for a fix:
-/// https://github.com/openethereum/ethabi/issues/185
-/// https://github.com/openethereum/ethabi/pull/187
-mod compat_solc_v0_6 {
-    use super::*;
-    use serde::de::{self, Deserializer};
-    use serde_json::{json, Value};
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Abi, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let mut raw_abi: Vec<Value> = Deserialize::deserialize(deserializer)?;
-        let receive = json!("receive");
-        for entry in raw_abi.iter_mut() {
-            if let Value::Object(obj) = entry {
-                if let Some(kind) = obj.get_mut("type") {
-                    if kind == &receive {
-                        *kind = json!("fallback");
-                    }
-                }
-            }
-        }
-
-        Abi::deserialize(Value::Array(raw_abi)).map_err(de::Error::custom)
     }
 }

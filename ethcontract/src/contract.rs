@@ -212,7 +212,7 @@ impl<T: Transport> Instance<T> {
     where
         D: Into<Vec<u8>>,
     {
-        if !self.abi.fallback {
+        if !self.abi.fallback && !self.abi.receive {
             return Err(AbiError::InvalidName("fallback".into()));
         }
 
