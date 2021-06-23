@@ -1,7 +1,17 @@
+//! Tools for loading artifacts that contain compiled contracts.
 //!
+//! Artifacts come in various shapes and sizes, but usually they
+//! are JSON files containing one or multiple compiled contracts
+//! as well as their deployment information.
+//!
+//! This module provides trait [`Artifact`] that encapsulates different
+//! artifact models. It also provides tools to load artifacts from different
+//! sources, and parse them using different formats.
 
 use crate::errors::ArtifactError;
 use crate::Contract;
+
+pub mod truffle;
 
 /// An entity that contains compiled contracts.
 pub trait Artifact {
@@ -30,12 +40,18 @@ pub struct SimpleArtifact {
 impl SimpleArtifact {
     /// Create a new artifact by wrapping a contract into it.
     pub fn new(contract: Contract) -> Self {
-        SimpleArtifact { origin: None, contract }
+        SimpleArtifact {
+            origin: None,
+            contract,
+        }
     }
 
     /// Create a new artifact with an origin information.
     pub fn with_origin(origin: String, contract: Contract) -> Self {
-        SimpleArtifact { origin: Some(origin), contract }
+        SimpleArtifact {
+            origin: Some(origin),
+            contract,
+        }
     }
 
     /// Get a reference to the artifact's contract.
@@ -48,16 +64,14 @@ impl SimpleArtifact {
         &mut self.contract
     }
 
-    /// Set a new name for the contract.
-    pub fn origin(mut self, origin: String) -> Self {
-        self.origin = Some(origin);
-        self
+    /// Set new origin for the artifact.
+    pub fn set_origin(&mut self, origin: Option<String>) {
+        self.origin = origin;
     }
 
-    /// Set a new name for the contract.
-    pub fn name(mut self, name: String) -> Self {
+    /// Set new contract name.
+    pub fn set_name(&mut self, name: String) {
         self.contract.name = name;
-        self
     }
 
     /// Extract contract from the artifact.
@@ -80,12 +94,14 @@ impl Artifact for SimpleArtifact {
     }
 
     fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &Contract> + 'a> {
-        Box::new(SimpleArtifactIter { contract: Some(&self.contract) })
+        Box::new(SimpleArtifactIter {
+            contract: Some(&self.contract),
+        })
     }
 }
 
 struct SimpleArtifactIter<'a> {
-    contract: Option<&'a Contract>
+    contract: Option<&'a Contract>,
 }
 
 impl<'a> Iterator for SimpleArtifactIter<'a> {
