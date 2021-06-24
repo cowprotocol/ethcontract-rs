@@ -13,9 +13,9 @@ use web3::types::Address;
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default = "Contract::empty")]
 pub struct Contract {
-    /// The contract name
+    /// The contract name. Unnamed contracts have an empty string as their name.
     #[serde(rename = "contractName")]
-    pub contract_name: String,
+    pub name: String,
     /// The contract ABI
     pub abi: Abi,
     /// The contract deployment bytecode.
@@ -32,7 +32,7 @@ impl Contract {
     /// Creates an empty contract instance.
     pub fn empty() -> Self {
         Contract {
-            contract_name: String::new(),
+            name: String::new(),
             abi: Abi {
                 constructor: None,
                 functions: HashMap::new(),

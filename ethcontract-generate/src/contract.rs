@@ -74,8 +74,8 @@ impl Context {
 
         let raw_contract_name = if let Some(name) = args.contract_name_override.as_ref() {
             name
-        } else if !contract.contract_name.is_empty() {
-            &contract.contract_name
+        } else if !contract.name.is_empty() {
+            &contract.name
         } else {
             return Err(anyhow!(
                 "contract artifact is missing a name, this can happen when \

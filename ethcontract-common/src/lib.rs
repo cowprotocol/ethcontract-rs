@@ -4,6 +4,7 @@
 //! the `ethcontract-derive` crate.
 
 pub mod abiext;
+pub mod artifact;
 pub mod bytecode;
 pub mod contract;
 pub mod errors;
