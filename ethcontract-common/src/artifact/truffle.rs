@@ -36,6 +36,15 @@ impl TruffleLoader {
         }
     }
 
+    /// Set new override for artifact's origin. See [`origin`] for more info.
+    ///
+    /// [`origin`]: #structfield.origin
+    #[inline]
+    pub fn origin(mut self, origin: Option<String>) -> Self {
+        self.origin = origin;
+        self
+    }
+
     /// Parse a truffle artifact from JSON string.
     pub fn load_from_string(&self, json: &str) -> Result<SimpleArtifact, ArtifactError> {
         let origin = self.origin.as_deref().unwrap_or("<memory>");
@@ -54,12 +63,11 @@ impl TruffleLoader {
     pub fn load_from_file(&self, path: &Path) -> Result<SimpleArtifact, ArtifactError> {
         let origin = self
             .origin
-            .as_deref()
-            .or_else(|| path.to_str())
-            .unwrap_or("<filesystem>");
+            .clone()
+            .unwrap_or_else(|| format!("{}", path.display()));
         let json = File::open(path)?;
         let contract = serde_json::from_reader(json)?;
-        Ok(SimpleArtifact::with_origin(origin.to_string(), contract))
+        Ok(SimpleArtifact::with_origin(origin, contract))
     }
 }
 

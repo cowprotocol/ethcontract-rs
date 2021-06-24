@@ -27,7 +27,7 @@ pub trait Artifact {
 
     /// Iterate over contracts in the artifact. Order of iteration
     /// is not specified.
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &Contract> + 'a>;
+    fn iter(&self) -> Box<dyn Iterator<Item = &Contract> + '_>;
 }
 
 /// A simple [`Artifact`] implementation that only holds one contract.
@@ -94,21 +94,7 @@ impl Artifact for SimpleArtifact {
         }
     }
 
-    fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = &Contract> + 'a> {
-        Box::new(SimpleArtifactIter {
-            contract: Some(&self.contract),
-        })
-    }
-}
-
-struct SimpleArtifactIter<'a> {
-    contract: Option<&'a Contract>,
-}
-
-impl<'a> Iterator for SimpleArtifactIter<'a> {
-    type Item = &'a Contract;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.contract.take()
+    fn iter(&self) -> Box<dyn Iterator<Item = &Contract> + '_> {
+        Box::new(std::iter::once(&self.contract))
     }
 }
