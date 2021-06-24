@@ -10,9 +10,9 @@
 
 use crate::errors::ArtifactError;
 use crate::Contract;
+use std::collections::HashMap;
 
 pub mod truffle;
-pub mod hardhat;
 
 /// An entity that contains compiled contracts.
 pub trait Artifact {
