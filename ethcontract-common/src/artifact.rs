@@ -8,93 +8,94 @@
 //! artifact models. It also provides tools to load artifacts from different
 //! sources, and parse them using different formats.
 
-use crate::errors::ArtifactError;
 use crate::Contract;
 use std::collections::HashMap;
 
 pub mod truffle;
 
 /// An entity that contains compiled contracts.
-pub trait Artifact {
-    /// Describes where this artifact comes from. This could be anything:
-    /// path to a json file, url, or something else. This function is used
-    /// in error messages.
-    fn origin(&self) -> &str;
-
-    /// Get contract by name. Pass an empty string to get an unnamed contract
-    /// if an artifact implementation supports it.
-    fn contract(&self, name: &str) -> Result<Option<&Contract>, ArtifactError>;
-
-    /// Iterate over contracts in the artifact. Order of iteration
-    /// is not specified.
-    fn iter(&self) -> Box<dyn Iterator<Item = &Contract> + '_>;
-}
-
-/// A simple [`Artifact`] implementation that only holds one contract.
-///
-/// This is used to represent artifacts similar to truffle and waffle.
-pub struct SimpleArtifact {
+pub struct Artifact {
     origin: String,
-    contract: Contract,
+    contracts: HashMap<String, Contract>,
 }
 
-impl SimpleArtifact {
-    /// Create a new artifact by wrapping a contract into it.
-    pub fn new(contract: Contract) -> Self {
-        SimpleArtifact {
+impl Artifact {
+    /// Create a new empty artifact.
+    pub fn new() -> Self {
+        Artifact {
             origin: "<unknown>".to_string(),
-            contract,
+            contracts: HashMap::new(),
         }
     }
 
     /// Create a new artifact with an origin information.
-    pub fn with_origin(origin: String, contract: Contract) -> Self {
-        SimpleArtifact {
+    pub fn with_origin(origin: String) -> Self {
+        Artifact {
             origin,
-            contract,
+            contracts: HashMap::new(),
         }
     }
 
-    /// Get a reference to the artifact's contract.
-    pub fn contract(&self) -> &Contract {
-        &self.contract
-    }
-
-    /// Get a mutable reference to the artifact's contract.
-    pub fn contract_mut(&mut self) -> &mut Contract {
-        &mut self.contract
-    }
-
-    /// Set new origin for the artifact.
-    pub fn set_origin(&mut self, origin: String) {
-        self.origin = origin;
-    }
-
-    /// Set new contract name.
-    pub fn set_name(&mut self, name: String) {
-        self.contract.name = name;
-    }
-
-    /// Extract contract from the artifact.
-    pub fn into_inner(self) -> Contract {
-        self.contract
-    }
-}
-
-impl Artifact for SimpleArtifact {
-    fn origin(&self) -> &str {
+    /// Describe where this artifact comes from.
+    ///
+    /// This function is used when a human-readable reference to the artifact
+    /// is required. It could be anything: path to a json file, url, etc.
+    pub fn origin(&self) -> &str {
         &self.origin
     }
 
-    fn contract(&self, name: &str) -> Result<Option<&Contract>, ArtifactError> {
-        if name == self.contract.name {
-            Ok(Some(&self.contract))
-        } else {
-            Ok(None)
-        }
+    /// Set new origin for the artifact.
+    ///
+    /// Artifact loaders will set origin to something meaningful in most cases,
+    /// so this function should not be used often. There are cases when
+    /// it is required, though.
+    pub fn set_origin(&mut self, origin: impl Into<String>) {
+        self.origin = origin.into();
     }
 
-    fn iter(&self) -> Box<dyn Iterator<Item = &Contract> + '_> {
-        Box::new(std::iter::once(&self.contract))
+    /// Check whether this artifact has a contract with the given name.
+    pub fn contains(&self, name: &str) -> bool {
+        self.contracts.contains_key(name)
+    }
+
+    /// Get contract by name.
+    ///
+    /// Some artifact formats allow exporting a single unnamed contract.
+    /// In this case, the contract will have an empty string as its name.
+    pub fn get(&self, name: &str) -> Option<&Contract> {
+        self.contracts.get(name)
+    }
+
+    /// Insert a new contract to the artifact.
+    ///
+    /// If contract with this name already exists, replace it
+    /// and return an old contract.
+    pub fn insert(&mut self, contract: Contract) -> Option<Contract> {
+        self.contracts.insert(contract.name.clone(), contract)
+    }
+
+    /// Remove contract from the artifact.
+    ///
+    /// Returns removed contract or [`None`] if contract with the given name
+    /// wasn't found.
+    pub fn remove(&mut self, name: &str) -> Option<Contract> {
+        self.contracts.remove(name)
+    }
+
+    /// Create an iterator that yields the artifact's contracts.
+    pub fn iter(&self) -> impl Iterator<Item = &Contract> + '_ {
+        self.contracts.values()
+    }
+
+    /// Take all contracts from the artifact, leaving it empty,
+    /// and iterate over them.
+    pub fn drain(&mut self) -> impl Iterator<Item = Contract> + '_ {
+        self.contracts.drain().map(|(_, contract)| contract)
+    }
+}
+
+impl Default for Artifact {
+    fn default() -> Self {
+        Artifact::new()
     }
 }
