@@ -40,9 +40,9 @@ impl TruffleLoader {
     }
 
     /// Create a new truffle loader and set an override for artifact's origins.
-    pub fn with_origin(origin: String) -> Self {
+    pub fn with_origin(origin: impl Into<String>) -> Self {
         TruffleLoader {
-            origin: Some(origin),
+            origin: Some(origin.into()),
             name: None,
         }
     }
@@ -51,8 +51,8 @@ impl TruffleLoader {
     ///
     /// [`origin`]: #structfield.origin
     #[inline]
-    pub fn origin(mut self, origin: String) -> Self {
-        self.origin = Some(origin);
+    pub fn origin(mut self, origin: impl Into<String>) -> Self {
+        self.origin = Some(origin.into());
         self
     }
 
@@ -60,8 +60,8 @@ impl TruffleLoader {
     ///
     /// [`name`]: #structfield.name
     #[inline]
-    pub fn name(mut self, name: String) -> Self {
-        self.name = Some(name);
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
         self
     }
 
