@@ -12,10 +12,10 @@
 
 use crate::artifact::Artifact;
 use crate::errors::ArtifactError;
+use crate::Contract;
 use serde_json::Value;
 use std::fs::File;
 use std::path::Path;
-use crate::Contract;
 
 /// Loads truffle artifacts.
 pub struct TruffleLoader {
@@ -33,14 +33,17 @@ pub struct TruffleLoader {
 impl TruffleLoader {
     /// Create a new truffle loader.
     pub fn new() -> Self {
-        TruffleLoader { origin: None, name: None }
+        TruffleLoader {
+            origin: None,
+            name: None,
+        }
     }
 
     /// Create a new truffle loader and set an override for artifact's origins.
     pub fn with_origin(origin: String) -> Self {
         TruffleLoader {
             origin: Some(origin),
-            name: None
+            name: None,
         }
     }
 
@@ -64,7 +67,10 @@ impl TruffleLoader {
 
     /// Parse a truffle artifact from JSON string.
     pub fn load_from_string(&self, json: &str) -> Result<Artifact, ArtifactError> {
-        let origin = self.origin.clone().unwrap_or_else(|| "<memory>".to_string());
+        let origin = self
+            .origin
+            .clone()
+            .unwrap_or_else(|| "<memory>".to_string());
         let mut artifact = Artifact::with_origin(origin);
         artifact.insert(self.load_contract_from_string(json)?);
         Ok(artifact)
@@ -81,7 +87,10 @@ impl TruffleLoader {
 
     /// Loads a truffle artifact from JSON value.
     pub fn load_from_json(&self, value: Value) -> Result<Artifact, ArtifactError> {
-        let origin = self.origin.clone().unwrap_or_else(|| "<memory>".to_string());
+        let origin = self
+            .origin
+            .clone()
+            .unwrap_or_else(|| "<memory>".to_string());
         let mut artifact = Artifact::with_origin(origin);
         artifact.insert(self.load_contract_from_json(value)?);
         Ok(artifact)
@@ -98,7 +107,10 @@ impl TruffleLoader {
 
     /// Loads a truffle artifact from disk.
     pub fn load_from_file(&self, path: &Path) -> Result<Artifact, ArtifactError> {
-        let origin = self.origin.clone().unwrap_or_else(|| path.display().to_string());
+        let origin = self
+            .origin
+            .clone()
+            .unwrap_or_else(|| path.display().to_string());
         let mut artifact = Artifact::with_origin(origin);
         artifact.insert(self.load_contract_from_file(path)?);
         Ok(artifact)
