@@ -4,7 +4,7 @@ use serde_json::Error as JsonError;
 use std::io::Error as IoError;
 use thiserror::Error;
 
-/// An error in loading or parsing a truffle artifact.
+/// An error in loading or parsing an artifact.
 #[derive(Debug, Error)]
 pub enum ArtifactError {
     /// An IO error occurred when loading a truffle artifact from disk.
@@ -14,6 +14,14 @@ pub enum ArtifactError {
     /// A JSON error occurred while parsing a truffle artifact.
     #[error("failed to parse contract artifact JSON: {0}")]
     Json(#[from] JsonError),
+
+    /// Contract was deployed onto different chains, and ABIs don't match.
+    #[error("contract {0} has different ABIs on different chains")]
+    AbiMismatch(String),
+
+    /// Contract have multiple deployment addresses on the same chain.
+    #[error("chain with id {0} appears several times in the artifact")]
+    DuplicateChain(String),
 }
 
 /// An error reading bytecode string representation.
