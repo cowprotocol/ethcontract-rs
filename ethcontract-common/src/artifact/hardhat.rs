@@ -60,7 +60,7 @@ pub struct HardHatLoader {
     /// the requirement that a contract must have the same ABI on all networks.
     ///
     /// Empty list means that all networks are allowed.
-    pub networks_allow_list: Vec<String>,
+    pub networks_allow_list: Vec<NetworkEntry>,
 
     /// List of denied network names and chain IDs.
     ///
@@ -68,17 +68,10 @@ pub struct HardHatLoader {
     /// in this list will be completely ignored.
     ///
     /// Empty list means that no networks are denied.
-    pub networks_deny_list: Vec<String>,
-}
-
-/// Artifact format.
-#[derive(Copy, Clone, Debug)]
-pub enum Format {
-    /// Contracts for a single network. Generated with `hardhat export`.
-    SingleExport,
-
-    /// Contracts for all networks. Generated with `hardhat export --export-all`.
-    MultiExport,
+    ///
+    /// Deny list takes precedence over allow list. That is, if network
+    /// appears in both, it will be denied.
+    pub networks_deny_list: Vec<NetworkEntry>,
 }
 
 impl HardHatLoader {
@@ -116,19 +109,39 @@ impl HardHatLoader {
         self
     }
 
-    /// Add network name or id to the list of [`allowed networks`].
+    /// Add chain id to the list of [`allowed networks`].
     ///
     /// [`allowed networks`]: #structfield.networks_allow_list
-    pub fn allow_network(mut self, network: impl Into<String>) -> Self {
-        self.networks_allow_list.push(network.into());
+    pub fn allow_by_chain_id(mut self, network: impl Into<String>) -> Self {
+        self.networks_allow_list
+            .push(NetworkEntry::ByChainId(network.into()));
         self
     }
 
-    /// Add network name or id to the list of [`denied networks`].
+    /// Add network name to the list of [`allowed networks`].
+    ///
+    /// [`allowed networks`]: #structfield.networks_allow_list
+    pub fn allow_by_name(mut self, network: impl Into<String>) -> Self {
+        self.networks_allow_list
+            .push(NetworkEntry::ByName(network.into()));
+        self
+    }
+
+    /// Add chain id to the list of [`denyid networks`].
     ///
     /// [`denied networks`]: #structfield.networks_deny_list
-    pub fn deny_network(mut self, network: impl Into<String>) -> Self {
-        self.networks_deny_list.push(network.into());
+    pub fn deny_by_chain_id(mut self, network: impl Into<String>) -> Self {
+        self.networks_deny_list
+            .push(NetworkEntry::ByChainId(network.into()));
+        self
+    }
+
+    /// Add network name to the list of [`denied networks`].
+    ///
+    /// [`denied networks`]: #structfield.networks_deny_list
+    pub fn deny_by_name(mut self, network: impl Into<String>) -> Self {
+        self.networks_deny_list
+            .push(NetworkEntry::ByName(network.into()));
         self
     }
 
@@ -189,7 +202,7 @@ impl HardHatLoader {
         artifact: &mut Artifact,
         export: HardHatExport,
     ) -> Result<(), ArtifactError> {
-        if self.allowed(&export.chain_id) && self.allowed(&export.chain_name) {
+        if self.allowed(&export.chain_id, &export.chain_name) {
             for (name, contract_with_address) in export.contracts {
                 let ContractWithAddress {
                     address,
@@ -231,42 +244,60 @@ impl HardHatLoader {
         artifact: &mut Artifact,
         export: HardHatMultiExport,
     ) -> Result<(), ArtifactError> {
-        for (chain_id, export) in export.networks {
-            if !self.allowed(&chain_id) {
-                continue;
-            }
-
-            let mut multiple_nets = false;
-
-            for (chain_name, export) in export {
-                if !self.allowed(&chain_name) {
-                    continue;
-                }
-
-                if multiple_nets {
-                    return Err(ArtifactError::DuplicateChain(chain_id));
-                }
-
+        for (_, export) in export.networks {
+            for (_, export) in export {
                 self.fill_artifact(artifact, export)?;
-
-                multiple_nets = true;
             }
         }
 
         Ok(())
     }
 
-    fn allowed(&self, name: &str) -> bool {
-        !self.explicitly_denied(name)
-            && (self.networks_allow_list.is_empty() || self.explicitly_allowed(name))
+    fn allowed(&self, chain_id: &str, chain_name: &str) -> bool {
+        !self.explicitly_denied(chain_id, chain_name)
+            && (self.networks_allow_list.is_empty()
+                || self.explicitly_allowed(chain_id, chain_name))
     }
 
-    fn explicitly_allowed(&self, name: &str) -> bool {
-        self.networks_allow_list.iter().any(|x| x == name)
+    fn explicitly_allowed(&self, chain_id: &str, chain_name: &str) -> bool {
+        self.networks_allow_list
+            .iter()
+            .any(|x| x.matches(chain_id, chain_name))
     }
 
-    fn explicitly_denied(&self, name: &str) -> bool {
-        self.networks_deny_list.iter().any(|x| x == name)
+    fn explicitly_denied(&self, chain_id: &str, chain_name: &str) -> bool {
+        self.networks_deny_list
+            .iter()
+            .any(|x| x.matches(chain_id, chain_name))
+    }
+}
+
+/// Artifact format.
+#[derive(Copy, Clone, Debug)]
+pub enum Format {
+    /// Contracts for a single network. Generated with `hardhat export`.
+    SingleExport,
+
+    /// Contracts for all networks. Generated with `hardhat export --export-all`.
+    MultiExport,
+}
+
+/// Network allow-deny entry.
+#[derive(Clone, Debug)]
+pub enum NetworkEntry {
+    /// Network identified by chain ID.
+    ByChainId(String),
+
+    /// Network identified by its name specified in `hardhat.config.js`.
+    ByName(String),
+}
+
+impl NetworkEntry {
+    fn matches(&self, chain_id: &str, chain_name: &str) -> bool {
+        match self {
+            NetworkEntry::ByChainId(id) => chain_id == id,
+            NetworkEntry::ByName(name) => chain_name == name,
+        }
     }
 }
 
@@ -291,4 +322,349 @@ struct ContractWithAddress {
     address: Address,
     #[serde(flatten)]
     contract: Contract,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use web3::ethabi::ethereum_types::BigEndianHash;
+    use web3::types::{H256, U256};
+
+    fn address(address: u8) -> Address {
+        Address::from(H256::from_uint(&U256::from(address)))
+    }
+
+    #[test]
+    fn load_single() {
+        let json = r#"
+          {
+            "name": "mainnet",
+            "chainId": "1",
+            "contracts": {
+              "A": {
+                "address": "0x000000000000000000000000000000000000000A"
+              },
+              "B": {
+                "address": "0x000000000000000000000000000000000000000B"
+              }
+            }
+          }
+        "#;
+
+        let artifact = HardHatLoader::new(Format::SingleExport)
+            .load_from_str(json)
+            .unwrap();
+
+        assert_eq!(artifact.len(), 2);
+
+        let a = artifact.get("A").unwrap();
+        assert_eq!(a.name, "A");
+        assert_eq!(a.networks.len(), 1);
+        assert_eq!(a.networks["1"].address, address(0xA));
+
+        let b = artifact.get("B").unwrap();
+        assert_eq!(b.name, "B");
+        assert_eq!(b.networks.len(), 1);
+        assert_eq!(b.networks["1"].address, address(0xB));
+    }
+
+    #[test]
+    fn load_multi() {
+        let json = r#"
+          {
+            "1": {
+              "mainnet": {
+                "name": "mainnet",
+                "chainId": "1",
+                "contracts": {
+                  "A": {
+                    "address": "0x000000000000000000000000000000000000000A"
+                  },
+                  "B": {
+                    "address": "0x000000000000000000000000000000000000000B"
+                  }
+                }
+              }
+            },
+            "4": {
+              "rinkeby": {
+                "name": "rinkeby",
+                "chainId": "4",
+                "contracts": {
+                  "A": {
+                    "address": "0x00000000000000000000000000000000000000AA"
+                  }
+                }
+              }
+            }
+          }
+        "#;
+
+        let artifact = HardHatLoader::new(Format::MultiExport)
+            .load_from_str(json)
+            .unwrap();
+
+        assert_eq!(artifact.len(), 2);
+
+        let a = artifact.get("A").unwrap();
+        assert_eq!(a.name, "A");
+        assert_eq!(a.networks.len(), 2);
+        assert_eq!(a.networks["1"].address, address(0xA));
+        assert_eq!(a.networks["4"].address, address(0xAA));
+
+        let b = artifact.get("B").unwrap();
+        assert_eq!(b.name, "B");
+        assert_eq!(b.networks.len(), 1);
+        assert_eq!(b.networks["1"].address, address(0xB));
+    }
+
+    #[test]
+    fn load_multi_duplicate_networks_ok() {
+        let json = r#"
+          {
+            "1": {
+              "mainnet": {
+                "name": "mainnet",
+                "chainId": "1",
+                "contracts": {
+                  "A": {
+                    "address": "0x000000000000000000000000000000000000000A"
+                  }
+                }
+              },
+              "mainnet_beta": {
+                "name": "mainnet_beta",
+                "chainId": "1",
+                "contracts": {
+                  "B": {
+                    "address": "0x000000000000000000000000000000000000000B"
+                  }
+                }
+              }
+            }
+          }
+        "#;
+
+        let artifact = HardHatLoader::new(Format::MultiExport)
+            .load_from_str(json)
+            .unwrap();
+
+        assert_eq!(artifact.len(), 2);
+
+        let a = artifact.get("A").unwrap();
+        assert_eq!(a.name, "A");
+        assert_eq!(a.networks.len(), 1);
+        assert_eq!(a.networks["1"].address, address(0xA));
+
+        let b = artifact.get("B").unwrap();
+        assert_eq!(b.name, "B");
+        assert_eq!(b.networks.len(), 1);
+        assert_eq!(b.networks["1"].address, address(0xB));
+    }
+
+    #[test]
+    fn load_multi_duplicate_networks_err() {
+        let json = r#"
+          {
+            "1": {
+              "mainnet": {
+                "name": "mainnet",
+                "chainId": "1",
+                "contracts": {
+                  "A": {
+                    "address": "0x000000000000000000000000000000000000000A"
+                  }
+                }
+              },
+              "mainnet_beta": {
+                "name": "mainnet_beta",
+                "chainId": "1",
+                "contracts": {
+                  "A": {
+                    "address": "0x00000000000000000000000000000000000000AA"
+                  }
+                }
+              }
+            }
+          }
+        "#;
+
+        let err = HardHatLoader::new(Format::MultiExport).load_from_str(json);
+
+        match err {
+            Err(ArtifactError::DuplicateChain(chain_id)) => assert_eq!(chain_id, "1"),
+            Err(unexpected_err) => panic!("unexpected error {:?}", unexpected_err),
+            _ => panic!("didn't throw an error"),
+        }
+    }
+
+    #[test]
+    fn load_multi_mismatching_abi() {
+        let json = r#"
+          {
+            "1": {
+              "mainnet": {
+                "name": "mainnet",
+                "chainId": "1",
+                "contracts": {
+                  "A": {
+                    "address": "0x000000000000000000000000000000000000000A",
+                    "abi": [
+                      {
+                        "constant": false,
+                        "inputs": [],
+                        "name": "foo",
+                        "outputs": [],
+                        "payable": false,
+                        "stateMutability": "nonpayable",
+                        "type": "function"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "4": {
+              "rinkeby": {
+                "name": "rinkeby",
+                "chainId": "4",
+                "contracts": {
+                  "A": {
+                    "address": "0x00000000000000000000000000000000000000AA",
+                    "abi": [
+                      {
+                        "constant": false,
+                        "inputs": [],
+                        "name": "bar",
+                        "outputs": [],
+                        "payable": false,
+                        "stateMutability": "nonpayable",
+                        "type": "function"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        "#;
+
+        let err = HardHatLoader::new(Format::MultiExport).load_from_str(json);
+
+        match err {
+            Err(ArtifactError::AbiMismatch(name)) => assert_eq!(name, "A"),
+            Err(unexpected_err) => panic!("unexpected error {:?}", unexpected_err),
+            _ => panic!("didn't throw an error"),
+        }
+    }
+
+    static NETWORK_CONFLICTS: &str = r#"
+      {
+        "1": {
+          "mainnet": {
+            "name": "mainnet",
+            "chainId": "1",
+            "contracts": {
+              "A": {
+                "address": "0x000000000000000000000000000000000000000A"
+              }
+            }
+          },
+          "mainnet_beta": {
+            "name": "mainnet_beta",
+            "chainId": "1",
+            "contracts": {
+              "A": {
+                "address": "0x00000000000000000000000000000000000000AA",
+                "abi": [
+                  {
+                    "constant": false,
+                    "inputs": [],
+                    "name": "test_method",
+                    "outputs": [],
+                    "payable": false,
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "4": {
+          "rinkeby": {
+            "name": "rinkeby",
+            "chainId": "4",
+            "contracts": {
+              "A": {
+                "address": "0x00000000000000000000000000000000000000BA"
+              }
+            }
+          }
+        }
+      }
+    "#;
+
+    #[test]
+    fn load_multi_allow_by_name() {
+        let artifact = HardHatLoader::new(Format::MultiExport)
+            .allow_by_name("mainnet")
+            .allow_by_name("rinkeby")
+            .load_from_str(NETWORK_CONFLICTS)
+            .unwrap();
+
+        assert_eq!(artifact.len(), 1);
+
+        let a = artifact.get("A").unwrap();
+        assert_eq!(a.name, "A");
+        assert_eq!(a.networks.len(), 2);
+        assert_eq!(a.networks["1"].address, address(0xA));
+        assert_eq!(a.networks["4"].address, address(0xBA));
+    }
+
+    #[test]
+    fn load_multi_allow_by_chain_id() {
+        let artifact = HardHatLoader::new(Format::MultiExport)
+            .allow_by_chain_id("4")
+            .load_from_str(NETWORK_CONFLICTS)
+            .unwrap();
+
+        assert_eq!(artifact.len(), 1);
+
+        let a = artifact.get("A").unwrap();
+        assert_eq!(a.name, "A");
+        assert_eq!(a.networks.len(), 1);
+        assert_eq!(a.networks["4"].address, address(0xBA));
+    }
+
+    #[test]
+    fn load_multi_deny_by_name() {
+        let artifact = HardHatLoader::new(Format::MultiExport)
+            .deny_by_name("mainnet_beta")
+            .load_from_str(NETWORK_CONFLICTS)
+            .unwrap();
+
+        assert_eq!(artifact.len(), 1);
+
+        let a = artifact.get("A").unwrap();
+        assert_eq!(a.name, "A");
+        assert_eq!(a.networks.len(), 2);
+        assert_eq!(a.networks["1"].address, address(0xA));
+        assert_eq!(a.networks["4"].address, address(0xBA));
+    }
+
+    #[test]
+    fn load_multi_deny_by_chain_id() {
+        let artifact = HardHatLoader::new(Format::MultiExport)
+            .deny_by_chain_id("1")
+            .load_from_str(NETWORK_CONFLICTS)
+            .unwrap();
+
+        assert_eq!(artifact.len(), 1);
+
+        let a = artifact.get("A").unwrap();
+        assert_eq!(a.name, "A");
+        assert_eq!(a.networks.len(), 1);
+        assert_eq!(a.networks["4"].address, address(0xBA));
+    }
 }

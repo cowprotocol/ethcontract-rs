@@ -57,6 +57,16 @@ impl Artifact {
         self.origin = origin.into();
     }
 
+    /// Get number of contracts contained in this artifact.
+    pub fn len(&self) -> usize {
+        self.contracts.len()
+    }
+
+    /// Check if this artifact contains no contracts.
+    pub fn is_empty(&self) -> bool {
+        self.contracts.is_empty()
+    }
+
     /// Check whether this artifact has a contract with the given name.
     pub fn contains(&self, name: &str) -> bool {
         self.contracts.contains_key(name)
@@ -170,5 +180,74 @@ impl Deref for ContractMut<'_> {
 
     fn deref(&self) -> &Self::Target {
         self.0
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn make_contract(name: &str) -> Contract {
+        let mut contract = Contract::empty();
+        contract.name = name.to_string();
+        contract
+    }
+
+    #[test]
+    fn insert() {
+        let mut artifact = Artifact::new();
+
+        assert_eq!(artifact.len(), 0);
+
+        let insert_res = artifact.insert(make_contract("C1"));
+
+        assert_eq!(insert_res.inserted_contract.name, "C1");
+        assert!(insert_res.old_contract.is_none());
+
+        assert_eq!(artifact.len(), 1);
+        assert!(artifact.contains("C1"));
+
+        let insert_res = artifact.insert(make_contract("C2"));
+
+        assert_eq!(insert_res.inserted_contract.name, "C2");
+        assert!(insert_res.old_contract.is_none());
+
+        assert_eq!(artifact.len(), 2);
+        assert!(artifact.contains("C2"));
+
+        let insert_res = artifact.insert(make_contract("C1"));
+
+        assert_eq!(insert_res.inserted_contract.name, "C1");
+        assert!(insert_res.old_contract.is_some());
+
+        assert_eq!(artifact.len(), 2);
+    }
+
+    #[test]
+    fn remove() {
+        let mut artifact = Artifact::new();
+
+        artifact.insert(make_contract("C1"));
+        artifact.insert(make_contract("C2"));
+
+        assert_eq!(artifact.len(), 2);
+        assert!(artifact.contains("C1"));
+        assert!(artifact.contains("C2"));
+
+        let c0 = artifact.remove("C0");
+        assert!(c0.is_none());
+
+        assert_eq!(artifact.len(), 2);
+        assert!(artifact.contains("C1"));
+        assert!(artifact.contains("C2"));
+
+        let c1 = artifact.remove("C1");
+
+        assert!(c1.is_some());
+        assert_eq!(c1.unwrap().name, "C1");
+
+        assert_eq!(artifact.len(), 1);
+        assert!(!artifact.contains("C1"));
+        assert!(artifact.contains("C2"));
     }
 }
