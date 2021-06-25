@@ -21,9 +21,10 @@ use crate::contract::Network;
 use crate::errors::ArtifactError;
 use crate::{Address, Contract};
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{from_reader, from_slice, from_str, from_value, Value};
 use std::collections::HashMap;
 use std::fs::File;
+use std::io::{BufReader, Read};
 use std::path::Path;
 
 /// Loads hardhat artifacts generated via `--export` and `--export-all`.
@@ -47,6 +48,9 @@ pub struct HardHatLoader {
     /// Override for artifact's origin. If `None`, origin
     /// will be derived automatically.
     pub origin: Option<String>,
+
+    /// Artifact format.
+    pub format: Format,
 
     /// List of allowed network names and chain IDs.
     ///
@@ -79,18 +83,20 @@ pub enum Format {
 
 impl HardHatLoader {
     /// Create a new hardhat loader.
-    pub fn new() -> Self {
+    pub fn new(format: Format) -> Self {
         HardHatLoader {
             origin: None,
+            format,
             networks_deny_list: Vec::new(),
             networks_allow_list: Vec::new(),
         }
     }
 
     /// Create a new hardhat loader and set an override for artifact's origins.
-    pub fn with_origin(origin: impl Into<String>) -> Self {
+    pub fn with_origin(format: Format, origin: impl Into<String>) -> Self {
         HardHatLoader {
             origin: Some(origin.into()),
+            format,
             networks_deny_list: Vec::new(),
             networks_allow_list: Vec::new(),
         }
@@ -99,16 +105,20 @@ impl HardHatLoader {
     /// Set new override for artifact's origin. See [`origin`] for more info.
     ///
     /// [`origin`]: #structfield.origin
-    #[inline]
-    pub fn origin(mut self, origin: Option<String>) -> Self {
-        self.origin = origin;
+    pub fn origin(mut self, origin: impl Into<String>) -> Self {
+        self.origin = Some(origin.into());
+        self
+    }
+
+    /// Set new format for artifacts.
+    pub fn format(mut self, format: Format) -> Self {
+        self.format = format;
         self
     }
 
     /// Add network name or id to the list of [`allowed networks`].
     ///
     /// [`allowed networks`]: #structfield.networks_allow_list
-    #[inline]
     pub fn allow_network(mut self, network: impl Into<String>) -> Self {
         self.networks_allow_list.push(network.into());
         self
@@ -117,68 +127,57 @@ impl HardHatLoader {
     /// Add network name or id to the list of [`denied networks`].
     ///
     /// [`denied networks`]: #structfield.networks_deny_list
-    #[inline]
     pub fn deny_network(mut self, network: impl Into<String>) -> Self {
         self.networks_deny_list.push(network.into());
         self
     }
 
-    /// Parse a hardhat artifact from JSON string.
-    pub fn load_from_string(&self, format: Format, json: &str) -> Result<Artifact, ArtifactError> {
-        let origin = self
-            .origin
-            .clone()
-            .unwrap_or_else(|| "<memory>".to_string());
-        let mut artifact = Artifact::with_origin(origin);
-
-        match format {
-            Format::SingleExport => {
-                self.fill_artifact(&mut artifact, serde_json::from_str(json)?)?
-            }
-            Format::MultiExport => {
-                self.fill_artifact_multi(&mut artifact, serde_json::from_str(json)?)?
-            }
-        }
-
-        Ok(artifact)
+    /// Loads an artifact from a loaded JSON value.
+    pub fn load_from_reader(&self, v: impl Read) -> Result<Artifact, ArtifactError> {
+        self.load_artifact("<unknown>", v, from_reader, from_reader)
     }
 
-    /// Loads a hardhat artifact from JSON value.
-    pub fn load_from_json(&self, format: Format, value: Value) -> Result<Artifact, ArtifactError> {
-        let origin = self
-            .origin
-            .clone()
-            .unwrap_or_else(|| "<memory>".to_string());
-        let mut artifact = Artifact::with_origin(origin);
-
-        match format {
-            Format::SingleExport => {
-                self.fill_artifact(&mut artifact, serde_json::from_value(value)?)?
-            }
-            Format::MultiExport => {
-                self.fill_artifact_multi(&mut artifact, serde_json::from_value(value)?)?
-            }
-        }
-
-        Ok(artifact)
+    /// Loads an artifact from bytes of JSON text.
+    pub fn load_from_slice(&self, v: &[u8]) -> Result<Artifact, ArtifactError> {
+        self.load_artifact("<unknown>", v, from_slice, from_slice)
     }
 
-    /// Loads a hardhat artifact from disk.
-    pub fn load_from_file(&self, format: Format, path: &Path) -> Result<Artifact, ArtifactError> {
-        let origin = self
-            .origin
-            .clone()
-            .unwrap_or_else(|| path.display().to_string());
+    /// Loads an artifact from string of JSON text.
+    pub fn load_from_str(&self, v: &str) -> Result<Artifact, ArtifactError> {
+        self.load_artifact("<unknown>", v, from_str, from_str)
+    }
+
+    /// Loads an artifact from a loaded JSON value.
+    pub fn load_from_value(&self, v: Value) -> Result<Artifact, ArtifactError> {
+        self.load_artifact("<unknown>", v, from_value, from_value)
+    }
+
+    /// Loads an artifact from disk.
+    pub fn load_from_file(&self, p: &Path) -> Result<Artifact, ArtifactError> {
+        let file = File::open(p)?;
+        let reader = BufReader::new(file);
+        self.load_artifact(p.display(), reader, from_reader, from_reader)
+    }
+
+    fn load_artifact<T>(
+        &self,
+        origin: impl ToString,
+        source: T,
+        single_loader: impl FnOnce(T) -> serde_json::Result<HardHatExport>,
+        multi_loader: impl FnOnce(T) -> serde_json::Result<HardHatMultiExport>,
+    ) -> Result<Artifact, ArtifactError> {
+        let origin = self.origin.clone().unwrap_or_else(|| origin.to_string());
+
         let mut artifact = Artifact::with_origin(origin);
 
-        let file = File::open(path)?;
-
-        match format {
+        match self.format {
             Format::SingleExport => {
-                self.fill_artifact(&mut artifact, serde_json::from_reader(file)?)?
+                let loaded = single_loader(source)?;
+                self.fill_artifact(&mut artifact, loaded)?
             }
             Format::MultiExport => {
-                self.fill_artifact_multi(&mut artifact, serde_json::from_reader(file)?)?
+                let loaded = multi_loader(source)?;
+                self.fill_artifact_multi(&mut artifact, loaded)?
             }
         }
 
@@ -210,13 +209,17 @@ impl HardHatLoader {
                     None => artifact.insert(contract).inserted_contract,
                 };
 
-                contract.networks_mut().insert(
+                let existing_network = contract.networks_mut().insert(
                     export.chain_id.clone(),
                     Network {
                         address,
                         deployment_information: None,
                     },
                 );
+
+                if existing_network.is_some() {
+                    return Err(ArtifactError::DuplicateChain(export.chain_id));
+                }
             }
         }
 
@@ -226,9 +229,9 @@ impl HardHatLoader {
     fn fill_artifact_multi(
         &self,
         artifact: &mut Artifact,
-        export: HashMap<String, HashMap<String, HardHatExport>>,
+        export: HardHatMultiExport,
     ) -> Result<(), ArtifactError> {
-        for (chain_id, export) in export {
+        for (chain_id, export) in export.networks {
             if !self.allowed(&chain_id) {
                 continue;
             }
@@ -254,11 +257,12 @@ impl HardHatLoader {
     }
 
     fn allowed(&self, name: &str) -> bool {
-        self.explicitly_allowed(name) && !self.explicitly_denied(name)
+        !self.explicitly_denied(name)
+            && (self.networks_allow_list.is_empty() || self.explicitly_allowed(name))
     }
 
     fn explicitly_allowed(&self, name: &str) -> bool {
-        self.networks_allow_list.is_empty() || self.networks_allow_list.iter().any(|x| x == name)
+        self.networks_allow_list.iter().any(|x| x == name)
     }
 
     fn explicitly_denied(&self, name: &str) -> bool {
@@ -266,13 +270,13 @@ impl HardHatLoader {
     }
 }
 
-impl Default for HardHatLoader {
-    fn default() -> Self {
-        HardHatLoader::new()
-    }
+#[derive(Deserialize)]
+struct HardHatMultiExport {
+    #[serde(flatten)]
+    networks: HashMap<String, HashMap<String, HardHatExport>>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Deserialize)]
 struct HardHatExport {
     #[serde(rename = "name")]
     chain_name: String,
@@ -282,7 +286,7 @@ struct HardHatExport {
     contracts: HashMap<String, ContractWithAddress>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Deserialize)]
 struct ContractWithAddress {
     address: Address,
     #[serde(flatten)]
