@@ -1,4 +1,27 @@
-//! Module implements reading of contract artifacts from various sources.
+//! Allows loading serialized artifacts from various sources.
+//!
+//! This module does not provide means for parsing artifacts. For that,
+//! use facilities in [`ethcontract_common::artifact`].
+//!
+//! # Examples
+//!
+//! Load artifact from local file:
+//!
+//! ```no_run
+//! # use ethcontract_generate::Source;
+//! let json = Source::local("build/contracts/IERC20.json")
+//!     .artifact_json()
+//!     .expect("failed to load an artifact");
+//! ```
+//!
+//! Load artifact from an NPM package:
+//!
+//! ```no_run
+//! # use ethcontract_generate::Source;
+//! let json = Source::npm("npm:@openzeppelin/contracts@2.5.0/build/contracts/IERC20.json")
+//!     .artifact_json()
+//!     .expect("failed to load an artifact");
+//! ```
 
 use crate::util;
 use anyhow::{anyhow, Context, Error, Result};
@@ -13,53 +36,69 @@ use url::Url;
 /// A source of an artifact JSON.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Source {
-    /// An artifact or ABI located on the local file system.
+    /// File on the local file system.
     Local(PathBuf),
-    /// An artifact or ABI to be retrieved over HTTP(S).
+
+    /// Resource in the internet, available via HTTP(S).
     Http(Url),
-    /// An address of a mainnet contract that has been verified on Etherscan.io.
+
+    /// An address of a mainnet contract, available via [etherscan].
+    ///
+    /// Artifacts loaded from etherstan can be parsed using
+    /// the [truffle loader].
+    ///
+    /// Note that etherscan rate-limits requests to their API, to avoid this,
+    /// provide an etherscan API key via the `ETHERSCAN_API_KEY`
+    /// environment variable.
+    ///
+    /// [etherscan]: etherscan.io
+    /// [truffle loader]: ethcontract_common::artifact::truffle::TruffleLoader
     Etherscan(Address),
-    /// The package identifier of an npm package with a path to an artifact
-    /// or ABI to be retrieved from `unpkg.io`.
+
+    /// The package identifier of an NPM package with a path to an artifact
+    /// or ABI to be retrieved from [unpkg].
+    ///
+    /// [unpkg]: unpkg.io
     Npm(String),
 }
 
 impl Source {
-    /// Parses an artifact source from a string.
+    /// Parse an artifact source from a string.
     ///
-    /// Contract artifacts can be retrieved from the local filesystem or online
-    /// from `etherscan.io`, this method parses artifact source URLs and accepts
-    /// the following:
-    /// - `relative/path/to/Contract.json`: a relative path to an
-    ///   artifact JSON file. This relative path is rooted in the current
-    ///   working directory. To specify the root for relative paths, use
-    ///   `Source::with_root`.
-    /// - `/absolute/path/to/Contract.json` or
-    ///   `file:///absolute/path/to/Contract.json`: an absolute path or file URL
-    ///   to an artifact JSON file.
-    /// - `http(s)://...` an HTTP url to a contract ABI or a artifact.
-    /// - `etherscan:0xXX..XX` or `https://etherscan.io/address/0xXX..XX`: a
-    ///   address or URL of a verified contract on Etherscan.
-    /// - `npm:@org/package@1.0.0/path/to/contract.json` an npmjs package with
-    ///   an optional version and path (defaulting to the latest version and
-    ///   `index.js`). The contract artifact or ABI will be retrieved through
-    ///   `unpkg.com`.
-    pub fn parse<S>(source: S) -> Result<Self>
-    where
-        S: AsRef<str>,
-    {
+    /// This method accepts the following:
+    ///
+    /// - relative path to a contract JSON file on the local filesystem,
+    ///   for example `build/IERC20.json`. This relative path is rooted
+    ///   in the current working directory. To specify the root for relative
+    ///   paths, use [`with_root`] function;
+    ///
+    /// - absolute path to a contract JSON file on the local filesystem,
+    ///   or a file URL, for example `/build/IERC20.json`, or the same path
+    ///   using URL: `file:///build/IERC20.json`;
+    ///
+    /// - an HTTP(S) URL pointing to artifact JSON or contract ABI JSON;
+    ///
+    /// - a URL with `etherscan` scheme and a mainnet contract address.
+    ///   For example `etherscan:0xC02AA...`. Alternatively, specify
+    ///   an [etherscan] URL: `https://etherscan.io/address/0xC02AA...`.
+    ///   The contract artifact or ABI will be retrieved through [`etherscan`];
+    ///
+    /// - a URL with `npm` scheme, NPM package name, an optional version
+    ///   and a path (defaulting to the latest version and `index.js`).
+    ///   For example `npm:@openzeppelin/contracts/build/contracts/IERC20.json`.
+    ///   The contract artifact or ABI will be retrieved through [`unpkg`].
+    ///
+    /// [etherscan]: etherscan.io
+    /// [unpkg]: unpkg.io
+    pub fn parse(source: &str) -> Result<Self> {
         let root = env::current_dir()?.canonicalize()?;
         Source::with_root(root, source)
     }
 
-    /// Parses an artifact source from a string and a specified root directory
-    /// for resolving relative paths. See `Source::with_root` for more details
+    /// Parse an artifact source from a string and use the specified root
+    /// directory for resolving relative paths. See [`parse`] for more details
     /// on supported source strings.
-    pub fn with_root<P, S>(root: P, source: S) -> Result<Self>
-    where
-        P: AsRef<Path>,
-        S: AsRef<str>,
-    {
+    pub fn with_root(root: impl AsRef<Path>, source: &str) -> Result<Self> {
         let base = Url::from_directory_path(root)
             .map_err(|_| anyhow!("root path '{}' is not absolute"))?;
         let url = base.join(source.as_ref())?;
@@ -81,43 +120,39 @@ impl Source {
         }
     }
 
-    /// Creates a local filesystem source from a path string.
-    pub fn local<P>(path: P) -> Self
-    where
-        P: AsRef<Path>,
-    {
+    /// Create a local filesystem source from a path string.
+    pub fn local(path: impl AsRef<Path>) -> Self {
         Source::Local(path.as_ref().into())
     }
 
-    /// Creates an HTTP source from a URL.
-    pub fn http<S>(url: S) -> Result<Self>
-    where
-        S: AsRef<str>,
-    {
-        Ok(Source::Http(Url::parse(url.as_ref())?))
+    /// Create an HTTP source from a URL.
+    pub fn http(url: &str) -> Result<Self> {
+        Ok(Source::Http(Url::parse(url)?))
     }
 
-    /// Creates an Etherscan source from an address string.
-    pub fn etherscan<S>(address: S) -> Result<Self>
-    where
-        S: AsRef<str>,
-    {
-        let address =
-            util::parse_address(address).context("failed to parse address for Etherscan source")?;
-        Ok(Source::Etherscan(address))
+    /// Create an [etherscan] source from contract address on mainnet.
+    ///
+    /// [etherscan]: etherscan.io
+    pub fn etherscan(address: &str) -> Result<Self> {
+        util::parse_address(address)
+            .context("failed to parse address for Etherscan source")
+            .map(Source::Etherscan)
     }
 
-    /// Creates an Etherscan source from an address string.
-    pub fn npm<S>(package_path: S) -> Self
-    where
-        S: Into<String>,
-    {
+    /// Create an NPM source from a package path.
+    pub fn npm(package_path: impl Into<String>) -> Self {
         Source::Npm(package_path.into())
     }
 
-    /// Retrieves the source JSON of the artifact this will either read the JSON
-    /// from the file system or retrieve a contract ABI from the network
-    /// depending on the source type.
+    /// Retrieve the source JSON of the artifact.
+    ///
+    /// This will either read the JSON from the file system or retrieve
+    /// a contract ABI from the network, depending on the source type.
+    ///
+    /// Contract ABIs will be wrapped into a JSON object, so that you can load
+    /// them using the [truffle loader].
+    ///
+    /// [truffle loader]: ethcontract_common::artifact::truffle::TruffleLoader
     pub fn artifact_json(&self) -> Result<String> {
         match self {
             Source::Local(path) => get_local_contract(path),
@@ -136,7 +171,6 @@ impl FromStr for Source {
     }
 }
 
-/// Reads an artifact JSON file from the local filesystem.
 fn get_local_contract(path: &Path) -> Result<String> {
     let path = if path.is_relative() {
         let absolute_path = path.canonicalize().with_context(|| {
@@ -157,15 +191,12 @@ fn get_local_contract(path: &Path) -> Result<String> {
     Ok(abi_or_artifact(json))
 }
 
-/// Retrieves an artifact or ABI from an HTTP URL.
 fn get_http_contract(url: &Url) -> Result<String> {
     let json = util::http_get(url.as_str())
         .with_context(|| format!("failed to retrieve JSON from {}", url))?;
     Ok(abi_or_artifact(json))
 }
 
-/// Retrieves a contract ABI from the Etherscan HTTP API and wraps it in an
-/// artifact JSON for compatibility with the code generation facilities.
 fn get_etherscan_contract(address: Address) -> Result<String> {
     // NOTE: We do not retrieve the bytecode since deploying contracts with the
     //   same bytecode is unreliable as the libraries have already linked and
@@ -193,7 +224,6 @@ fn get_etherscan_contract(address: Address) -> Result<String> {
     Ok(json)
 }
 
-/// Retrieves an artifact or ABI from an npm package through `unpkg.com`.
 fn get_npm_contract(package: &str) -> Result<String> {
     let unpkg_url = format!("https://unpkg.com/{}", package);
     let json = util::http_get(&unpkg_url)
@@ -212,6 +242,7 @@ fn get_npm_contract(package: &str) -> Result<String> {
 ///
 /// This needs to be done as currently the contract generation infrastructure
 /// depends on having an artifact.
+// TODO(taminomara): add loader for plain ABIs?
 fn abi_or_artifact(json: String) -> String {
     if json.trim().starts_with('[') {
         format!(r#"{{"abi":{}}}"#, json.trim())

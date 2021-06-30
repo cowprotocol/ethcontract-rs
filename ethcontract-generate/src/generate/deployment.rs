@@ -1,4 +1,4 @@
-use crate::contract::{methods, Context};
+use crate::generate::{methods, Context};
 use crate::util;
 use anyhow::{Context as _, Result};
 use inflector::Inflector;
@@ -17,7 +17,7 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
 }
 
 fn expand_deployed(cx: &Context) -> TokenStream {
-    if cx.contract.networks.is_empty() && cx.deployments.is_empty() {
+    if cx.contract.networks.is_empty() && cx.networks.is_empty() {
         return quote! {};
     }
 

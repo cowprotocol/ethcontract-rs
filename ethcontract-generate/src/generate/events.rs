@@ -1,4 +1,4 @@
-use crate::contract::{types, Context};
+use crate::generate::{types, Context};
 use crate::util;
 use anyhow::Result;
 use ethcontract_common::abi::{Event, EventParam, Hash, ParamType};
@@ -557,11 +557,15 @@ fn expand_invalid_data() -> TokenStream {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ContractBuilder;
     use ethcontract_common::abi::{EventParam, ParamType};
+    use ethcontract_common::Contract;
 
     #[test]
     fn expand_empty_filters() {
-        assert_quote!(expand_filters(&Context::default()).unwrap(), {});
+        let contract = Contract::with_name("Contract");
+        let context = Context::from_builder(&contract, ContractBuilder::new()).unwrap();
+        assert_quote!(expand_filters(&context).unwrap(), {});
     }
 
     #[test]
@@ -703,38 +707,39 @@ mod tests {
 
     #[test]
     fn expand_enum_for_all_events() {
-        let context = {
-            let mut context = Context::default();
-            context.contract.abi.events.insert(
-                "Foo".into(),
-                vec![Event {
-                    name: "Foo".into(),
-                    inputs: vec![EventParam {
-                        name: String::new(),
-                        kind: ParamType::Bool,
-                        indexed: false,
-                    }],
-                    anonymous: false,
+        let mut contract = Contract::with_name("Contract");
+
+        contract.abi.events.insert(
+            "Foo".into(),
+            vec![Event {
+                name: "Foo".into(),
+                inputs: vec![EventParam {
+                    name: String::new(),
+                    kind: ParamType::Bool,
+                    indexed: false,
                 }],
-            );
-            context.contract.abi.events.insert(
-                "Bar".into(),
-                vec![Event {
-                    name: "Bar".into(),
-                    inputs: vec![EventParam {
-                        name: String::new(),
-                        kind: ParamType::Address,
-                        indexed: false,
-                    }],
-                    anonymous: true,
+                anonymous: false,
+            }],
+        );
+        contract.abi.events.insert(
+            "Bar".into(),
+            vec![Event {
+                name: "Bar".into(),
+                inputs: vec![EventParam {
+                    name: String::new(),
+                    kind: ParamType::Address,
+                    indexed: false,
                 }],
-            );
-            context.event_derives = ["Asdf", "a::B", "a::b::c::D"]
-                .iter()
-                .map(|derive| syn::parse_str::<Path>(derive).unwrap())
-                .collect();
-            context
-        };
+                anonymous: true,
+            }],
+        );
+
+        let mut context = Context::from_builder(&contract, ContractBuilder::new()).unwrap();
+
+        context.event_derives = ["Asdf", "a::B", "a::b::c::D"]
+            .iter()
+            .map(|derive| syn::parse_str::<Path>(derive).unwrap())
+            .collect();
 
         assert_quote!(expand_event_enum(&context), {
             /// A contract event.
@@ -748,34 +753,34 @@ mod tests {
 
     #[test]
     fn expand_parse_log_impl_for_all_events() {
-        let context = {
-            let mut context = Context::default();
-            context.contract.abi.events.insert(
-                "Foo".into(),
-                vec![Event {
-                    name: "Foo".into(),
-                    inputs: vec![EventParam {
-                        name: String::new(),
-                        kind: ParamType::Bool,
-                        indexed: false,
-                    }],
-                    anonymous: false,
+        let mut contract = Contract::with_name("Contract");
+
+        contract.abi.events.insert(
+            "Foo".into(),
+            vec![Event {
+                name: "Foo".into(),
+                inputs: vec![EventParam {
+                    name: String::new(),
+                    kind: ParamType::Bool,
+                    indexed: false,
                 }],
-            );
-            context.contract.abi.events.insert(
-                "Bar".into(),
-                vec![Event {
-                    name: "Bar".into(),
-                    inputs: vec![EventParam {
-                        name: String::new(),
-                        kind: ParamType::Address,
-                        indexed: false,
-                    }],
-                    anonymous: true,
+                anonymous: false,
+            }],
+        );
+        contract.abi.events.insert(
+            "Bar".into(),
+            vec![Event {
+                name: "Bar".into(),
+                inputs: vec![EventParam {
+                    name: String::new(),
+                    kind: ParamType::Address,
+                    indexed: false,
                 }],
-            );
-            context
-        };
+                anonymous: true,
+            }],
+        );
+
+        let context = Context::from_builder(&contract, ContractBuilder::new()).unwrap();
 
         let foo_signature = expand_hash(context.contract.abi.event("Foo").unwrap().signature());
         let invalid_data = expand_invalid_data();

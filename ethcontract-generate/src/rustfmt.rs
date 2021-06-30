@@ -5,10 +5,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 /// Format the raw input source string and return formatted output.
-pub fn format<S>(source: S) -> Result<String>
-where
-    S: AsRef<str>,
-{
+pub fn format(source: &str) -> Result<String> {
     let mut rustfmt = Command::new("rustfmt")
         .args(&["--edition", "2018"])
         .stdin(Stdio::piped())
@@ -20,7 +17,7 @@ where
             .stdin
             .as_mut()
             .ok_or_else(|| anyhow!("stdin was not created for `rustfmt` child process"))?;
-        stdin.write_all(source.as_ref().as_bytes())?;
+        stdin.write_all(source.as_bytes())?;
     }
 
     let output = rustfmt.wait_with_output()?;

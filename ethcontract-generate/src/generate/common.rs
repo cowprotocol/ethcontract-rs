@@ -1,4 +1,4 @@
-use crate::contract::Context;
+use crate::generate::Context;
 use crate::util::expand_doc;
 use ethcontract_common::artifact::truffle::TruffleLoader;
 use ethcontract_common::{Address, DeploymentInformation};
@@ -18,15 +18,14 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
 
     let artifact_json = TruffleLoader::save_to_string(&cx.contract).unwrap();
 
-    let deployments = cx.deployments.iter().map(|(network_id, deployment)| {
-        let network_id = Literal::string(&network_id.to_string());
-        let address = expand_address(deployment.address);
-        let deployment_information =
-            expand_deployment_information(deployment.deployment_information);
+    let deployments = cx.networks.iter().map(|(chain_id, network)| {
+        let chain_id = Literal::string(&chain_id);
+        let address = expand_address(network.address);
+        let deployment_information = expand_deployment_information(network.deployment_information);
 
         quote! {
             artifact.networks.insert(
-                #network_id.to_owned(),
+                #chain_id.to_owned(),
                 self::ethcontract::common::contract::Network {
                     address: #address,
                     deployment_information: #deployment_information,
