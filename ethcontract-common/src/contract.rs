@@ -3,14 +3,14 @@
 use crate::errors::ArtifactError;
 use crate::Abi;
 use crate::{bytecode::Bytecode, DeploymentInformation};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use web3::types::Address;
 
 /// Represents a contract data.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default = "Contract::empty")]
 pub struct Contract {
     /// The contract name. Unnamed contracts have an empty string as their name.
@@ -68,7 +68,7 @@ impl Contract {
 }
 
 /// A contract's network configuration.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Network {
     /// The address at which the contract is deployed on this network.
     pub address: Address,
@@ -78,7 +78,7 @@ pub struct Network {
 }
 
 /// A contract's documentation.
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Documentation {
     /// Contract documentation
     pub details: Option<String>,
@@ -86,7 +86,7 @@ pub struct Documentation {
     pub methods: HashMap<String, DocEntry>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 /// A documentation entry.
 pub struct DocEntry {
     /// The documentation details for this entry.

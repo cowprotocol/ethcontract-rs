@@ -13,7 +13,7 @@
 use crate::artifact::Artifact;
 use crate::errors::ArtifactError;
 use crate::Contract;
-use serde_json::{from_reader, from_slice, from_str, from_value, Value};
+use serde_json::{from_reader, from_slice, from_str, from_value, to_string, Value};
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -142,6 +142,11 @@ impl TruffleLoader {
         }
 
         Ok(contract)
+    }
+
+    /// Serialize a single contract.
+    pub fn save_to_string(contract: &Contract) -> Result<String, ArtifactError> {
+        to_string(contract).map_err(Into::into)
     }
 }
 
