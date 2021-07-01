@@ -14,12 +14,12 @@ pub use crate::abiext::FunctionExt;
 pub use crate::bytecode::Bytecode;
 pub use crate::contract::Contract;
 pub use ethabi::{self as abi, Contract as Abi};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 pub use web3::types::Address;
 pub use web3::types::H256 as TransactionHash;
 
 /// Information about when a contract instance was deployed
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeploymentInformation {
     /// The block at which the contract was deployed

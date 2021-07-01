@@ -15,7 +15,7 @@ use crate::Args;
 use anyhow::{anyhow, Context as _, Result};
 use ethcontract_common::{Address, Contract, DeploymentInformation};
 use inflector::Inflector;
-use proc_macro2::{Ident, Literal, TokenStream};
+use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
 use syn::{Path, Visibility};
@@ -27,8 +27,6 @@ pub(crate) struct Deployment {
 
 /// Internal shared context for generating smart contract bindings.
 pub(crate) struct Context {
-    /// The artifact JSON as string literal.
-    artifact_json: Literal,
     /// The parsed contract.
     contract: Contract,
     /// The identifier for the runtime crate. Usually this is `ethcontract` but
@@ -54,22 +52,20 @@ pub(crate) struct Context {
 impl Context {
     /// Create a context from the code generation arguments.
     fn from_args(args: Args) -> Result<Self> {
-        let (artifact_json, contract) = {
+        let contract = {
             let artifact_json = args
                 .artifact_source
                 .artifact_json()
                 .context("failed to get artifact JSON")?;
 
-            let contract = Contract::from_json(&artifact_json)
+            Contract::from_json(&artifact_json)
                 .with_context(|| format!("invalid artifact JSON '{}'", artifact_json))
                 .with_context(|| {
                     format!(
                         "failed to parse artifact from source {:?}",
                         args.artifact_source,
                     )
-                })?;
-
-            (Literal::string(&artifact_json), contract)
+                })?
         };
 
         let raw_contract_name = if let Some(name) = args.contract_name_override.as_ref() {
@@ -119,7 +115,6 @@ impl Context {
             .context("failed to parse event derives")?;
 
         Ok(Context {
-            artifact_json,
             contract,
             runtime_crate,
             visibility,
@@ -136,7 +131,6 @@ impl Context {
 impl Default for Context {
     fn default() -> Self {
         Context {
-            artifact_json: Literal::string("{}"),
             contract: Contract::empty(),
             runtime_crate: util::ident("ethcontract"),
             visibility: Visibility::Inherited,
