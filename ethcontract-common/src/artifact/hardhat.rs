@@ -274,7 +274,7 @@ impl HardHatLoader {
 }
 
 /// Artifact format.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Format {
     /// Contracts for a single network. Generated with `hardhat export`.
     SingleExport,
