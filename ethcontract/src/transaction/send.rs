@@ -16,10 +16,15 @@ impl<T: Transport> TransactionBuilder<T> {
 
         let tx = self.build().await?;
         let tx_hash = match tx {
-            Transaction::Request(tx) => web3.eth().send_transaction(tx),
-            Transaction::Raw(tx) => web3.eth().send_raw_transaction(tx),
-        }
-        .await?;
+            Transaction::Request(tx) => web3.eth().send_transaction(tx).await?,
+            Transaction::Raw { bytes, hash } => {
+                let node_hash = web3.eth().send_raw_transaction(bytes).await?;
+                if node_hash != hash {
+                    return Err(ExecutionError::UnexpectedTransactionHash);
+                }
+                hash
+            }
+        };
 
         let tx_receipt = match resolve {
             ResolveCondition::Pending => return Ok(TransactionResult::Hash(tx_hash)),

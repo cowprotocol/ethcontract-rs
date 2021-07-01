@@ -10,8 +10,8 @@ use crate::transaction::gas_price::GasPrice;
 use crate::transaction::{Account, TransactionBuilder};
 use web3::api::Web3;
 use web3::types::{
-    Address, Bytes, CallRequest, TransactionCondition, TransactionParameters, TransactionRequest,
-    U256,
+    Address, Bytes, CallRequest, RawTransaction, SignedTransaction, TransactionCondition,
+    TransactionParameters, TransactionRequest, H256, U256,
 };
 use web3::Transport;
 
@@ -50,7 +50,7 @@ impl<T: Transport> TransactionBuilder<T> {
                 )
                 .await?,
             ),
-            Some(Account::Locked(from, password, condition)) => Transaction::Raw(
+            Some(Account::Locked(from, password, condition)) => {
                 build_transaction_signed_with_locked_account(
                     self.web3,
                     from,
@@ -58,12 +58,20 @@ impl<T: Transport> TransactionBuilder<T> {
                     gas_price,
                     TransactionRequestOptions(options, condition),
                 )
-                .await?,
-            ),
-            Some(Account::Offline(key, chain_id)) => Transaction::Raw(
+                .await
+                .map(|signed| Transaction::Raw {
+                    bytes: signed.raw,
+                    hash: signed.tx.hash,
+                })?
+            }
+            Some(Account::Offline(key, chain_id)) => {
                 build_offline_signed_transaction(self.web3, key, chain_id, gas_price, options)
-                    .await?,
-            ),
+                    .await
+                    .map(|signed| Transaction::Raw {
+                        bytes: signed.raw_transaction,
+                        hash: signed.transaction_hash,
+                    })?
+            }
         };
 
         Ok(tx)
@@ -78,7 +86,12 @@ pub enum Transaction {
     /// A structured transaction request to be signed locally by the node.
     Request(TransactionRequest),
     /// A signed raw transaction request.
-    Raw(Bytes),
+    Raw {
+        /// The raw signed transaction bytes
+        bytes: Bytes,
+        /// The transaction hash
+        hash: H256,
+    },
 }
 
 impl Transaction {
@@ -95,7 +108,7 @@ impl Transaction {
     /// transaction request.
     pub fn raw(self) -> Option<Bytes> {
         match self {
-            Transaction::Raw(tx) => Some(tx),
+            Transaction::Raw { bytes, .. } => Some(bytes),
             _ => None,
         }
     }
@@ -178,14 +191,14 @@ async fn build_transaction_signed_with_locked_account<T: Transport>(
     password: Password,
     gas_price: GasPrice,
     options: TransactionRequestOptions,
-) -> Result<Bytes, ExecutionError> {
+) -> Result<RawTransaction, ExecutionError> {
     let gas = resolve_gas_limit(&web3, from, gas_price, &options.0).await?;
     let gas_price = gas_price.resolve_for_transaction_request(&web3).await?;
 
     let request = options.build_request(from, gas_price, Some(gas));
     let signed_tx = web3.personal().sign_transaction(request, &password).await?;
 
-    Ok(signed_tx.raw)
+    Ok(signed_tx)
 }
 
 /// Build an offline signed transaction.
@@ -199,7 +212,7 @@ async fn build_offline_signed_transaction<T: Transport>(
     chain_id: Option<u64>,
     gas_price: GasPrice,
     options: TransactionOptions,
-) -> Result<Bytes, ExecutionError> {
+) -> Result<SignedTransaction, ExecutionError> {
     let gas = resolve_gas_limit(&web3, key.public_address(), gas_price, &options).await?;
     let gas_price = gas_price.resolve(&web3).await?;
 
@@ -221,7 +234,7 @@ async fn build_offline_signed_transaction<T: Transport>(
         )
         .await?;
 
-    Ok(signed.raw_transaction)
+    Ok(signed)
 }
 
 async fn resolve_gas_limit<T: Transport>(
@@ -437,13 +450,14 @@ mod tests {
         let pw = "foobar";
         let to = addr!("0x0000000000000000000000000000000000000000");
         let signed = bytes!("0x0123456789"); // doesn't have to be valid, we don't check
+        let hash = H256::from_low_u64_be(1);
         let gas = json!("0x9a5");
 
         transport.add_response(gas.clone());
         transport.add_response(json!({
             "raw": signed,
             "tx": {
-                "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000001",
                 "nonce": "0x0",
                 "from": from,
                 "value": "0x0",
@@ -485,7 +499,8 @@ mod tests {
         );
         transport.assert_no_more_requests();
 
-        assert_eq!(tx, signed);
+        assert_eq!(tx.raw, signed);
+        assert_eq!(tx.tx.hash, hash);
     }
 
     #[test]
@@ -497,6 +512,7 @@ mod tests {
         let pw = "foobar";
         let gas_price = U256::from(1337);
         let signed = bytes!("0x0123456789"); // doesn't have to be valid, we don't check
+        let hash = H256::from_low_u64_be(1);
         let gas = json!("0x9a5");
 
         transport.add_response(gas.clone());
@@ -504,7 +520,7 @@ mod tests {
         transport.add_response(json!({
             "raw": signed,
             "tx": {
-                "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "hash": "0x0000000000000000000000000000000000000000000000000000000000000001",
                 "nonce": "0x0",
                 "from": from,
                 "value": "0x0",
@@ -538,7 +554,8 @@ mod tests {
         );
         transport.assert_no_more_requests();
 
-        assert_eq!(tx, signed);
+        assert_eq!(tx.raw, signed);
+        assert_eq!(tx.tx.hash, hash);
     }
 
     #[test]

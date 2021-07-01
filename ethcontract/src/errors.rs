@@ -108,6 +108,10 @@ pub enum ExecutionError {
     /// A tokenization related error.
     #[error("tokenization error: {0}")]
     Tokenization(#[from] crate::tokens::Error),
+
+    /// Unexpected transaction hash
+    #[error("transaction hash returned from node when sending raw transaction does not match expected hash")]
+    UnexpectedTransactionHash,
 }
 
 impl From<Web3Error> for ExecutionError {
