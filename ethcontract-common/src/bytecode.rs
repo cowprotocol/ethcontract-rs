@@ -4,7 +4,7 @@
 
 use crate::errors::{BytecodeError, LinkError};
 use serde::de::{Error as DeError, Visitor};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::fmt::{Formatter, Result as FmtResult};
 use std::mem;
@@ -13,16 +13,12 @@ use web3::types::{Address, Bytes};
 /// The string representation of the byte code. Note that this must be a
 /// `String` since `solc` linking requires string manipulation of the
 /// bytecode string representation.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct Bytecode(String);
 
 impl Bytecode {
     /// Read hex bytecode representation from a string slice.
-    pub fn from_hex_str<S>(s: S) -> Result<Self, BytecodeError>
-    where
-        S: AsRef<str>,
-    {
-        let s = s.as_ref();
+    pub fn from_hex_str(s: &str) -> Result<Self, BytecodeError> {
         if s.is_empty() {
             // special case where we have an empty string byte code.
             return Ok(Bytecode::default());
@@ -185,14 +181,6 @@ impl<'de> Visitor<'de> for BytecodeVisitor {
     {
         Bytecode::from_hex_str(v).map_err(E::custom)
     }
-
-    fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
-    where
-        E: DeError,
-    {
-        // TODO(nlordell): try to reuse this allocation
-        self.visit_str(&v)
-    }
 }
 
 fn to_fixed_hex(address: &Address) -> String {
@@ -245,7 +233,7 @@ mod tests {
         let address_encoded = [0u8; 20];
         let name = "name";
         let placeholder = format!("__{:_<38}", name);
-        let mut bytecode = Bytecode::from_hex_str(format!(
+        let mut bytecode = Bytecode::from_hex_str(&format!(
             "0x61{}{}61{}",
             placeholder, placeholder, placeholder
         ))
@@ -265,7 +253,7 @@ mod tests {
     fn bytecode_link_fail() {
         let address = Address::zero();
         let placeholder = format!("__{:_<38}", "name0");
-        let mut bytecode = Bytecode::from_hex_str(format!(
+        let mut bytecode = Bytecode::from_hex_str(&format!(
             "0x61{}{}61{}",
             placeholder, placeholder, placeholder
         ))

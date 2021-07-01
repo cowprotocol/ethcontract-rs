@@ -12,7 +12,7 @@ Common types for ethcontract-rs runtime and proc macro.
 """
 
 [dependencies]
-ethabi = "14.0"
+ethabi = { git = "https://github.com/taminomara/ethabi", branch = "serialize-contracts" }
 hex = "0.4"
 serde = "1.0"
 serde_derive = "1.0"
