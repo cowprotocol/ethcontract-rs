@@ -83,7 +83,7 @@ impl Debug for PrivateKey {
 
 impl Key for &'_ PrivateKey {
     fn sign(&self, message: &[u8], chain_id: Option<u64>) -> Result<Signature, SigningError> {
-        let message = Message::from_slice(&message).map_err(|_| SigningError::InvalidMessage)?;
+        let message = Message::from_slice(message).map_err(|_| SigningError::InvalidMessage)?;
         let (recovery_id, signature) = Secp256k1::signing_only()
             .sign_recoverable(&message, self)
             .serialize_compact();

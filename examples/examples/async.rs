@@ -50,6 +50,8 @@ async fn main() {
             data: None,
             nonce: None,
             condition: None,
+            transaction_type: None,
+            access_list: None,
         })
         .await
         .expect("send eth failed");

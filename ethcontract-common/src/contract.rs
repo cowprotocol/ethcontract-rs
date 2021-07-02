@@ -1,7 +1,7 @@
 //! Module for reading and examining data produced by truffle.
 
-use crate::abi::Contract as Abi;
 use crate::errors::ArtifactError;
+use crate::Abi;
 use crate::{bytecode::Bytecode, DeploymentInformation};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -9,15 +9,14 @@ use std::fs::File;
 use std::path::Path;
 use web3::types::Address;
 
-/// Represents a truffle artifact.
+/// Represents a contract data.
 #[derive(Clone, Debug, Deserialize)]
-#[serde(default = "Artifact::empty")]
-pub struct Artifact {
-    /// The contract name
+#[serde(default = "Contract::empty")]
+pub struct Contract {
+    /// The contract name. Unnamed contracts have an empty string as their name.
     #[serde(rename = "contractName")]
-    pub contract_name: String,
+    pub name: String,
     /// The contract ABI
-    #[serde(with = "compat_solc_v0_6")]
     pub abi: Abi,
     /// The contract deployment bytecode.
     pub bytecode: Bytecode,
@@ -29,11 +28,11 @@ pub struct Artifact {
     pub userdoc: Documentation,
 }
 
-impl Artifact {
-    /// Creates an empty artifact instance.
+impl Contract {
+    /// Creates an empty contract instance.
     pub fn empty() -> Self {
-        Artifact {
-            contract_name: String::new(),
+        Contract {
+            name: String::new(),
             abi: Abi {
                 constructor: None,
                 functions: HashMap::new(),
@@ -100,37 +99,8 @@ mod tests {
 
     #[test]
     fn parse_empty() {
-        if let Err(err) = Artifact::from_json("{}") {
+        if let Err(err) = Contract::from_json("{}") {
             panic!("error parsing empty artifact: {:?}", err);
         }
-    }
-}
-
-/// Deserialization implementation for compatibility with ABIs produced with
-/// solc v0.6. This is a known `ethabi` issue with an open PR for a fix:
-/// https://github.com/openethereum/ethabi/issues/185
-/// https://github.com/openethereum/ethabi/pull/187
-mod compat_solc_v0_6 {
-    use super::*;
-    use serde::de::{self, Deserializer};
-    use serde_json::{json, Value};
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Abi, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let mut raw_abi: Vec<Value> = Deserialize::deserialize(deserializer)?;
-        let receive = json!("receive");
-        for entry in raw_abi.iter_mut() {
-            if let Value::Object(obj) = entry {
-                if let Some(kind) = obj.get_mut("type") {
-                    if kind == &receive {
-                        *kind = json!("fallback");
-                    }
-                }
-            }
-        }
-
-        Abi::deserialize(Value::Array(raw_abi)).map_err(de::Error::custom)
     }
 }

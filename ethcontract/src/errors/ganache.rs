@@ -8,9 +8,9 @@ use web3::types::H256;
 /// Tries to get a more accurate error from a generic Ganache JSON RPC error.
 /// Returns `None` when a more accurate error cannot be determined.
 pub fn get_encoded_error(err: &JsonrpcError) -> Option<ExecutionError> {
-    match get_error_param(&err, "error") {
+    match get_error_param(err, "error") {
         Some("revert") => {
-            let reason = get_error_param(&err, "reason").map(|reason| reason.to_owned());
+            let reason = get_error_param(err, "reason").map(|reason| reason.to_owned());
             Some(ExecutionError::Revert(reason))
         }
         Some("invalid opcode") => Some(ExecutionError::InvalidOpcode),
@@ -32,8 +32,7 @@ fn get_error_param<'a>(err: &'a JsonrpcError, name: &str) -> Option<&'a str> {
         .as_ref()?
         .as_object()?
         .iter()
-        .filter_map(|(k, v)| if is_hash_str(k) { Some(v) } else { None })
-        .next()?
+        .find_map(|(k, v)| if is_hash_str(k) { Some(v) } else { None })?
         .get(name)?
         .as_str()
 }

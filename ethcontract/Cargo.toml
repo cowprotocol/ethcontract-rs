@@ -1,7 +1,7 @@
 [package]
 name = "ethcontract"
-version = "0.11.3"
-authors = ["Nicholas Rodrigues Lordello <nlordell@gmail.com>"]
+version = "0.12.2"
+authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/gnosis/ethcontract-rs"
@@ -17,30 +17,35 @@ to Ethereum smart contracts.
 name = "ethcontract"
 
 [features]
-default = ["derive", "http", "http-tls", "ws-tokio", "ws-tls-tokio"]
+default = ["derive", "http-tls", "ws-tls-tokio"]
 derive = ["ethcontract-derive"]
 http = ["web3/http"]
-http-tls = ["web3/http-tls"]
+http-tls = ["http", "web3/http-tls"]
+http-native-tls = ["http", "web3/http-native-tls"]
+http-rustls-tls = ["http", "web3/http-rustls-tls"]
 ws-tokio = ["web3/ws-tokio"]
+ws-async-std = ["web3/ws-async-std"]
 ws-tls-tokio = ["web3/ws-tls-tokio"]
+ws-tls-async-std = ["web3/ws-tls-async-std"]
+ipc-tokio = ["web3/ipc-tokio"]
 
 [dependencies]
 arrayvec = "0.7"
-ethcontract-common = { version = "0.11.3", path = "../ethcontract-common" }
-ethcontract-derive = { version = "0.11.3", path = "../ethcontract-derive", optional = true}
+ethcontract-common = { version = "0.12.2", path = "../ethcontract-common" }
+ethcontract-derive = { version = "0.12.2", path = "../ethcontract-derive", optional = true}
 futures = "0.3"
 futures-timer = "3.0"
 hex = "0.4"
-jsonrpc-core = "16.0"
+jsonrpc-core = "17.0"
 lazy_static = "1.4"
-primitive-types = { version = "0.8", features = ["fp-conversion"] }
+primitive-types = { version = "0.9", features = ["fp-conversion"] }
 secp256k1 = { version = "0.20", features = ["recovery"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 uint = "0.9"
-web3 = { version = "0.15", default-features = false, features = ["signing"] }
+web3 = { version = "0.16", default-features = false, features = ["signing"] }
 zeroize = "1.1"
 
 [dev-dependencies]
-tokio = { version = "0.2", features = ["macros"] }
+tokio = { version = "1.6", features = ["macros"] }

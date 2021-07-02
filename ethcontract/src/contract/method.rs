@@ -236,6 +236,8 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
                 gas_price: self.m.tx.gas_price.and_then(|gas_price| gas_price.value()),
                 value: self.m.tx.value,
                 data: self.m.tx.data,
+                transaction_type: None,
+                access_list: None,
             },
             self.block,
         )

@@ -9,7 +9,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
     let contract_name = &cx.contract_name;
 
     let doc_str = cx
-        .artifact
+        .contract
         .devdoc
         .details
         .as_deref()
@@ -25,7 +25,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
         quote! {
             artifact.networks.insert(
                 #network_id.to_owned(),
-                self::ethcontract::common::truffle::Network {
+                self::ethcontract::common::contract::Network {
                     address: #address,
                     deployment_information: #deployment_information,
                 },
@@ -43,14 +43,14 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
         impl Contract {
             /// Retrieves the truffle artifact used to generate the type safe
             /// API for this contract.
-            pub fn artifact() -> &'static self::ethcontract::Artifact {
+            pub fn artifact() -> &'static self::ethcontract::Contract {
                 use self::ethcontract::private::lazy_static;
-                use self::ethcontract::Artifact;
+                use self::ethcontract::Contract;
 
                 lazy_static! {
-                    pub static ref ARTIFACT: Artifact = {
+                    pub static ref ARTIFACT: Contract = {
                         #[allow(unused_mut)]
-                        let mut artifact = Artifact::from_json(#artifact_json)
+                        let mut artifact = Contract::from_json(#artifact_json)
                             .expect("valid artifact JSON");
                         #( #deployments )*
 
@@ -63,7 +63,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             /// Creates a new contract instance with the specified `web3`
             /// provider at the given `Address`.
             ///
-            /// Note that this does not verify that a contract with a maching
+            /// Note that this does not verify that a contract with a matching
             /// `Abi` is actually deployed at the given address.
             pub fn at<F, T>(
                 web3: &self::ethcontract::web3::api::Web3<T>,
@@ -72,7 +72,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             where
                 F: std::future::Future<
                        Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
-                   > + Send + Unpin + 'static,
+                   > + Send + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
                 Contract::with_deployment_info(web3, address, None)
@@ -95,7 +95,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             where
                 F: std::future::Future<
                        Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
-                   > + Send + Unpin + 'static,
+                   > + Send + 'static,
                 T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
             {
                 use self::ethcontract::Instance;

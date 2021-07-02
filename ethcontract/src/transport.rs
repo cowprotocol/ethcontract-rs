@@ -34,7 +34,7 @@ trait TransportBoxed: Debug {
 
 impl<F, T> TransportBoxed for T
 where
-    F: Future<Output = Result<Value, Web3Error>> + Send + Unpin + 'static,
+    F: Future<Output = Result<Value, Web3Error>> + Send + 'static,
     T: Transport<Out = F>,
 {
     #[inline(always)]
@@ -64,7 +64,7 @@ impl DynTransport {
     /// Wrap a `Transport` in a `DynTransport`
     pub fn new<F, T>(inner: T) -> Self
     where
-        F: Future<Output = Result<Value, Web3Error>> + Send + Unpin + 'static,
+        F: Future<Output = Result<Value, Web3Error>> + Send + 'static,
         T: Transport<Out = F> + Sync + Send + 'static,
     {
         let inner_ref: &dyn Any = &inner;

@@ -10,17 +10,17 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use url::Url;
 
-/// A source of a Truffle artifact JSON.
+/// A source of an artifact JSON.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Source {
-    /// A Truffle artifact or ABI located on the local file system.
+    /// An artifact or ABI located on the local file system.
     Local(PathBuf),
-    /// A truffle artifact or ABI to be retrieved over HTTP(S).
+    /// An artifact or ABI to be retrieved over HTTP(S).
     Http(Url),
     /// An address of a mainnet contract that has been verified on Etherscan.io.
     Etherscan(Address),
-    /// The package identifier of an npm package with a path to a Truffle
-    /// artifact or ABI to be retrieved from `unpkg.io`.
+    /// The package identifier of an npm package with a path to an artifact
+    /// or ABI to be retrieved from `unpkg.io`.
     Npm(String),
 }
 
@@ -30,14 +30,14 @@ impl Source {
     /// Contract artifacts can be retrieved from the local filesystem or online
     /// from `etherscan.io`, this method parses artifact source URLs and accepts
     /// the following:
-    /// - `relative/path/to/Contract.json`: a relative path to a truffle
+    /// - `relative/path/to/Contract.json`: a relative path to an
     ///   artifact JSON file. This relative path is rooted in the current
     ///   working directory. To specify the root for relative paths, use
     ///   `Source::with_root`.
     /// - `/absolute/path/to/Contract.json` or
     ///   `file:///absolute/path/to/Contract.json`: an absolute path or file URL
-    ///   to a truffle artifact JSON file.
-    /// - `http(s)://...` an HTTP url to a contract ABI or Truffle artifact.
+    ///   to an artifact JSON file.
+    /// - `http(s)://...` an HTTP url to a contract ABI or a artifact.
     /// - `etherscan:0xXX..XX` or `https://etherscan.io/address/0xXX..XX`: a
     ///   address or URL of a verified contract on Etherscan.
     /// - `npm:@org/package@1.0.0/path/to/contract.json` an npmjs package with
@@ -117,7 +117,7 @@ impl Source {
 
     /// Retrieves the source JSON of the artifact this will either read the JSON
     /// from the file system or retrieve a contract ABI from the network
-    /// dependending on the source type.
+    /// depending on the source type.
     pub fn artifact_json(&self) -> Result<String> {
         match self {
             Source::Local(path) => get_local_contract(path),
@@ -136,7 +136,7 @@ impl FromStr for Source {
     }
 }
 
-/// Reads a Truffle artifact JSON file from the local filesystem.
+/// Reads an artifact JSON file from the local filesystem.
 fn get_local_contract(path: &Path) -> Result<String> {
     let path = if path.is_relative() {
         let absolute_path = path.canonicalize().with_context(|| {
@@ -157,7 +157,7 @@ fn get_local_contract(path: &Path) -> Result<String> {
     Ok(abi_or_artifact(json))
 }
 
-/// Retrieves a Truffle artifact or ABI from an HTTP URL.
+/// Retrieves an artifact or ABI from an HTTP URL.
 fn get_http_contract(url: &Url) -> Result<String> {
     let json = util::http_get(url.as_str())
         .with_context(|| format!("failed to retrieve JSON from {}", url))?;
@@ -193,7 +193,7 @@ fn get_etherscan_contract(address: Address) -> Result<String> {
     Ok(json)
 }
 
-/// Retrieves a Truffle artifact or ABI from an npm package through `unpkg.com`.
+/// Retrieves an artifact or ABI from an npm package through `unpkg.com`.
 fn get_npm_contract(package: &str) -> Result<String> {
     let unpkg_url = format!("https://unpkg.com/{}", package);
     let json = util::http_get(&unpkg_url)
@@ -202,16 +202,16 @@ fn get_npm_contract(package: &str) -> Result<String> {
     Ok(abi_or_artifact(json))
 }
 
-/// A best-effort coersion of an ABI or Truffle artifact JSON document into a
-/// Truffle artifact JSON document.
+/// A best-effort coercion of an ABI or an artifact JSON document into an
+/// artifact JSON document.
 ///
-/// This method uses the fact that ABIs are arrays and Truffle artifacts are
+/// This method uses the fact that ABIs are arrays and artifacts are
 /// objects to guess at what type of document this is. Note that no parsing or
 /// validation is done at this point as the document gets parsed and validated
 /// at generation time.
 ///
 /// This needs to be done as currently the contract generation infrastructure
-/// depends on having a Truffle artifact.
+/// depends on having an artifact.
 fn abi_or_artifact(json: String) -> String {
     if json.trim().starts_with('[') {
         format!(r#"{{"abi":{}}}"#, json.trim())

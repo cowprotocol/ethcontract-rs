@@ -13,7 +13,7 @@ mod types;
 use crate::util;
 use crate::Args;
 use anyhow::{anyhow, Context as _, Result};
-use ethcontract_common::{Address, Artifact, DeploymentInformation};
+use ethcontract_common::{Address, Contract, DeploymentInformation};
 use inflector::Inflector;
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
@@ -29,8 +29,8 @@ pub(crate) struct Deployment {
 pub(crate) struct Context {
     /// The artifact JSON as string literal.
     artifact_json: Literal,
-    /// The parsed artifact.
-    artifact: Artifact,
+    /// The parsed contract.
+    contract: Contract,
     /// The identifier for the runtime crate. Usually this is `ethcontract` but
     /// it can be different if the crate was renamed in the Cargo manifest for
     /// example.
@@ -54,13 +54,13 @@ pub(crate) struct Context {
 impl Context {
     /// Create a context from the code generation arguments.
     fn from_args(args: Args) -> Result<Self> {
-        let (artifact_json, artifact) = {
+        let (artifact_json, contract) = {
             let artifact_json = args
                 .artifact_source
                 .artifact_json()
                 .context("failed to get artifact JSON")?;
 
-            let artifact = Artifact::from_json(&artifact_json)
+            let contract = Contract::from_json(&artifact_json)
                 .with_context(|| format!("invalid artifact JSON '{}'", artifact_json))
                 .with_context(|| {
                     format!(
@@ -69,13 +69,13 @@ impl Context {
                     )
                 })?;
 
-            (Literal::string(&artifact_json), artifact)
+            (Literal::string(&artifact_json), contract)
         };
 
         let raw_contract_name = if let Some(name) = args.contract_name_override.as_ref() {
             name
-        } else if !artifact.contract_name.is_empty() {
-            &artifact.contract_name
+        } else if !contract.name.is_empty() {
+            &contract.name
         } else {
             return Err(anyhow!(
                 "contract artifact is missing a name, this can happen when \
@@ -120,7 +120,7 @@ impl Context {
 
         Ok(Context {
             artifact_json,
-            artifact,
+            contract,
             runtime_crate,
             visibility,
             contract_mod,
@@ -137,7 +137,7 @@ impl Default for Context {
     fn default() -> Self {
         Context {
             artifact_json: Literal::string("{}"),
-            artifact: Artifact::empty(),
+            contract: Contract::empty(),
             runtime_crate: util::ident("ethcontract"),
             visibility: Visibility::Inherited,
             contract_mod: util::ident("contract"),

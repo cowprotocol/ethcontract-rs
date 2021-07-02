@@ -23,7 +23,7 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
 /// Expands into a module containing all the event data structures from the ABI.
 fn expand_structs_mod(cx: &Context) -> Result<TokenStream> {
     let data_types = cx
-        .artifact
+        .contract
         .abi
         .events()
         .map(|event| expand_data_type(event, &cx.event_derives))
@@ -122,7 +122,7 @@ fn expand_params(event: &Event) -> Result<Vec<(TokenStream, TokenStream)>> {
         .map(|(i, input)| {
             // NOTE: Events can contain nameless values.
             let name = util::expand_input_name(i, &input.name);
-            let ty = expand_input_type(&input)?;
+            let ty = expand_input_type(input)?;
 
             Ok((name, ty))
         })
@@ -180,7 +180,7 @@ fn expand_data_tuple(
 /// streams for all non-anonymous contract events in the ABI.
 fn expand_filters(cx: &Context) -> Result<TokenStream> {
     let standard_events = cx
-        .artifact
+        .contract
         .abi
         .events()
         .filter(|event| !event.anonymous)
@@ -349,7 +349,7 @@ fn expand_builder_topic_filter(topic_index: usize, param: &EventParam) -> Result
     } else {
         util::safe_ident(&param.name.to_snake_case())
     };
-    let ty = expand_input_type(&param)?;
+    let ty = expand_input_type(param)?;
 
     Ok(quote! {
         #doc
@@ -369,7 +369,7 @@ fn expand_builder_name(event: &Event) -> TokenStream {
 /// Expands into the `all_events` method on the root contract type if it
 /// contains events. Expands to nothing otherwise.
 fn expand_all_events(cx: &Context) -> TokenStream {
-    if cx.artifact.abi.events.is_empty() {
+    if cx.contract.abi.events.is_empty() {
         return quote! {};
     }
 
@@ -397,17 +397,17 @@ fn expand_all_events(cx: &Context) -> TokenStream {
 /// including anonymous types.
 fn expand_event_enum(cx: &Context) -> TokenStream {
     let variants = {
-        let mut events = cx.artifact.abi.events().collect::<Vec<_>>();
+        let mut events = cx.contract.abi.events().collect::<Vec<_>>();
 
         // NOTE: We sort the events by name so that the generated enum is
-        //   consistent. This also faciliates testing as so that the same ABI
+        //   consistent. This also facilitates testing as so that the same ABI
         //   yields consistent code.
         events.sort_unstable_by_key(|event| &event.name);
 
         events
             .into_iter()
             .map(|event| {
-                let struct_name = expand_struct_name(&event);
+                let struct_name = expand_struct_name(event);
                 quote! {
                     #struct_name(self::event_data::#struct_name)
                 }
@@ -430,16 +430,16 @@ fn expand_event_enum(cx: &Context) -> TokenStream {
 fn expand_event_parse_log(cx: &Context) -> TokenStream {
     let all_events = {
         let mut all_events = cx
-            .artifact
+            .contract
             .abi
             .events()
             .map(|event| {
-                let struct_name = expand_struct_name(&event);
+                let struct_name = expand_struct_name(event);
 
                 let name = Literal::string(&event.name);
                 let decode_event = quote! {
                     log.clone().decode(
-                        &Contract::artifact()
+                        Contract::artifact()
                             .abi
                             .event(#name)
                             .expect("generated event decode")
@@ -463,7 +463,7 @@ fn expand_event_parse_log(cx: &Context) -> TokenStream {
         .iter()
         .filter(|(event, _, _)| !event.anonymous)
         .map(|(event, struct_name, decode_event)| {
-            // These are all possible stardard (i.e. non-anonymous) events that
+            // These are all possible standard (i.e. non-anonymous) events that
             // the contract can produce, along with its signature and index in
             // the contract ABI. For these, we match topic 0 to the signature
             // and try to decode.
@@ -520,7 +520,7 @@ fn expand_event_parse_log(cx: &Context) -> TokenStream {
 /// Expands an event property type.
 ///
 /// Note that this is slightly different than an expanding a Solidity type as
-/// complex types like arrays and strings get emited as hashes when they are
+/// complex types like arrays and strings get emitted as hashes when they are
 /// indexed.
 fn expand_input_type(input: &EventParam) -> Result<TokenStream> {
     Ok(match (&input.kind, input.indexed) {
@@ -705,7 +705,7 @@ mod tests {
     fn expand_enum_for_all_events() {
         let context = {
             let mut context = Context::default();
-            context.artifact.abi.events.insert(
+            context.contract.abi.events.insert(
                 "Foo".into(),
                 vec![Event {
                     name: "Foo".into(),
@@ -717,7 +717,7 @@ mod tests {
                     anonymous: false,
                 }],
             );
-            context.artifact.abi.events.insert(
+            context.contract.abi.events.insert(
                 "Bar".into(),
                 vec![Event {
                     name: "Bar".into(),
@@ -750,7 +750,7 @@ mod tests {
     fn expand_parse_log_impl_for_all_events() {
         let context = {
             let mut context = Context::default();
-            context.artifact.abi.events.insert(
+            context.contract.abi.events.insert(
                 "Foo".into(),
                 vec![Event {
                     name: "Foo".into(),
@@ -762,7 +762,7 @@ mod tests {
                     anonymous: false,
                 }],
             );
-            context.artifact.abi.events.insert(
+            context.contract.abi.events.insert(
                 "Bar".into(),
                 vec![Event {
                     name: "Bar".into(),
@@ -777,7 +777,7 @@ mod tests {
             context
         };
 
-        let foo_signature = expand_hash(context.artifact.abi.event("Foo").unwrap().signature());
+        let foo_signature = expand_hash(context.contract.abi.event("Foo").unwrap().signature());
         let invalid_data = expand_invalid_data();
 
         assert_quote!(expand_event_parse_log(&context), {
@@ -791,7 +791,7 @@ mod tests {
                         .map(|topic| match topic {
                             #foo_signature => Ok(Event::Foo(
                                 log.clone().decode(
-                                    &Contract::artifact()
+                                    Contract::artifact()
                                         .abi
                                         .event("Foo")
                                         .expect("generated event decode")
@@ -805,7 +805,7 @@ mod tests {
                     }
 
                     if let Ok(data) = log.clone().decode(
-                        &Contract::artifact()
+                        Contract::artifact()
                             .abi
                             .event("Bar")
                             .expect("generated event decode")
