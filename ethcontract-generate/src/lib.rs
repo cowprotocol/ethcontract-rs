@@ -202,7 +202,7 @@ pub struct ContractBindings {
     /// The TokenStream representing the contract bindings.
     pub tokens: TokenStream,
 
-    /// Format generated code sing locally installed copy of `rustfmt`.
+    /// Format generated code using locally installed copy of `rustfmt`.
     pub rustfmt: bool,
 }
 
