@@ -210,6 +210,7 @@ mod tests {
     use super::*;
     use crate::errors::ExecutionError;
     use crate::test::prelude::*;
+    use hex_literal::hex;
     use web3::types::{H2048, H256};
 
     #[test]
@@ -289,7 +290,9 @@ mod tests {
 
         let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
         let chain_id = 77777;
-        let tx_hash = H256::repeat_byte(0xff);
+        let tx_hash = H256(hex!(
+            "248988e44deaff5162c3f998a8b1f510862366a68ef4339dff6ec89e120a6c19"
+        ));
 
         transport.add_response(json!(tx_hash));
         transport.add_response(json!("0x1"));
@@ -344,7 +347,9 @@ mod tests {
 
         let key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
         let chain_id = 77777;
-        let tx_hash = H256::repeat_byte(0xff);
+        let tx_hash = H256(hex!(
+            "248988e44deaff5162c3f998a8b1f510862366a68ef4339dff6ec89e120a6c19"
+        ));
 
         transport.add_response(json!(tx_hash));
         transport.add_response(json!("0x1"));
