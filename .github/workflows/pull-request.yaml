@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - rust: 1.52.1
+          - rust: 1.53.0
             examples: false
             continue-on-error: false
           - rust: stable
@@ -35,13 +35,11 @@ jobs:
           components: rustfmt, clippy
           default: true
       - uses: Swatinem/rust-cache@v1
-        with:
-          key: key-to-evict-cache-2
       - run: cargo fmt -- --check
       - run: cd examples/truffle && yarn --frozen-lockfile && yarn build
       # Can't use --all-features here because web3 has mutually exclusive features.
-      - run: cargo test
       - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
       - run: |
           if ${{ matrix.examples }}; then
             (cd examples/truffle && yarn -s run start > /dev/null) &
