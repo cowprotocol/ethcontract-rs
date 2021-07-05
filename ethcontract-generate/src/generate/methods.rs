@@ -1,4 +1,4 @@
-use crate::contract::{types, Context};
+use crate::generate::{types, Context};
 use crate::util;
 use anyhow::{anyhow, Context as _, Result};
 use ethcontract_common::abi::{Function, Param, StateMutability};

@@ -10,202 +10,145 @@
 #[path = "test/macros.rs"]
 mod test_macros;
 
-mod contract;
+pub mod source;
+
+mod generate;
 mod rustfmt;
-mod source;
 mod util;
 
 pub use crate::source::Source;
 pub use crate::util::parse_address;
+
+pub use ethcontract_common::artifact::{Artifact, ContractMut, InsertResult};
+
+/// Convenience re-imports so that you don't have to add `ethcontract-common`
+/// as a dependency.
+pub mod loaders {
+    pub use ethcontract_common::artifact::hardhat::{
+        Format as HardHatFormat, HardHatLoader, NetworkEntry,
+    };
+    pub use ethcontract_common::artifact::truffle::TruffleLoader;
+}
+
 use anyhow::Result;
-use contract::Deployment;
-use ethcontract_common::DeploymentInformation;
-pub use ethcontract_common::{Address, TransactionHash};
+use ethcontract_common::contract::Network;
+use ethcontract_common::Contract;
 use proc_macro2::TokenStream;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::path::Path;
-
-/// Internal global arguments passed to the generators for each individual
-/// component that control expansion.
-pub(crate) struct Args {
-    /// The source of the artifact JSON for the contract whose bindings
-    /// are being generated.
-    artifact_source: Source,
-    /// The runtime crate name to use.
-    runtime_crate_name: String,
-    /// The visibility modifier to use for the generated module and contract
-    /// re-export.
-    visibility_modifier: Option<String>,
-    /// Override the contract module name that contains the generated code.
-    contract_mod_override: Option<String>,
-    /// Override the contract name to use for the generated type.
-    contract_name_override: Option<String>,
-    /// Manually specified deployed contract address and transaction hash.
-    deployments: HashMap<u32, Deployment>,
-    /// Manually specified contract method aliases.
-    method_aliases: HashMap<String, String>,
-    /// Derives added to event structs and enums.
-    event_derives: Vec<String>,
-}
-
-impl Args {
-    /// Creates a new builder given the path to a contract's artifact
-    /// JSON file.
-    pub fn new(source: Source) -> Self {
-        Args {
-            artifact_source: source,
-            runtime_crate_name: "ethcontract".to_owned(),
-            visibility_modifier: None,
-            contract_mod_override: None,
-            contract_name_override: None,
-            deployments: HashMap::new(),
-            method_aliases: HashMap::new(),
-            event_derives: Vec::new(),
-        }
-    }
-}
-
-/// Internal output options for controlling how the generated code gets
-/// serialized to file.
-struct SerializationOptions {
-    /// Format the code using a locally installed copy of `rustfmt`.
-    rustfmt: bool,
-}
-
-impl Default for SerializationOptions {
-    fn default() -> Self {
-        SerializationOptions { rustfmt: true }
-    }
-}
 
 /// Builder for generating contract code. Note that no code is generated until
 /// the builder is finalized with `generate` or `output`.
-pub struct Builder {
-    /// The contract binding generation args.
-    args: Args,
-    /// The serialization options.
-    options: SerializationOptions,
+pub struct ContractBuilder {
+    /// The runtime crate name to use.
+    pub runtime_crate_name: String,
+
+    /// The visibility modifier to use for the generated module and contract
+    /// re-export.
+    pub visibility_modifier: Option<String>,
+
+    /// Override the contract module name that contains the generated code.
+    pub contract_mod_override: Option<String>,
+
+    /// Override the contract name to use for the generated type.
+    pub contract_name_override: Option<String>,
+
+    /// Manually specified deployed contract address and transaction hash.
+    pub networks: HashMap<String, Network>,
+
+    /// Manually specified contract method aliases.
+    pub method_aliases: HashMap<String, String>,
+
+    /// Derives added to event structs and enums.
+    pub event_derives: Vec<String>,
+
+    /// Format generated code sing locally installed copy of `rustfmt`.
+    pub rustfmt: bool,
 }
 
-impl Builder {
-    /// Creates a new builder given the path to a contract's artifact
-    /// JSON file.
-    pub fn new<P>(artifact_path: P) -> Self
-    where
-        P: AsRef<Path>,
-    {
-        Builder::with_source(Source::local(artifact_path))
-    }
-
-    /// Creates a new builder from a source URL.
-    pub fn from_source_url<S>(source_url: S) -> Result<Self>
-    where
-        S: AsRef<str>,
-    {
-        let source = Source::parse(source_url)?;
-        Ok(Builder::with_source(source))
-    }
-
-    /// Creates a new builder with the given artifact JSON source.
-    pub fn with_source(source: Source) -> Self {
-        Builder {
-            args: Args::new(source),
-            options: SerializationOptions::default(),
+impl ContractBuilder {
+    /// Create a new contract builder with default settings.
+    pub fn new() -> Self {
+        ContractBuilder {
+            runtime_crate_name: "ethcontract".to_string(),
+            visibility_modifier: None,
+            contract_mod_override: None,
+            contract_name_override: None,
+            networks: Default::default(),
+            method_aliases: Default::default(),
+            event_derives: vec![],
+            rustfmt: true,
         }
     }
 
-    /// Sets the crate name for the runtime crate. This setting is usually only
+    /// Set the crate name for the runtime crate. This setting is usually only
     /// needed if the crate was renamed in the Cargo manifest.
-    pub fn with_runtime_crate_name<S>(mut self, name: S) -> Self
-    where
-        S: Into<String>,
-    {
-        self.args.runtime_crate_name = name.into();
+    pub fn runtime_crate_name<S>(mut self, name: impl Into<String>) -> Self {
+        self.runtime_crate_name = name.into();
         self
     }
 
-    /// Sets an optional visibility modifier for the generated module and
+    /// Set an optional visibility modifier for the generated module and
     /// contract re-export.
-    pub fn with_visibility_modifier<S>(mut self, vis: Option<S>) -> Self
-    where
-        S: Into<String>,
-    {
-        self.args.visibility_modifier = vis.map(S::into);
+    pub fn visibility_modifier<S>(mut self, vis: impl Into<String>) -> Self {
+        self.visibility_modifier = Some(vis.into());
         self
     }
 
-    /// Sets the optional contract module name override.
-    pub fn with_contract_mod_override<S>(mut self, name: Option<S>) -> Self
-    where
-        S: Into<String>,
-    {
-        self.args.contract_mod_override = name.map(S::into);
+    /// Set the optional contract module name override.
+    pub fn contract_mod_override<S>(mut self, name: impl Into<String>) -> Self {
+        self.contract_mod_override = Some(name.into());
         self
     }
 
-    /// Sets the optional contract name override. This setting is needed when
-    /// using a artifact JSON source that does not provide a contract name such
+    /// Set the optional contract name override. This setting is needed when
+    /// using an artifact JSON source that does not provide a contract name such
     /// as Etherscan.
-    pub fn with_contract_name_override<S>(mut self, name: Option<S>) -> Self
-    where
-        S: Into<String>,
-    {
-        self.args.contract_name_override = name.map(S::into);
+    pub fn contract_name_override<S>(mut self, name: impl Into<String>) -> Self {
+        self.contract_name_override = Some(name.into());
         self
     }
 
-    /// Manually adds specifies the deployed address and deployment transaction
+    /// Add a deployed address and deployment transaction
     /// hash or block of a contract for a given network. Note that manually specified
     /// deployments take precedence over deployments in the artifact.
     ///
     /// This is useful for integration test scenarios where the address of a
     /// contract on the test node is deterministic, but the contract address
     /// is not in the artifact.
-    pub fn add_deployment(
-        mut self,
-        network_id: u32,
-        address: Address,
-        deployment_information: Option<DeploymentInformation>,
-    ) -> Self {
-        let deployment = Deployment {
-            address,
-            deployment_information,
-        };
-        self.args.deployments.insert(network_id, deployment);
+    pub fn add_network(mut self, chain_id: impl Into<String>, network: Network) -> Self {
+        self.networks.insert(chain_id.into(), network);
         self
     }
 
-    /// Manually adds specifies the deployed address as a string of a contract
-    /// for a given network. See `Builder::add_deployment` for more information.
+    /// Add a deployed address. Parses address from string.
+    /// See [`add_deployment`] for more information.
     ///
     /// # Panics
     ///
     /// This method panics if the specified address string is invalid. See
-    /// `parse_address` for more information on the address string format.
-    pub fn add_deployment_str<S>(self, network_id: u32, address: S) -> Self
-    where
-        S: AsRef<str>,
-    {
-        self.add_deployment(
-            network_id,
-            parse_address(address).expect("failed to parse address"),
-            None,
+    /// [`parse_address`] for more information on the address string format.
+    pub fn add_network_str(self, chain_id: impl Into<String>, address: &str) -> Self {
+        self.add_network(
+            chain_id,
+            Network {
+                address: parse_address(address).expect("failed to parse address"),
+                deployment_information: None,
+            },
         )
     }
 
-    /// Manually adds a solidity method alias to specify what the method name
+    /// Add a solidity method alias to specify what the method name
     /// will be in Rust. For solidity methods without an alias, the snake cased
     /// method name will be used.
-    pub fn add_method_alias<S1, S2>(mut self, signature: S1, alias: S2) -> Self
-    where
-        S1: Into<String>,
-        S2: Into<String>,
-    {
-        self.args
-            .method_aliases
-            .insert(signature.into(), alias.into());
+    pub fn add_method_alias(
+        mut self,
+        signature: impl Into<String>,
+        alias: impl Into<String>,
+    ) -> Self {
+        self.method_aliases.insert(signature.into(), alias.into());
         self
     }
 
@@ -214,39 +157,42 @@ impl Builder {
     ///
     /// Note that in case `rustfmt` does not exist or produces an error, the
     /// unformatted code will be used.
-    pub fn with_rustfmt(mut self, rustfmt: bool) -> Self {
-        self.options.rustfmt = rustfmt;
+    pub fn rustfmt(mut self, rustfmt: bool) -> Self {
+        self.rustfmt = rustfmt;
         self
     }
 
     /// Add a custom derive to the derives for event structs and enums.
     ///
-    /// This makes it possible to for example derive serde::Serialize and
-    /// serde::Deserialize for events.
+    /// This makes it possible to, for example, derive `serde::Serialize` and
+    /// `serde::Deserialize` for events.
     ///
     /// # Examples
     ///
     /// ```
-    /// use ethcontract_generate::Builder;
-    /// let builder = Builder::new("path")
+    /// # use ethcontract_generate::ContractBuilder;
+    /// let builder = ContractBuilder::new()
     ///     .add_event_derive("serde::Serialize")
     ///     .add_event_derive("serde::Deserialize");
     /// ```
-    pub fn add_event_derive<S>(mut self, derive: S) -> Self
-    where
-        S: Into<String>,
-    {
-        self.args.event_derives.push(derive.into());
+    pub fn add_event_derive(mut self, derive: impl Into<String>) -> Self {
+        self.event_derives.push(derive.into());
         self
     }
 
-    /// Generates the contract bindings.
-    pub fn generate(self) -> Result<ContractBindings> {
-        let tokens = contract::expand(self.args)?;
+    /// Generate the contract bindings.
+    pub fn generate(self, contract: &Contract) -> Result<ContractBindings> {
+        let rustfmt = self.rustfmt;
         Ok(ContractBindings {
-            tokens,
-            options: self.options,
+            tokens: generate::expand(contract, self)?,
+            rustfmt,
         })
+    }
+}
+
+impl Default for ContractBuilder {
+    fn default() -> Self {
+        ContractBuilder::new()
     }
 }
 
@@ -254,21 +200,29 @@ impl Builder {
 /// either written to file or into a token stream for use in a procedural macro.
 pub struct ContractBindings {
     /// The TokenStream representing the contract bindings.
-    tokens: TokenStream,
-    /// The output options used for serialization.
-    options: SerializationOptions,
+    pub tokens: TokenStream,
+
+    /// Format generated code using locally installed copy of `rustfmt`.
+    pub rustfmt: bool,
 }
 
 impl ContractBindings {
-    /// Writes the bindings to a given `Write`.
-    pub fn write<W>(&self, mut w: W) -> Result<()>
-    where
-        W: Write,
-    {
+    /// Specify whether or not to format the code using a locally installed copy
+    /// of `rustfmt`.
+    ///
+    /// Note that in case `rustfmt` does not exist or produces an error, the
+    /// unformatted code will be used.
+    pub fn rustfmt(mut self, rustfmt: bool) -> Self {
+        self.rustfmt = rustfmt;
+        self
+    }
+
+    /// Write the bindings to a given `Write`.
+    pub fn write(&self, mut w: impl Write) -> Result<()> {
         let source = {
             let raw = self.tokens.to_string();
 
-            if self.options.rustfmt {
+            if self.rustfmt {
                 rustfmt::format(&raw).unwrap_or(raw)
             } else {
                 raw
@@ -279,16 +233,14 @@ impl ContractBindings {
         Ok(())
     }
 
-    /// Writes the bindings to the specified file.
-    pub fn write_to_file<P>(&self, path: P) -> Result<()>
-    where
-        P: AsRef<Path>,
-    {
+    /// Write the bindings to the specified file.
+    pub fn write_to_file(&self, path: impl AsRef<Path>) -> Result<()> {
         let file = File::create(path)?;
-        self.write(file)
+        let writer = BufWriter::new(file);
+        self.write(writer)
     }
 
-    /// Converts the bindings into its underlying token stream. This allows it
+    /// Convert the bindings into its underlying token stream. This allows it
     /// to be used within a procedural macro.
     pub fn into_tokens(self) -> TokenStream {
         self.tokens

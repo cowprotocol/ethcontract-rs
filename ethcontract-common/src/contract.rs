@@ -31,8 +31,13 @@ pub struct Contract {
 impl Contract {
     /// Creates an empty contract instance.
     pub fn empty() -> Self {
+        Contract::with_name(String::default())
+    }
+
+    /// Creates an empty contract instance with the given name.
+    pub fn with_name(name: impl Into<String>) -> Self {
         Contract {
-            name: String::new(),
+            name: name.into(),
             abi: Abi {
                 constructor: None,
                 functions: HashMap::new(),
