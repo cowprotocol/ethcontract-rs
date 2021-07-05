@@ -80,7 +80,7 @@ use syn::{
 ///
 ///   ```ignore
 ///   contract!(
-///       "etherscan:0xC02AAA39B223FE8D0A0E5C4F27EAD9083C756CC2",
+///       "etherscan:0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
 ///       contract = WETH9
 ///   );
 ///   ```
