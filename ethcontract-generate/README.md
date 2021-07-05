@@ -3,8 +3,9 @@
 An alternative API for generating type-safe contract bindings from `build.rs`
 scripts. Using this method instead of the procedural macro has a couple
 advantages:
-- Proper integration with with RLS and Racer for autocomplete support
-- Ability to inspect the generated code
+
+- proper integration with with RLS and Racer for autocomplete support;
+- ability to inspect the generated code.
 
 The downside of using the generator API is the requirement of having a build
 script instead of a macro invocation.
@@ -27,19 +28,28 @@ behaviour may occur.
 
 Then, in your `build.rs` include the following code:
 
-```rs
-use ethcontract_generate::Builder;
-use std::env;
-use std::path::Path;
+```rust
+use ethcontract_generate::loaders::TruffleLoader;
+use ethcontract_generate::ContractBuilder;
 
 fn main() {
-    let dest = env::var("OUT_DIR").unwrap();
-    Builder::new("path/to/truffle/build/contract/Contract.json")
-        .generate()
+    // Prepare filesystem paths.
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let dest = std::path::Path::new(&out_dir).join("rust_coin.rs");
+    
+    // Load a contract.
+    let contract = TruffleLoader::new()
+        .load_contract_from_file("../build/Contract.json")
+        .unwrap();
+    
+    // Generate bindings for it.
+    ContractBuilder::new()
+        .generate(&contract)
         .unwrap()
-        .write_to_file(Path::new(&dest).join("rust_coin.rs"))
+        .write_to_file(dest)
         .unwrap();
 }
+
 ```
 
 ## Relation to `ethcontract-derive`

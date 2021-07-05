@@ -15,6 +15,7 @@ Proc macro for generating type-safe bindings to Ethereum smart contracts.
 proc-macro = true
 
 [dependencies]
+anyhow = "1.0"
 ethcontract-common = { version = "0.12.2", path = "../ethcontract-common" }
 ethcontract-generate = { version = "0.12.2", path = "../ethcontract-generate" }
 proc-macro2 = "1.0"

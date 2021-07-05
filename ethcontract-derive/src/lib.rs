@@ -8,14 +8,17 @@ extern crate proc_macro;
 mod spanned;
 
 use crate::spanned::{ParseInner, Spanned};
+use anyhow::Result;
 use ethcontract_common::abi::{Function, Param, ParamType};
 use ethcontract_common::abiext::{FunctionExt, ParamTypeExt};
-use ethcontract_generate::{parse_address, Address, Builder};
+use ethcontract_common::artifact::truffle::TruffleLoader;
+use ethcontract_common::contract::Network;
+use ethcontract_common::{Address, Contract};
+use ethcontract_generate::{parse_address, ContractBuilder, Source};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens as _};
 use std::collections::HashSet;
-use std::error::Error;
 use syn::ext::IdentExt;
 use syn::parse::{Error as ParseError, Parse, ParseStream, Result as ParseResult};
 use syn::{
@@ -102,15 +105,21 @@ use syn::{
 #[proc_macro]
 pub fn contract(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as Spanned<ContractArgs>);
-
     let span = args.span();
-    expand(args.into_inner())
+    Source::parse(&args.artifact_path)
+        .and_then(|s| s.artifact_json())
+        .and_then(|j| {
+            TruffleLoader::new()
+                .load_contract_from_str(&j)
+                .map_err(Into::into)
+        })
+        .and_then(|c| expand(args.into_inner(), &c))
         .unwrap_or_else(|e| SynError::new(span, format!("{:?}", e)).to_compile_error())
         .into()
 }
 
-fn expand(args: ContractArgs) -> Result<TokenStream2, Box<dyn Error>> {
-    Ok(args.into_builder()?.generate()?.into_tokens())
+fn expand(args: ContractArgs, contract: &Contract) -> Result<TokenStream2> {
+    Ok(args.into_builder().generate(contract)?.into_tokens())
 }
 
 /// Contract procedural macro arguments.
@@ -122,30 +131,41 @@ struct ContractArgs {
 }
 
 impl ContractArgs {
-    fn into_builder(self) -> Result<Builder, Box<dyn Error>> {
-        let mut builder = Builder::from_source_url(&self.artifact_path)?
-            .with_visibility_modifier(self.visibility);
+    fn into_builder(self) -> ContractBuilder {
+        let mut builder = ContractBuilder::new();
+
+        builder.visibility_modifier = self.visibility;
 
         for parameter in self.parameters.into_iter() {
-            builder = match parameter {
-                Parameter::Mod(name) => builder.with_contract_mod_override(Some(name)),
-                Parameter::Contract(name) => builder.with_contract_name_override(Some(name)),
-                Parameter::Crate(name) => builder.with_runtime_crate_name(name),
+            match parameter {
+                Parameter::Mod(name) => builder.contract_mod_override = Some(name),
+                Parameter::Contract(name) => builder.contract_name_override = Some(name),
+                Parameter::Crate(name) => builder.runtime_crate_name = name,
                 Parameter::Deployments(deployments) => {
-                    deployments.into_iter().fold(builder, |builder, d| {
-                        builder.add_deployment(d.network_id, d.address, None)
-                    })
+                    for deployment in deployments {
+                        builder.networks.insert(
+                            deployment.network_id.to_string(),
+                            Network {
+                                address: deployment.address,
+                                deployment_information: None,
+                            },
+                        );
+                    }
                 }
-                Parameter::Methods(methods) => methods.into_iter().fold(builder, |builder, m| {
-                    builder.add_method_alias(m.signature, m.alias)
-                }),
-                Parameter::EventDerives(derives) => derives
-                    .into_iter()
-                    .fold(builder, |builder, derive| builder.add_event_derive(derive)),
+                Parameter::Methods(methods) => {
+                    for method in methods {
+                        builder
+                            .method_aliases
+                            .insert(method.signature, method.alias);
+                    }
+                }
+                Parameter::EventDerives(derives) => {
+                    builder.event_derives.extend(derives);
+                }
             };
         }
 
-        Ok(builder)
+        builder
     }
 }
 

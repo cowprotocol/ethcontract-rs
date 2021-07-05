@@ -1,13 +1,16 @@
-use ethcontract_generate::{Address, Builder, TransactionHash};
-use std::env;
-use std::path::Path;
+use ethcontract_generate::loaders::TruffleLoader;
+use ethcontract_generate::ContractBuilder;
 
 fn main() {
-    let dest = env::var("OUT_DIR").unwrap();
-    Builder::new("../truffle/build/contracts/RustCoin.json")
-        .add_deployment(42, Address::zero(), Some(TransactionHash::zero().into()))
-        .generate()
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let dest = std::path::Path::new(&out_dir).join("rust_coin.rs");
+
+    let contract = TruffleLoader::new()
+        .load_contract_from_file("../truffle/build/contracts/RustCoin.json")
+        .unwrap();
+    ContractBuilder::new()
+        .generate(&contract)
         .unwrap()
-        .write_to_file(Path::new(&dest).join("rust_coin.rs"))
+        .write_to_file(dest)
         .unwrap();
 }

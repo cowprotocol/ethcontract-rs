@@ -166,10 +166,11 @@ impl HardHatLoader {
     }
 
     /// Loads an artifact from disk.
-    pub fn load_from_file(&self, p: &Path) -> Result<Artifact, ArtifactError> {
-        let file = File::open(p)?;
+    pub fn load_from_file(&self, p: impl AsRef<Path>) -> Result<Artifact, ArtifactError> {
+        let path = p.as_ref();
+        let file = File::open(path)?;
         let reader = BufReader::new(file);
-        self.load_artifact(p.display(), reader, from_reader, from_reader)
+        self.load_artifact(path.display(), reader, from_reader, from_reader)
     }
 
     fn load_artifact<T>(
