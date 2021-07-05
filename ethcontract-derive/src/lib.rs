@@ -680,14 +680,17 @@ mod tests {
             ContractArgs {
                 visibility: None,
                 artifact_path: "artifact.json".into(),
-                parameters: vec![Parameter::Contract("Contract".into(), Some("Renamed".into()))],
+                parameters: vec![Parameter::Contract(
+                    "Contract".into(),
+                    Some("Renamed".into())
+                )],
             },
         );
     }
 
     #[test]
     fn unsupported_format_error() {
-        contract_args_err!("artifact.json", format = yaml,);
+        contract_args_err!("artifact.json", format = yaml);
     }
 
     #[test]
