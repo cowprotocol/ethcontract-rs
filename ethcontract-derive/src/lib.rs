@@ -78,8 +78,8 @@ use syn::{
 ///   If an artifact exports a single unnamed artifact, this parameter
 ///   can be used to set its name. For example:
 ///
-///   ```
-///   ethcontract::contract!(
+///   ```ignore
+///   contract!(
 ///       "etherscan:0xC02AAA39B223FE8D0A0E5C4F27EAD9083C756CC2",
 ///       contract = WETH9
 ///   );
@@ -89,8 +89,8 @@ use syn::{
 ///   bindings to. Additionally, you can rename contract class by specifying
 ///   a new name after the `as` keyword. For example:
 ///
-///   ```
-///   ethcontract::contract!(
+///   ```ignore
+///   contract!(
 ///       "build/contracts.json",
 ///       format = hardhat_multi,
 ///       contract = WETH9 as WrappedEthereum
@@ -106,8 +106,8 @@ use syn::{
 ///
 ///   Example:
 ///
-///   ```
-///   ethcontract::contract!(
+///   ```ignore
+///   contract!(
 ///       "build/contracts/WETH9.json",
 ///       contract = WETH9 as WrappedEthereum,
 ///       mod = weth,
@@ -131,8 +131,8 @@ use syn::{
 ///
 ///   Example:
 ///
-///   ```
-///   ethcontract::contract!(
+///   ```ignore
+///   contract!(
 ///       "build/contracts/WETH9.json",
 ///       deployments {
 ///           4 => "0x000102030405060708090a0b0c0d0e0f10111213",
@@ -149,8 +149,8 @@ use syn::{
 ///
 ///   Example:
 ///
-///   ```
-///   ethcontract::contract!(
+///   ```ignore
+///   contract!(
 ///       "build/contracts/WETH9.json",
 ///       methods {
 ///           approve(Address, U256) as set_allowance
@@ -163,8 +163,8 @@ use syn::{
 ///
 ///   Example:
 ///
-///   ```
-///   ethcontract::contract!(
+///   ```ignore
+///   contract!(
 ///       "build/contracts/WETH9.json",
 ///       event_derives (serde::Deserialize, serde::Serialize),
 ///   );
@@ -655,6 +655,39 @@ mod tests {
                 ],
             },
         );
+    }
+
+    #[test]
+    fn parse_contract_args_format() {
+        let args = contract_args!("artifact.json", format = hardhat_multi);
+        assert_eq!(
+            args,
+            ContractArgs {
+                visibility: None,
+                artifact_path: "artifact.json".into(),
+                parameters: vec![Parameter::Format(Format::HardHat(
+                    HardHatFormat::MultiExport
+                ))],
+            },
+        );
+    }
+
+    #[test]
+    fn parse_contract_args_rename() {
+        let args = contract_args!("artifact.json", contract = Contract as Renamed);
+        assert_eq!(
+            args,
+            ContractArgs {
+                visibility: None,
+                artifact_path: "artifact.json".into(),
+                parameters: vec![Parameter::Contract("Contract".into(), Some("Renamed".into()))],
+            },
+        );
+    }
+
+    #[test]
+    fn unsupported_format_error() {
+        contract_args_err!("artifact.json", format = yaml,);
     }
 
     #[test]
