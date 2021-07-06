@@ -39,7 +39,13 @@ jobs:
       - run: cd examples/truffle && yarn --frozen-lockfile && yarn build
       # Can't use --all-features here because web3 has mutually exclusive features.
       - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
+      # This is a workaround for a rustc/cargo bug we started encountering on Github Actions where
+      # running `cargo test` in the top level directory would fail with a linker error.
+      - run: |
+          (cd ethcontract && cargo test)
+          (cd ethcontract-common && cargo test)
+          (cd ethcontract-derive && cargo test)
+          (cd ethcontract-generate && cargo test)
       - run: |
           if ${{ matrix.examples }}; then
             (cd examples/truffle && yarn -s run start > /dev/null) &
