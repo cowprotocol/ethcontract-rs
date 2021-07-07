@@ -8,12 +8,13 @@ extern crate proc_macro;
 mod spanned;
 
 use crate::spanned::{ParseInner, Spanned};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ethcontract_common::abi::{Function, Param, ParamType};
 use ethcontract_common::abiext::{FunctionExt, ParamTypeExt};
 use ethcontract_common::artifact::truffle::TruffleLoader;
 use ethcontract_common::contract::Network;
-use ethcontract_common::{Address, Contract};
+use ethcontract_common::Address;
+use ethcontract_generate::loaders::{HardHatFormat, HardHatLoader};
 use ethcontract_generate::{parse_address, ContractBuilder, Source};
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
@@ -26,69 +27,166 @@ use syn::{
     Token, Visibility,
 };
 
-/// Proc macro to generate type-safe bindings to a contract. This macro accepts
-/// a path to a Truffle artifact JSON file. Note that this path is rooted in
-/// the crate's root `CARGO_MANIFEST_DIR`.
+/// Proc macro to generate type-safe bindings to a contract.
+///
+/// This macro accepts a path to an artifact JSON file. Note that this path
+/// is rooted in the crate's root `CARGO_MANIFEST_DIR`:
 ///
 /// ```ignore
-/// ethcontract::contract!("build/contracts/MyContract.json");
+/// contract!("build/contracts/WETH9.json");
 /// ```
 ///
 /// Alternatively, other sources may be used, for full details consult the
-/// `ethcontract-generate::source` documentation. Some basic examples:
+/// [`ethcontract_generate::source`] documentation. Some basic examples:
 ///
 /// ```ignore
 /// // HTTP(S) source
-/// ethcontract::contract!("https://my.domain.local/path/to/contract.json")
-/// // Etherscan.io
-/// ethcontract::contract!("etherscan:0x0001020304050607080910111213141516171819");
-/// ethcontract::contract!("https://etherscan.io/address/0x0001020304050607080910111213141516171819");
-/// // npmjs
-/// ethcontract::contract!("npm:@org/package@1.0.0/path/to/contract.json")
+/// contract!("https://my.domain.local/path/to/contract.json")
+///
+/// // etherscan.io
+/// contract!("etherscan:0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+///
+/// // npm package
+/// contract!("npm:@openzeppelin/contracts@4.2.0/build/contracts/IERC20.json")
 /// ```
 ///
-/// Note that Etherscan rate-limits requests to their API, to avoid this an
+/// Note that etherscan rate-limits requests to their API, to avoid this an
 /// `ETHERSCAN_API_KEY` environment variable can be set. If it is, it will use
 /// that API key when retrieving the contract ABI.
 ///
-/// Currently the proc macro accepts additional parameters to configure some
-/// aspects of the code generation. Specifically it accepts:
-/// - `crate`: The name of the `ethcontract` crate. This is useful if the crate
-///   was renamed in the `Cargo.toml` for whatever reason.
-/// - `contract`: Override the contract name that is used for the generated
-///   type. This is required when using sources that do not provide the contract
-///   name in the artifact JSON such as Etherscan.
-/// - `mod`: The name of the contract module to place generated code in. Note
-///   that the root contract type gets re-exported in the context where the
-///   macro was invoked. This defaults to the contract name converted into snake
-///   case.
-/// - `deployments`: A list of additional addresses of deployed contract for
-///   specified network IDs. This mapping allows `MyContract::deployed` to work
-///   for networks that are not included in the Truffle artifact's `networks`
-///   property. Note that deployments defined this way **take precedence** over
-///   the ones defined in the Truffle artifact. This parameter is intended to be
-///   used to manually specify contract addresses for test environments, be it
-///   testnet addresses that may defer from the originally published artifact or
-///   deterministic contract addresses on local development nodes.
-/// - `methods`: A list of mappings from method signatures to method names
-///   allowing methods names to be explicitely set for contract methods. This
-///   also provides a workaround for generating code for contracts with multiple
-///   methods with the same name.
-/// - `event_derives`: A list of additional derives that should be added to
+/// Currently, the proc macro accepts additional parameters to configure some
+/// aspects of the code generation. Specifically it accepts the following.
+///
+/// - `format`: format of the artifact.
+///
+///   Available values are:
+///
+///   - `truffle` (default) to use [truffle loader];
+///   - `hardhat` to use [hardhat loader] in [single export mode];
+///   - `hardhat_multi` to use hardhat loader in [multi export mode].
+///
+///   Note that hardhat artifacts export multiple contracts. You'll have to use
+///   `contract` parameter to specify which contract to generate bindings to.
+///
+///   [truffle loader]: ethcontract_common::artifact::truffle::TruffleLoader
+///   [hardhat loader]: ethcontract_common::artifact::hardhat::HardHatLoader
+///   [single export mode]: ethcontract_common::artifact::hardhat::Format::SingleExport
+///   [multi export mode]: ethcontract_common::artifact::hardhat::Format::MultiExport
+///
+/// - `contract`: name of the contract we're generating bindings to.
+///
+///   If an artifact exports a single unnamed artifact, this parameter
+///   can be used to set its name. For example:
+///
+///   ```ignore
+///   contract!(
+///       "etherscan:0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+///       contract = WETH9
+///   );
+///   ```
+///
+///   Otherwise, it can be used to specify which contract we're generating
+///   bindings to. Additionally, you can rename contract class by specifying
+///   a new name after the `as` keyword. For example:
+///
+///   ```ignore
+///   contract!(
+///       "build/contracts.json",
+///       format = hardhat_multi,
+///       contract = WETH9 as WrappedEthereum
+///   );
+///   ```
+///
+/// - `mod`: name of the contract module to place generated code in.
+///
+///   This defaults to the contract name converted into snake case.
+///
+///   Note that the root contract type gets re-exported in the context where the
+///   macro was invoked.
+///
+///   Example:
+///
+///   ```ignore
+///   contract!(
+///       "build/contracts/WETH9.json",
+///       contract = WETH9 as WrappedEthereum,
+///       mod = weth,
+///   );
+///   ```
+///
+/// - `deployments`: a list of additional addresses of deployed contract for
+///   specified network IDs.
+///
+///   This mapping allows generated contract's `deployed` function to work
+///   with networks that are not included in the artifact's deployment
+///   information.
+///
+///   Note that deployments defined this way **take precedence** over
+///   the ones defined in the artifact.
+///
+///   This parameter is intended to be used to manually specify contract
+///   addresses for test environments, be it testnet addresses that may defer
+///   from the originally published artifact or deterministic contract
+///   addresses on local development nodes.
+///
+///   Example:
+///
+///   ```ignore
+///   contract!(
+///       "build/contracts/WETH9.json",
+///       deployments {
+///           4 => "0x000102030405060708090a0b0c0d0e0f10111213",
+///           5777 => "0x0123456789012345678901234567890123456789",
+///       },
+///   );
+///   ```
+///
+/// - `methods`: a list of mappings from method signatures to method names
+///   allowing methods names to be explicitly set for contract methods.
+///
+///   This also provides a workaround for generating code for contracts
+///   with multiple methods with the same name.
+///
+///   Example:
+///
+///   ```ignore
+///   contract!(
+///       "build/contracts/WETH9.json",
+///       methods {
+///           approve(Address, U256) as set_allowance
+///       },
+///   );
+///   ```
+///
+/// - `event_derives`: a list of additional derives that should be added to
 ///   contract event structs and enums.
 ///
-/// Additionally, the ABI source can be preceeded by a visibility modifier such
+///   Example:
+///
+///   ```ignore
+///   contract!(
+///       "build/contracts/WETH9.json",
+///       event_derives (serde::Deserialize, serde::Serialize),
+///   );
+///   ```
+///
+/// - `crate`: the name of the `ethcontract` crate. This is useful if the crate
+///   was renamed in the `Cargo.toml` for whatever reason.
+///
+/// Additionally, the ABI source can be preceded by a visibility modifier such
 /// as `pub` or `pub(crate)`. This visibility modifier is applied to both the
 /// generated module and contract re-export. If no visibility modifier is
 /// provided, then none is used for the generated code as well, making the
 /// module and contract private to the scope where the macro was invoked.
 ///
+/// Full example:
+///
 /// ```ignore
-/// ethcontract::contract!(
-///     pub(crate) "build/contracts/MyContract.json",
-///     crate = ethcontract_rename,
-///     mod = my_contract_instance,
-///     contract = MyContractInstance,
+/// contract!(
+///     pub(crate) "build/contracts.json",
+///     format = hardhat_multi,
+///     contract = WETH9 as WrappedEthereum,
+///     mod = weth,
 ///     deployments {
 ///         4 => "0x000102030405060708090a0b0c0d0e0f10111213",
 ///         5777 => "0x0123456789012345678901234567890123456789",
@@ -97,6 +195,7 @@ use syn::{
 ///         myMethod(uint256,bool) as my_renamed_method;
 ///     },
 ///     event_derives (serde::Deserialize, serde::Serialize),
+///     crate = ethcontract_renamed,
 /// );
 /// ```
 ///
@@ -106,20 +205,94 @@ use syn::{
 pub fn contract(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as Spanned<ContractArgs>);
     let span = args.span();
-    Source::parse(&args.artifact_path)
-        .and_then(|s| s.artifact_json())
-        .and_then(|j| {
-            TruffleLoader::new()
-                .load_contract_from_str(&j)
-                .map_err(Into::into)
-        })
-        .and_then(|c| expand(args.into_inner(), &c))
+    generate(args.into_inner())
         .unwrap_or_else(|e| SynError::new(span, format!("{:?}", e)).to_compile_error())
         .into()
 }
 
-fn expand(args: ContractArgs, contract: &Contract) -> Result<TokenStream2> {
-    Ok(args.into_builder().generate(contract)?.into_tokens())
+fn generate(args: ContractArgs) -> Result<TokenStream2> {
+    let mut artifact_format = Format::Truffle;
+    let mut contract_name = None;
+
+    let mut builder = ContractBuilder::new();
+    builder.visibility_modifier = args.visibility;
+
+    for parameter in args.parameters.into_iter() {
+        match parameter {
+            Parameter::Mod(name) => builder.contract_mod_override = Some(name),
+            Parameter::Contract(name, alias) => {
+                builder.contract_name_override = alias.or_else(|| Some(name.clone()));
+                contract_name = Some(name);
+            }
+            Parameter::Crate(name) => builder.runtime_crate_name = name,
+            Parameter::Deployments(deployments) => {
+                for deployment in deployments {
+                    builder.networks.insert(
+                        deployment.network_id.to_string(),
+                        Network {
+                            address: deployment.address,
+                            deployment_information: None,
+                        },
+                    );
+                }
+            }
+            Parameter::Methods(methods) => {
+                for method in methods {
+                    builder
+                        .method_aliases
+                        .insert(method.signature, method.alias);
+                }
+            }
+            Parameter::EventDerives(derives) => {
+                builder.event_derives.extend(derives);
+            }
+            Parameter::Format(format) => artifact_format = format,
+        };
+    }
+
+    let source = Source::parse(&args.artifact_path)?;
+    let json = source.artifact_json()?;
+
+    match artifact_format {
+        Format::Truffle => {
+            let mut contract = TruffleLoader::new().load_contract_from_str(&json)?;
+
+            if let Some(contract_name) = contract_name {
+                if contract.name.is_empty() {
+                    contract.name = contract_name;
+                } else if contract.name != contract_name {
+                    return Err(anyhow!(
+                        "there is no contract '{}' in artifact '{}'",
+                        contract_name,
+                        args.artifact_path
+                    ));
+                }
+            }
+
+            Ok(builder.generate(&contract)?.into_tokens())
+        }
+
+        Format::HardHat(format) => {
+            let artifact = HardHatLoader::new(format).load_from_str(&json)?;
+
+            if let Some(contract_name) = contract_name {
+                if let Some(contract) = artifact.get(&contract_name) {
+                    Ok(builder.generate(contract)?.into_tokens())
+                } else {
+                    Err(anyhow!(
+                        "there is no contract '{}' in artifact '{}'",
+                        contract_name,
+                        args.artifact_path
+                    ))
+                }
+            } else {
+                Err(anyhow!(
+                    "when using hardhat artifacts, you should specify \
+                     contract name using 'contract' parameter"
+                ))
+            }
+        }
+    }
 }
 
 /// Contract procedural macro arguments.
@@ -128,45 +301,6 @@ struct ContractArgs {
     visibility: Option<String>,
     artifact_path: String,
     parameters: Vec<Parameter>,
-}
-
-impl ContractArgs {
-    fn into_builder(self) -> ContractBuilder {
-        let mut builder = ContractBuilder::new();
-
-        builder.visibility_modifier = self.visibility;
-
-        for parameter in self.parameters.into_iter() {
-            match parameter {
-                Parameter::Mod(name) => builder.contract_mod_override = Some(name),
-                Parameter::Contract(name) => builder.contract_name_override = Some(name),
-                Parameter::Crate(name) => builder.runtime_crate_name = name,
-                Parameter::Deployments(deployments) => {
-                    for deployment in deployments {
-                        builder.networks.insert(
-                            deployment.network_id.to_string(),
-                            Network {
-                                address: deployment.address,
-                                deployment_information: None,
-                            },
-                        );
-                    }
-                }
-                Parameter::Methods(methods) => {
-                    for method in methods {
-                        builder
-                            .method_aliases
-                            .insert(method.signature, method.alias);
-                    }
-                }
-                Parameter::EventDerives(derives) => {
-                    builder.event_derives.extend(derives);
-                }
-            };
-        }
-
-        builder
-    }
 }
 
 impl ParseInner for ContractArgs {
@@ -205,15 +339,23 @@ impl ParseInner for ContractArgs {
     }
 }
 
+/// Artifact format
+#[cfg_attr(test, derive(Debug, Eq, PartialEq))]
+enum Format {
+    Truffle,
+    HardHat(HardHatFormat),
+}
+
 /// A single procedural macro parameter.
 #[cfg_attr(test, derive(Debug, Eq, PartialEq))]
 enum Parameter {
     Mod(String),
-    Contract(String),
+    Contract(String, Option<String>),
     Crate(String),
     Deployments(Vec<Deployment>),
     Methods(Vec<Method>),
     EventDerives(Vec<String>),
+    Format(Format),
 }
 
 impl Parse for Parameter {
@@ -230,10 +372,32 @@ impl Parse for Parameter {
                 let name = input.parse::<Ident>()?.to_string();
                 Parameter::Mod(name)
             }
+            "format" => {
+                input.parse::<Token![=]>()?;
+                let token = input.parse::<Ident>()?;
+                let format = match token.to_string().as_str() {
+                    "truffle" => Format::Truffle,
+                    "hardhat" => Format::HardHat(HardHatFormat::SingleExport),
+                    "hardhat_multi" => Format::HardHat(HardHatFormat::MultiExport),
+                    format => {
+                        return Err(ParseError::new(
+                            token.span(),
+                            format!("unknown format {}", format),
+                        ))
+                    }
+                };
+                Parameter::Format(format)
+            }
             "contract" => {
                 input.parse::<Token![=]>()?;
                 let name = input.parse::<Ident>()?.to_string();
-                Parameter::Contract(name)
+                let alias = if input.parse::<Option<Token![as]>>()?.is_some() {
+                    Some(input.parse::<Ident>()?.to_string())
+                } else {
+                    None
+                };
+
+                Parameter::Contract(name, alias)
             }
             "deployments" => {
                 let content;
@@ -474,7 +638,7 @@ mod tests {
                 parameters: vec![
                     Parameter::Crate("foobar".into()),
                     Parameter::Mod("contract".into()),
-                    Parameter::Contract("Contract".into()),
+                    Parameter::Contract("Contract".into(), None),
                     Parameter::Deployments(vec![
                         deployment(1, "0x000102030405060708090a0b0c0d0e0f10111213"),
                         deployment(4, "0x0123456789012345678901234567890123456789"),
@@ -491,6 +655,42 @@ mod tests {
                 ],
             },
         );
+    }
+
+    #[test]
+    fn parse_contract_args_format() {
+        let args = contract_args!("artifact.json", format = hardhat_multi);
+        assert_eq!(
+            args,
+            ContractArgs {
+                visibility: None,
+                artifact_path: "artifact.json".into(),
+                parameters: vec![Parameter::Format(Format::HardHat(
+                    HardHatFormat::MultiExport
+                ))],
+            },
+        );
+    }
+
+    #[test]
+    fn parse_contract_args_rename() {
+        let args = contract_args!("artifact.json", contract = Contract as Renamed);
+        assert_eq!(
+            args,
+            ContractArgs {
+                visibility: None,
+                artifact_path: "artifact.json".into(),
+                parameters: vec![Parameter::Contract(
+                    "Contract".into(),
+                    Some("Renamed".into())
+                )],
+            },
+        );
+    }
+
+    #[test]
+    fn unsupported_format_error() {
+        contract_args_err!("artifact.json", format = yaml);
     }
 
     #[test]
