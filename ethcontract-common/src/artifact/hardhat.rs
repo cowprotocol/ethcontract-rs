@@ -179,6 +179,43 @@ impl HardHatLoader {
         self._load_from_directory(p.as_ref())
     }
 
+    /// Helper for `load_from_directory`. We use this helper function to avoid
+    /// making a big chunk of code generic over `AsRef<Path>`.
+    ///
+    /// # Implementation note
+    ///
+    /// Layout of the `deployments` directory looks like this:
+    ///
+    /// ```text
+    /// deployments
+    ///  |
+    ///  +-- main
+    ///  |    |
+    ///  |    +-- .chainId
+    ///  |    |
+    ///  |    +-- Contract1.json
+    ///  |    |
+    ///  |    +-- Contract2.json
+    ///  |    |
+    ///  |    ...
+    ///  |
+    ///  +-- rinkeby
+    ///  |    |
+    ///  |    +-- .chainId
+    ///  |    |
+    ///  |    +-- Contract1.json
+    ///  |    |
+    ///  |    +-- Contract2.json
+    ///  |    |
+    ///  |    ...
+    ///  |
+    ///  ...
+    ///  ```
+    ///
+    /// There's a directory for each network. Within network's directory,
+    /// there's a `.chainId` file containing chain identifier encoded
+    /// as plain text. Next to `.chainId` file, there are JSON files for each
+    /// contract deployed to this network.
     fn _load_from_directory(&self, p: &Path) -> Result<Artifact, ArtifactError> {
         let mut artifact = Artifact::with_origin(p.display().to_string());
 
