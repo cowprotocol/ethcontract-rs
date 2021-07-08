@@ -273,7 +273,7 @@ fn generate(args: ContractArgs) -> Result<TokenStream2> {
         }
 
         Format::HardHat(format) => {
-            let artifact = HardHatLoader::new(format).load_from_str(&json)?;
+            let artifact = HardHatLoader::new().load_from_str(format, &json)?;
 
             if let Some(contract_name) = contract_name {
                 if let Some(contract) = artifact.get(&contract_name) {
