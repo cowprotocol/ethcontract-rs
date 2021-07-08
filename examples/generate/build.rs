@@ -6,7 +6,7 @@ fn main() {
     let dest = std::path::Path::new(&out_dir).join("contracts.rs");
 
     let artifact = HardHatLoader::new()
-        .deny_by_name("localhost")
+        .deny_network_by_name("localhost")
         .load_from_directory("../hardhat/deployments")
         .unwrap();
 
