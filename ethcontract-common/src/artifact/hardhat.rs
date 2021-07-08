@@ -77,6 +77,25 @@ pub struct HardHatLoader {
     /// Deny list takes precedence over allow list. That is, if network
     /// appears in both, it will be denied.
     pub networks_deny_list: Vec<NetworkEntry>,
+
+    /// List of allowed contract names.
+    ///
+    /// When loading artifact, loader will only load contracts if their names
+    /// are present in this list.
+    ///
+    /// Empty list means that all contracts are allowed.
+    pub contracts_allow_list: Vec<String>,
+
+    /// List of denied contract names.
+    ///
+    /// When loading artifact, loader will not load contracts if their names
+    /// are present in this list.
+    ///
+    /// Empty list means that no contracts are denied.
+    ///
+    /// Deny list takes precedence over allow list. That is, if contract
+    /// appears in both, it will be denied.
+    pub contracts_deny_list: Vec<String>,
 }
 
 impl HardHatLoader {
@@ -86,6 +105,8 @@ impl HardHatLoader {
             origin: None,
             networks_deny_list: Vec::new(),
             networks_allow_list: Vec::new(),
+            contracts_allow_list: Vec::new(),
+            contracts_deny_list: Vec::new(),
         }
     }
 
@@ -95,6 +116,8 @@ impl HardHatLoader {
             origin: Some(origin.into()),
             networks_deny_list: Vec::new(),
             networks_allow_list: Vec::new(),
+            contracts_allow_list: Vec::new(),
+            contracts_deny_list: Vec::new(),
         }
     }
 
@@ -109,7 +132,7 @@ impl HardHatLoader {
     /// Add chain id to the list of [`allowed networks`].
     ///
     /// [`allowed networks`]: #structfield.networks_allow_list
-    pub fn allow_by_chain_id(mut self, network: impl Into<String>) -> Self {
+    pub fn allow_network_by_chain_id(mut self, network: impl Into<String>) -> Self {
         self.networks_allow_list
             .push(NetworkEntry::ByChainId(network.into()));
         self
@@ -118,7 +141,7 @@ impl HardHatLoader {
     /// Add network name to the list of [`allowed networks`].
     ///
     /// [`allowed networks`]: #structfield.networks_allow_list
-    pub fn allow_by_name(mut self, network: impl Into<String>) -> Self {
+    pub fn allow_network_by_name(mut self, network: impl Into<String>) -> Self {
         self.networks_allow_list
             .push(NetworkEntry::ByName(network.into()));
         self
@@ -127,7 +150,7 @@ impl HardHatLoader {
     /// Add chain id to the list of [`denied networks`].
     ///
     /// [`denied networks`]: #structfield.networks_deny_list
-    pub fn deny_by_chain_id(mut self, network: impl Into<String>) -> Self {
+    pub fn deny_network_by_chain_id(mut self, network: impl Into<String>) -> Self {
         self.networks_deny_list
             .push(NetworkEntry::ByChainId(network.into()));
         self
@@ -136,9 +159,25 @@ impl HardHatLoader {
     /// Add network name to the list of [`denied networks`].
     ///
     /// [`denied networks`]: #structfield.networks_deny_list
-    pub fn deny_by_name(mut self, network: impl Into<String>) -> Self {
+    pub fn deny_network_by_name(mut self, network: impl Into<String>) -> Self {
         self.networks_deny_list
             .push(NetworkEntry::ByName(network.into()));
+        self
+    }
+
+    /// Add contract name to the list of [`allowed contracts`].
+    ///
+    /// [`allowed contracts`]: #structfield.contracts_allow_list
+    pub fn allow_contract(mut self, contract: impl Into<String>) -> Self {
+        self.contracts_allow_list.push(contract.into());
+        self
+    }
+
+    /// Add contract name to the list of [`denied contracts`].
+    ///
+    /// [`denied contracts`]: #structfield.contracts_deny_list
+    pub fn deny_contract(mut self, contract: impl Into<String>) -> Self {
+        self.contracts_deny_list.push(contract.into());
         self
     }
 
@@ -248,7 +287,7 @@ impl HardHatLoader {
                 })?
                 .to_string_lossy();
 
-            if !self.allowed(&chain_id, &chain_name) {
+            if !self.network_allowed(&chain_id, &chain_name) {
                 continue;
             }
 
@@ -276,6 +315,10 @@ impl HardHatLoader {
                 }
 
                 contract_name.truncate(contract_name.len() - ".json".len());
+
+                if !self.contract_allowed(&contract_name) {
+                    continue;
+                }
 
                 let HardHatContract {
                     address,
@@ -333,13 +376,17 @@ impl HardHatLoader {
         artifact: &mut Artifact,
         export: HardHatExport,
     ) -> Result<(), ArtifactError> {
-        if self.allowed(&export.chain_id, &export.chain_name) {
+        if self.network_allowed(&export.chain_id, &export.chain_name) {
             for (name, contract) in export.contracts {
                 let HardHatContract {
                     address,
                     transaction_hash,
                     mut contract,
                 } = contract;
+
+                if !self.contract_allowed(&name) {
+                    continue;
+                }
 
                 contract.name = name;
 
@@ -406,19 +453,32 @@ impl HardHatLoader {
         }
     }
 
-    fn allowed(&self, chain_id: &str, chain_name: &str) -> bool {
-        !self.explicitly_denied(chain_id, chain_name)
-            && (self.networks_allow_list.is_empty()
-                || self.explicitly_allowed(chain_id, chain_name))
+    fn contract_allowed(&self, name: &str) -> bool {
+        !self.contract_explicitly_denied(name)
+            && (self.contracts_allow_list.is_empty() || self.contract_explicitly_allowed(name))
     }
 
-    fn explicitly_allowed(&self, chain_id: &str, chain_name: &str) -> bool {
+    fn contract_explicitly_allowed(&self, name: &str) -> bool {
+        self.contracts_allow_list.iter().any(|x| x == name)
+    }
+
+    fn contract_explicitly_denied(&self, name: &str) -> bool {
+        self.contracts_deny_list.iter().any(|x| x == name)
+    }
+
+    fn network_allowed(&self, chain_id: &str, chain_name: &str) -> bool {
+        !self.network_explicitly_denied(chain_id, chain_name)
+            && (self.networks_allow_list.is_empty()
+                || self.network_explicitly_allowed(chain_id, chain_name))
+    }
+
+    fn network_explicitly_allowed(&self, chain_id: &str, chain_name: &str) -> bool {
         self.networks_allow_list
             .iter()
             .any(|x| x.matches(chain_id, chain_name))
     }
 
-    fn explicitly_denied(&self, chain_id: &str, chain_name: &str) -> bool {
+    fn network_explicitly_denied(&self, chain_id: &str, chain_name: &str) -> bool {
         self.networks_deny_list
             .iter()
             .any(|x| x.matches(chain_id, chain_name))
@@ -769,8 +829,8 @@ mod test {
     #[test]
     fn load_multi_allow_by_name() {
         let artifact = HardHatLoader::new()
-            .allow_by_name("mainnet")
-            .allow_by_name("rinkeby")
+            .allow_network_by_name("mainnet")
+            .allow_network_by_name("rinkeby")
             .load_from_str(Format::MultiExport, NETWORK_CONFLICTS)
             .unwrap();
 
@@ -786,7 +846,7 @@ mod test {
     #[test]
     fn load_multi_allow_by_chain_id() {
         let artifact = HardHatLoader::new()
-            .allow_by_chain_id("4")
+            .allow_network_by_chain_id("4")
             .load_from_str(Format::MultiExport, NETWORK_CONFLICTS)
             .unwrap();
 
@@ -801,7 +861,7 @@ mod test {
     #[test]
     fn load_multi_deny_by_name() {
         let artifact = HardHatLoader::new()
-            .deny_by_name("mainnet_beta")
+            .deny_network_by_name("mainnet_beta")
             .load_from_str(Format::MultiExport, NETWORK_CONFLICTS)
             .unwrap();
 
@@ -817,7 +877,7 @@ mod test {
     #[test]
     fn load_multi_deny_by_chain_id() {
         let artifact = HardHatLoader::new()
-            .deny_by_chain_id("1")
+            .deny_network_by_chain_id("1")
             .load_from_str(Format::MultiExport, NETWORK_CONFLICTS)
             .unwrap();
 
@@ -827,6 +887,62 @@ mod test {
         assert_eq!(a.name, "A");
         assert_eq!(a.networks.len(), 1);
         assert_eq!(a.networks["4"].address, address(0xBA));
+    }
+
+    #[test]
+    fn load_multi_allow_contract_name() {
+        let artifact = HardHatLoader::new()
+            .allow_contract("A")
+            .load_from_str(Format::MultiExport, MULTI_EXPORT)
+            .unwrap();
+
+        assert_eq!(artifact.len(), 1);
+
+        let a = artifact.get("A").unwrap();
+        assert_eq!(a.name, "A");
+        assert_eq!(a.networks.len(), 2);
+        assert_eq!(a.networks["1"].address, address(0xA));
+        assert_eq!(a.networks["4"].address, address(0xAA));
+
+        let artifact = HardHatLoader::new()
+            .allow_contract("X")
+            .load_from_str(Format::MultiExport, MULTI_EXPORT)
+            .unwrap();
+
+        assert_eq!(artifact.len(), 0);
+    }
+
+    #[test]
+    fn load_multi_deny_contract_name() {
+        let artifact = HardHatLoader::new()
+            .deny_contract("A")
+            .load_from_str(Format::MultiExport, MULTI_EXPORT)
+            .unwrap();
+
+        assert_eq!(artifact.len(), 1);
+
+        let a = artifact.get("B").unwrap();
+        assert_eq!(a.name, "B");
+        assert_eq!(a.networks.len(), 1);
+        assert_eq!(a.networks["1"].address, address(0xB));
+
+        let artifact = HardHatLoader::new()
+            .deny_contract("X")
+            .load_from_str(Format::MultiExport, MULTI_EXPORT)
+            .unwrap();
+
+        assert_eq!(artifact.len(), 2);
+
+        let a = artifact.get("A").unwrap();
+        assert_eq!(a.name, "A");
+        assert_eq!(a.networks.len(), 2);
+        assert_eq!(a.networks["1"].address, address(0xA));
+        assert_eq!(a.networks["4"].address, address(0xAA));
+
+        let b = artifact.get("B").unwrap();
+        assert_eq!(b.name, "B");
+        assert_eq!(b.networks.len(), 1);
+        assert_eq!(b.networks["1"].address, address(0xB));
     }
 
     fn hardhat_dir() -> PathBuf {
