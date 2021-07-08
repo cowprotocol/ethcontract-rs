@@ -487,6 +487,7 @@ struct HardHatContract {
 #[cfg(test)]
 mod test {
     use super::*;
+    use std::path::PathBuf;
     use web3::ethabi::ethereum_types::BigEndianHash;
     use web3::types::{H256, U256};
 
@@ -826,5 +827,52 @@ mod test {
         assert_eq!(a.name, "A");
         assert_eq!(a.networks.len(), 1);
         assert_eq!(a.networks["4"].address, address(0xBA));
+    }
+
+    fn hardhat_dir() -> PathBuf {
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("../examples/hardhat/deployments");
+        path
+    }
+
+    #[test]
+    fn load_from_directory() {
+        let artifact = HardHatLoader::new()
+            .load_from_directory(hardhat_dir())
+            .unwrap();
+
+        assert_eq!(artifact.len(), 1);
+
+        let a = artifact.get("DeployedContract").unwrap();
+        assert_eq!(a.name, "DeployedContract");
+        assert_eq!(a.networks.len(), 2);
+        assert_eq!(
+            a.networks["4"].address,
+            "0x4E29B76eC7d20c58A6B156CB464594a4ae39FdEd"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(
+            a.networks["4"].deployment_information,
+            Some(DeploymentInformation::TransactionHash(
+                "0x0122d15a8d394b8f9e45c15b7d3e5365bbf7122a15952246676e2fe7eb858f35"
+                    .parse()
+                    .unwrap()
+            ))
+        );
+        assert_eq!(
+            a.networks["1337"].address,
+            "0x29BE0588389993e7064C21f00761303eb51373F5"
+                .parse()
+                .unwrap()
+        );
+        assert_eq!(
+            a.networks["1337"].deployment_information,
+            Some(DeploymentInformation::TransactionHash(
+                "0xe0631d7f749fe73f94e59f6e25ff9b925980e8e29ed67b8f862ec76a783ea06e"
+                    .parse()
+                    .unwrap()
+            ))
+        );
     }
 }

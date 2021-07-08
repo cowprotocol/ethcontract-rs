@@ -1,0 +1,25 @@
+{
+  "name": "ethcontract-contracts",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Test contracts for ethcontract-rs runtime and proc macro.",
+  "main": "index.js",
+  "scripts": {
+    "build": "hardhat compile",
+    "deploy": "hardhat --network rinkeby deploy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gnosis/ethcontract-rs.git"
+  },
+  "author": "Nicholas Rodrigues Lordello <nlordell@gmail.com>",
+  "license": "(MIT OR Apache-2.0)",
+  "bugs": {
+    "url": "https://github.com/gnosis/ethcontract-rs"
+  },
+  "homepage": "https://github.com/gnosis/ethcontract-rs",
+  "devDependencies": {
+    "hardhat": "^2.3.0",
+    "hardhat-deploy": "^0.7.10"
+  }
+}

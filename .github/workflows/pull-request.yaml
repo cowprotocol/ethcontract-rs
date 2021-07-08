@@ -59,9 +59,9 @@ jobs:
             cargo run --package examples --example deployments
             cargo run --package examples --example events
             cargo run --package examples --example revert
-            cargo run --package examples-generate
             cargo run --package examples --example linked
             if [ "$PK" ] && [ "$INFURA_PROJECT_ID" ]; then
+              cargo run --package examples-generate
               cargo run --package examples --example rinkeby
               cargo run --package examples --example sources
             fi

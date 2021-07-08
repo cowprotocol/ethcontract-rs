@@ -1,0 +1,35 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/DeployedContract.sol": {
+      "content": "pragma solidity ^0.8.0;\n\n/**\n * @dev Rinkeby deployed contract used in examples.\n */\ncontract DeployedContract {\n  mapping(address => uint256) private values;\n\n  /**\n   * @dev Gets the current value set in the contract for the `msg.sender`.\n   */\n  function value() public view returns (uint256) {\n    return values[msg.sender];\n  }\n\n  /**\n   * @dev Increments the value for the `msg.sender` by 1.\n   */\n  function increment() public returns (uint256) {\n    values[msg.sender]++;\n    return (values[msg.sender]);\n  }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
