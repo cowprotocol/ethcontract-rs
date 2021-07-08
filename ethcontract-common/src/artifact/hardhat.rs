@@ -11,7 +11,15 @@
 //! all contracts deployed on it. It can be generated with
 //! `hardhat export --export-all` command.
 //!
-//! Both formats are supported by [`HardHatLoader`], see its documentation
+//! Third is hardhat's `deployments` directory. It contains more details about
+//! contracts than the previous two formats. Specifically, it has info about
+//! deployed bytecode, deployment transaction receipt, documentation for
+//! contract methods, and some other things. Given that it is a directory,
+//! there are obvious issues with loading it over network. For this reason,
+//! we don't recommend this export format for public libraries that export
+//! contracts.
+//!
+//! All three formats are supported by [`HardHatLoader`], see its documentation
 //! for info and limitations.
 //!
 //! [hardhat-deploy]: https://github.com/wighawag/hardhat-deploy
@@ -19,7 +27,7 @@
 use crate::artifact::Artifact;
 use crate::contract::Network;
 use crate::errors::ArtifactError;
-use crate::{Address, Contract};
+use crate::{Address, Contract, DeploymentInformation, TransactionHash};
 use serde::Deserialize;
 use serde_json::{from_reader, from_slice, from_str, from_value, Value};
 use std::collections::HashMap;
@@ -49,9 +57,6 @@ pub struct HardHatLoader {
     /// will be derived automatically.
     pub origin: Option<String>,
 
-    /// Artifact format.
-    pub format: Format,
-
     /// List of allowed network names and chain IDs.
     ///
     /// When loading a contract, networks with names that aren't found
@@ -76,20 +81,18 @@ pub struct HardHatLoader {
 
 impl HardHatLoader {
     /// Create a new hardhat loader.
-    pub fn new(format: Format) -> Self {
+    pub fn new() -> Self {
         HardHatLoader {
             origin: None,
-            format,
             networks_deny_list: Vec::new(),
             networks_allow_list: Vec::new(),
         }
     }
 
     /// Create a new hardhat loader and set an override for artifact's origins.
-    pub fn with_origin(format: Format, origin: impl Into<String>) -> Self {
+    pub fn with_origin(origin: impl Into<String>) -> Self {
         HardHatLoader {
             origin: Some(origin.into()),
-            format,
             networks_deny_list: Vec::new(),
             networks_allow_list: Vec::new(),
         }
@@ -100,12 +103,6 @@ impl HardHatLoader {
     /// [`origin`]: #structfield.origin
     pub fn origin(mut self, origin: impl Into<String>) -> Self {
         self.origin = Some(origin.into());
-        self
-    }
-
-    /// Set new format for artifacts.
-    pub fn format(mut self, format: Format) -> Self {
-        self.format = format;
         self
     }
 
@@ -127,7 +124,7 @@ impl HardHatLoader {
         self
     }
 
-    /// Add chain id to the list of [`denyid networks`].
+    /// Add chain id to the list of [`denied networks`].
     ///
     /// [`denied networks`]: #structfield.networks_deny_list
     pub fn deny_by_chain_id(mut self, network: impl Into<String>) -> Self {
@@ -145,36 +142,169 @@ impl HardHatLoader {
         self
     }
 
-    /// Loads an artifact from a loaded JSON value.
-    pub fn load_from_reader(&self, v: impl Read) -> Result<Artifact, ArtifactError> {
-        self.load_artifact("<unknown>", v, from_reader, from_reader)
+    /// Loads an artifact from a JSON value.
+    pub fn load_from_reader(&self, f: Format, v: impl Read) -> Result<Artifact, ArtifactError> {
+        self.load_artifact(f, "<unknown>", v, from_reader, from_reader)
     }
 
     /// Loads an artifact from bytes of JSON text.
-    pub fn load_from_slice(&self, v: &[u8]) -> Result<Artifact, ArtifactError> {
-        self.load_artifact("<unknown>", v, from_slice, from_slice)
+    pub fn load_from_slice(&self, f: Format, v: &[u8]) -> Result<Artifact, ArtifactError> {
+        self.load_artifact(f, "<unknown>", v, from_slice, from_slice)
     }
 
     /// Loads an artifact from string of JSON text.
-    pub fn load_from_str(&self, v: &str) -> Result<Artifact, ArtifactError> {
-        self.load_artifact("<unknown>", v, from_str, from_str)
+    pub fn load_from_str(&self, f: Format, v: &str) -> Result<Artifact, ArtifactError> {
+        self.load_artifact(f, "<unknown>", v, from_str, from_str)
     }
 
     /// Loads an artifact from a loaded JSON value.
-    pub fn load_from_value(&self, v: Value) -> Result<Artifact, ArtifactError> {
-        self.load_artifact("<unknown>", v, from_value, from_value)
+    pub fn load_from_value(&self, f: Format, v: Value) -> Result<Artifact, ArtifactError> {
+        self.load_artifact(f, "<unknown>", v, from_value, from_value)
     }
 
     /// Loads an artifact from disk.
-    pub fn load_from_file(&self, p: impl AsRef<Path>) -> Result<Artifact, ArtifactError> {
+    pub fn load_from_file(
+        &self,
+        f: Format,
+        p: impl AsRef<Path>,
+    ) -> Result<Artifact, ArtifactError> {
         let path = p.as_ref();
         let file = File::open(path)?;
         let reader = BufReader::new(file);
-        self.load_artifact(path.display(), reader, from_reader, from_reader)
+        self.load_artifact(f, path.display(), reader, from_reader, from_reader)
+    }
+
+    /// Loads an artifact from `deployments` directory.
+    pub fn load_from_directory(&self, p: impl AsRef<Path>) -> Result<Artifact, ArtifactError> {
+        self._load_from_directory(p.as_ref())
+    }
+
+    /// Helper for `load_from_directory`. We use this helper function to avoid
+    /// making a big chunk of code generic over `AsRef<Path>`.
+    ///
+    /// # Implementation note
+    ///
+    /// Layout of the `deployments` directory looks like this:
+    ///
+    /// ```text
+    /// deployments
+    ///  |
+    ///  +-- main
+    ///  |    |
+    ///  |    +-- .chainId
+    ///  |    |
+    ///  |    +-- Contract1.json
+    ///  |    |
+    ///  |    +-- Contract2.json
+    ///  |    |
+    ///  |    ...
+    ///  |
+    ///  +-- rinkeby
+    ///  |    |
+    ///  |    +-- .chainId
+    ///  |    |
+    ///  |    +-- Contract1.json
+    ///  |    |
+    ///  |    +-- Contract2.json
+    ///  |    |
+    ///  |    ...
+    ///  |
+    ///  ...
+    ///  ```
+    ///
+    /// There's a directory for each network. Within network's directory,
+    /// there's a `.chainId` file containing chain identifier encoded
+    /// as plain text. Next to `.chainId` file, there are JSON files for each
+    /// contract deployed to this network.
+    fn _load_from_directory(&self, p: &Path) -> Result<Artifact, ArtifactError> {
+        let mut artifact = Artifact::with_origin(p.display().to_string());
+
+        let mut chain_id_buf = String::new();
+
+        for chain_entry in p.read_dir()? {
+            let chain_entry = chain_entry?;
+
+            let chain_path = chain_entry.path();
+            if !chain_path.is_dir() {
+                continue;
+            }
+
+            let chain_id_file = chain_path.join(".chainId");
+            if !chain_id_file.exists() {
+                continue;
+            }
+
+            chain_id_buf.clear();
+            File::open(chain_id_file)?.read_to_string(&mut chain_id_buf)?;
+            let chain_id = chain_id_buf.trim().to_string();
+
+            let chain_name = chain_path
+                .file_name()
+                .ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("unable to get directory name for path {:?}", chain_path),
+                    )
+                })?
+                .to_string_lossy();
+
+            if !self.allowed(&chain_id, &chain_name) {
+                continue;
+            }
+
+            for contract_entry in chain_path.read_dir()? {
+                let contract_entry = contract_entry?;
+
+                let contract_path = contract_entry.path();
+                if !contract_path.is_file() {
+                    continue;
+                }
+
+                let mut contract_name = contract_path
+                    .file_name()
+                    .ok_or_else(|| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("unable to get file name for path {:?}", contract_path),
+                        )
+                    })?
+                    .to_string_lossy()
+                    .into_owned();
+
+                if !contract_name.ends_with(".json") {
+                    continue;
+                }
+
+                contract_name.truncate(contract_name.len() - ".json".len());
+
+                let HardHatContract {
+                    address,
+                    transaction_hash,
+                    mut contract,
+                } = {
+                    let file = File::open(contract_path)?;
+                    let reader = BufReader::new(file);
+                    from_reader(reader)?
+                };
+
+                contract.name = contract_name;
+
+                self.add_contract_to_artifact(
+                    &mut artifact,
+                    contract,
+                    chain_id.clone(),
+                    address,
+                    transaction_hash,
+                )?;
+            }
+        }
+
+        Ok(artifact)
     }
 
     fn load_artifact<T>(
         &self,
+        format: Format,
         origin: impl ToString,
         source: T,
         single_loader: impl FnOnce(T) -> serde_json::Result<HardHatExport>,
@@ -184,7 +314,7 @@ impl HardHatLoader {
 
         let mut artifact = Artifact::with_origin(origin);
 
-        match self.format {
+        match format {
             Format::SingleExport => {
                 let loaded = single_loader(source)?;
                 self.fill_artifact(&mut artifact, loaded)?
@@ -204,36 +334,22 @@ impl HardHatLoader {
         export: HardHatExport,
     ) -> Result<(), ArtifactError> {
         if self.allowed(&export.chain_id, &export.chain_name) {
-            for (name, contract_with_address) in export.contracts {
-                let ContractWithAddress {
+            for (name, contract) in export.contracts {
+                let HardHatContract {
                     address,
+                    transaction_hash,
                     mut contract,
-                } = contract_with_address;
+                } = contract;
 
                 contract.name = name;
 
-                let mut contract = match artifact.get_mut(&contract.name) {
-                    Some(existing_contract) => {
-                        if existing_contract.abi != contract.abi {
-                            return Err(ArtifactError::AbiMismatch(contract.name));
-                        }
-
-                        existing_contract
-                    }
-                    None => artifact.insert(contract).inserted_contract,
-                };
-
-                let existing_network = contract.networks_mut().insert(
+                self.add_contract_to_artifact(
+                    artifact,
+                    contract,
                     export.chain_id.clone(),
-                    Network {
-                        address,
-                        deployment_information: None,
-                    },
-                );
-
-                if existing_network.is_some() {
-                    return Err(ArtifactError::DuplicateChain(export.chain_id));
-                }
+                    address,
+                    transaction_hash,
+                )?;
             }
         }
 
@@ -254,6 +370,42 @@ impl HardHatLoader {
         Ok(())
     }
 
+    fn add_contract_to_artifact(
+        &self,
+        artifact: &mut Artifact,
+        contract: Contract,
+        chain_id: String,
+        address: Address,
+        transaction_hash: Option<TransactionHash>,
+    ) -> Result<(), ArtifactError> {
+        let mut contract = match artifact.get_mut(&contract.name) {
+            Some(existing_contract) => {
+                if existing_contract.abi != contract.abi {
+                    return Err(ArtifactError::AbiMismatch(contract.name));
+                }
+
+                existing_contract
+            }
+            None => artifact.insert(contract).inserted_contract,
+        };
+
+        let deployment_information = transaction_hash.map(DeploymentInformation::TransactionHash);
+
+        if contract.networks.contains_key(&chain_id) {
+            Err(ArtifactError::DuplicateChain(chain_id))
+        } else {
+            contract.networks_mut().insert(
+                chain_id,
+                Network {
+                    address,
+                    deployment_information,
+                },
+            );
+
+            Ok(())
+        }
+    }
+
     fn allowed(&self, chain_id: &str, chain_name: &str) -> bool {
         !self.explicitly_denied(chain_id, chain_name)
             && (self.networks_allow_list.is_empty()
@@ -270,6 +422,12 @@ impl HardHatLoader {
         self.networks_deny_list
             .iter()
             .any(|x| x.matches(chain_id, chain_name))
+    }
+}
+
+impl Default for HardHatLoader {
+    fn default() -> Self {
+        HardHatLoader::new()
     }
 }
 
@@ -314,13 +472,14 @@ struct HardHatExport {
     chain_name: String,
     #[serde(rename = "chainId")]
     chain_id: String,
-
-    contracts: HashMap<String, ContractWithAddress>,
+    contracts: HashMap<String, HardHatContract>,
 }
 
 #[derive(Deserialize)]
-struct ContractWithAddress {
+struct HardHatContract {
     address: Address,
+    #[serde(rename = "transactionHash")]
+    transaction_hash: Option<TransactionHash>,
     #[serde(flatten)]
     contract: Contract,
 }
@@ -352,8 +511,8 @@ mod test {
           }
         "#;
 
-        let artifact = HardHatLoader::new(Format::SingleExport)
-            .load_from_str(json)
+        let artifact = HardHatLoader::new()
+            .load_from_str(Format::SingleExport, json)
             .unwrap();
 
         assert_eq!(artifact.len(), 2);
@@ -369,40 +528,40 @@ mod test {
         assert_eq!(b.networks["1"].address, address(0xB));
     }
 
-    #[test]
-    fn load_multi() {
-        let json = r#"
-          {
-            "1": {
-              "mainnet": {
-                "name": "mainnet",
-                "chainId": "1",
-                "contracts": {
-                  "A": {
-                    "address": "0x000000000000000000000000000000000000000A"
-                  },
-                  "B": {
-                    "address": "0x000000000000000000000000000000000000000B"
-                  }
-                }
-              }
-            },
-            "4": {
-              "rinkeby": {
-                "name": "rinkeby",
-                "chainId": "4",
-                "contracts": {
-                  "A": {
-                    "address": "0x00000000000000000000000000000000000000AA"
-                  }
-                }
+    static MULTI_EXPORT: &str = r#"
+      {
+        "1": {
+          "mainnet": {
+            "name": "mainnet",
+            "chainId": "1",
+            "contracts": {
+              "A": {
+                "address": "0x000000000000000000000000000000000000000A"
+              },
+              "B": {
+                "address": "0x000000000000000000000000000000000000000B"
               }
             }
           }
-        "#;
+        },
+        "4": {
+          "rinkeby": {
+            "name": "rinkeby",
+            "chainId": "4",
+            "contracts": {
+              "A": {
+                "address": "0x00000000000000000000000000000000000000AA"
+              }
+            }
+          }
+        }
+      }
+    "#;
 
-        let artifact = HardHatLoader::new(Format::MultiExport)
-            .load_from_str(json)
+    #[test]
+    fn load_multi() {
+        let artifact = HardHatLoader::new()
+            .load_from_str(Format::MultiExport, MULTI_EXPORT)
             .unwrap();
 
         assert_eq!(artifact.len(), 2);
@@ -446,8 +605,8 @@ mod test {
           }
         "#;
 
-        let artifact = HardHatLoader::new(Format::MultiExport)
-            .load_from_str(json)
+        let artifact = HardHatLoader::new()
+            .load_from_str(Format::MultiExport, json)
             .unwrap();
 
         assert_eq!(artifact.len(), 2);
@@ -490,7 +649,7 @@ mod test {
           }
         "#;
 
-        let err = HardHatLoader::new(Format::MultiExport).load_from_str(json);
+        let err = HardHatLoader::new().load_from_str(Format::MultiExport, json);
 
         match err {
             Err(ArtifactError::DuplicateChain(chain_id)) => assert_eq!(chain_id, "1"),
@@ -550,7 +709,7 @@ mod test {
           }
         "#;
 
-        let err = HardHatLoader::new(Format::MultiExport).load_from_str(json);
+        let err = HardHatLoader::new().load_from_str(Format::MultiExport, json);
 
         match err {
             Err(ArtifactError::AbiMismatch(name)) => assert_eq!(name, "A"),
@@ -608,10 +767,10 @@ mod test {
 
     #[test]
     fn load_multi_allow_by_name() {
-        let artifact = HardHatLoader::new(Format::MultiExport)
+        let artifact = HardHatLoader::new()
             .allow_by_name("mainnet")
             .allow_by_name("rinkeby")
-            .load_from_str(NETWORK_CONFLICTS)
+            .load_from_str(Format::MultiExport, NETWORK_CONFLICTS)
             .unwrap();
 
         assert_eq!(artifact.len(), 1);
@@ -625,9 +784,9 @@ mod test {
 
     #[test]
     fn load_multi_allow_by_chain_id() {
-        let artifact = HardHatLoader::new(Format::MultiExport)
+        let artifact = HardHatLoader::new()
             .allow_by_chain_id("4")
-            .load_from_str(NETWORK_CONFLICTS)
+            .load_from_str(Format::MultiExport, NETWORK_CONFLICTS)
             .unwrap();
 
         assert_eq!(artifact.len(), 1);
@@ -640,9 +799,9 @@ mod test {
 
     #[test]
     fn load_multi_deny_by_name() {
-        let artifact = HardHatLoader::new(Format::MultiExport)
+        let artifact = HardHatLoader::new()
             .deny_by_name("mainnet_beta")
-            .load_from_str(NETWORK_CONFLICTS)
+            .load_from_str(Format::MultiExport, NETWORK_CONFLICTS)
             .unwrap();
 
         assert_eq!(artifact.len(), 1);
@@ -656,9 +815,9 @@ mod test {
 
     #[test]
     fn load_multi_deny_by_chain_id() {
-        let artifact = HardHatLoader::new(Format::MultiExport)
+        let artifact = HardHatLoader::new()
             .deny_by_chain_id("1")
-            .load_from_str(NETWORK_CONFLICTS)
+            .load_from_str(Format::MultiExport, NETWORK_CONFLICTS)
             .unwrap();
 
         assert_eq!(artifact.len(), 1);
