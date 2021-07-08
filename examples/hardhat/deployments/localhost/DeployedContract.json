@@ -1,0 +1,101 @@
+{
+  "address": "0x29BE0588389993e7064C21f00761303eb51373F5",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "increment",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "value",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xe0631d7f749fe73f94e59f6e25ff9b925980e8e29ed67b8f862ec76a783ea06e",
+  "receipt": {
+    "to": null,
+    "from": "0x58F7bf16796d069a7590525eBD507921036Ce82B",
+    "contractAddress": "0x29BE0588389993e7064C21f00761303eb51373F5",
+    "transactionIndex": 0,
+    "gasUsed": "175807",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0xbbc976772d85d908aedad3c88de6dd0f7adb6dc7af7524f6cf6bd3c726521c7e",
+    "transactionHash": "0xe0631d7f749fe73f94e59f6e25ff9b925980e8e29ed67b8f862ec76a783ea06e",
+    "logs": [],
+    "blockNumber": 151,
+    "cumulativeGasUsed": "175807",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "solcInputHash": "d7ef70c507cb995ea3e81152c437ca74",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.0+commit.c7dfd78e\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"increment\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"value\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"details\":\"Rinkeby deployed contract used in examples.\",\"kind\":\"dev\",\"methods\":{\"increment()\":{\"details\":\"Increments the value for the `msg.sender` by 1.\"},\"value()\":{\"details\":\"Gets the current value set in the contract for the `msg.sender`.\"}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/DeployedContract.sol\":\"DeployedContract\"},\"evmVersion\":\"istanbul\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"contracts/DeployedContract.sol\":{\"content\":\"pragma solidity ^0.8.0;\\n\\n/**\\n * @dev Rinkeby deployed contract used in examples.\\n */\\ncontract DeployedContract {\\n  mapping(address => uint256) private values;\\n\\n  /**\\n   * @dev Gets the current value set in the contract for the `msg.sender`.\\n   */\\n  function value() public view returns (uint256) {\\n    return values[msg.sender];\\n  }\\n\\n  /**\\n   * @dev Increments the value for the `msg.sender` by 1.\\n   */\\n  function increment() public returns (uint256) {\\n    values[msg.sender]++;\\n    return (values[msg.sender]);\\n  }\\n}\\n\",\"keccak256\":\"0x85ebb83768b7c9a3ca7db76560b0833e0e57d29716df381ef14e72a144e4e64d\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b50610239806100206000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c80633fa4f2451461003b578063d09de08a14610059575b600080fd5b610043610077565b6040516100509190610166565b60405180910390f35b6100616100bd565b60405161006e9190610166565b60405180910390f35b60008060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002054905090565b60008060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600081548092919061010e9061018b565b91905055506000803373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002054905090565b61016081610181565b82525050565b600060208201905061017b6000830184610157565b92915050565b6000819050919050565b600061019682610181565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8214156101c9576101c86101d4565b5b600182019050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fdfea2646970667358221220993b4e7128d49168b275476d44461ca250c375b19974365fa3372ff084874faf64736f6c63430008000033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100365760003560e01c80633fa4f2451461003b578063d09de08a14610059575b600080fd5b610043610077565b6040516100509190610166565b60405180910390f35b6100616100bd565b60405161006e9190610166565b60405180910390f35b60008060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002054905090565b60008060003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600081548092919061010e9061018b565b91905055506000803373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002054905090565b61016081610181565b82525050565b600060208201905061017b6000830184610157565b92915050565b6000819050919050565b600061019682610181565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8214156101c9576101c86101d4565b5b600182019050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fdfea2646970667358221220993b4e7128d49168b275476d44461ca250c375b19974365fa3372ff084874faf64736f6c63430008000033",
+  "devdoc": {
+    "details": "Rinkeby deployed contract used in examples.",
+    "kind": "dev",
+    "methods": {
+      "increment()": {
+        "details": "Increments the value for the `msg.sender` by 1."
+      },
+      "value()": {
+        "details": "Gets the current value set in the contract for the `msg.sender`."
+      }
+    },
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 6,
+        "contract": "contracts/DeployedContract.sol:DeployedContract",
+        "label": "values",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_address,t_uint256)"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_mapping(t_address,t_uint256)": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => uint256)",
+        "numberOfBytes": "32",
+        "value": "t_uint256"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}
