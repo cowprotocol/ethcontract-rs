@@ -99,7 +99,7 @@ pub struct HardHatLoader {
 }
 
 impl HardHatLoader {
-    /// Create a new hardhat loader.
+    /// Creates a new hardhat loader.
     pub fn new() -> Self {
         HardHatLoader {
             origin: None,
@@ -110,7 +110,7 @@ impl HardHatLoader {
         }
     }
 
-    /// Create a new hardhat loader and set an override for artifact's origins.
+    /// Creates a new hardhat loader and sets an override for artifact's origins.z
     pub fn with_origin(origin: impl Into<String>) -> Self {
         HardHatLoader {
             origin: Some(origin.into()),
@@ -121,7 +121,7 @@ impl HardHatLoader {
         }
     }
 
-    /// Set new override for artifact's origin. See [`origin`] for more info.
+    /// Sets new override for artifact's origin. See [`origin`] for more info.
     ///
     /// [`origin`]: #structfield.origin
     pub fn origin(mut self, origin: impl Into<String>) -> Self {
@@ -129,7 +129,7 @@ impl HardHatLoader {
         self
     }
 
-    /// Add chain id to the list of [`allowed networks`].
+    /// Adds chain id to the list of [`allowed networks`].
     ///
     /// [`allowed networks`]: #structfield.networks_allow_list
     pub fn allow_network_by_chain_id(mut self, network: impl Into<String>) -> Self {
@@ -138,7 +138,7 @@ impl HardHatLoader {
         self
     }
 
-    /// Add network name to the list of [`allowed networks`].
+    /// Adds network name to the list of [`allowed networks`].
     ///
     /// [`allowed networks`]: #structfield.networks_allow_list
     pub fn allow_network_by_name(mut self, network: impl Into<String>) -> Self {
@@ -147,7 +147,7 @@ impl HardHatLoader {
         self
     }
 
-    /// Add chain id to the list of [`denied networks`].
+    /// Adds chain id to the list of [`denied networks`].
     ///
     /// [`denied networks`]: #structfield.networks_deny_list
     pub fn deny_network_by_chain_id(mut self, network: impl Into<String>) -> Self {
@@ -156,7 +156,7 @@ impl HardHatLoader {
         self
     }
 
-    /// Add network name to the list of [`denied networks`].
+    /// Adds network name to the list of [`denied networks`].
     ///
     /// [`denied networks`]: #structfield.networks_deny_list
     pub fn deny_network_by_name(mut self, network: impl Into<String>) -> Self {
@@ -165,7 +165,7 @@ impl HardHatLoader {
         self
     }
 
-    /// Add contract name to the list of [`allowed contracts`].
+    /// Adds contract name to the list of [`allowed contracts`].
     ///
     /// [`allowed contracts`]: #structfield.contracts_allow_list
     pub fn allow_contract(mut self, contract: impl Into<String>) -> Self {
@@ -173,7 +173,7 @@ impl HardHatLoader {
         self
     }
 
-    /// Add contract name to the list of [`denied contracts`].
+    /// Adds contract name to the list of [`denied contracts`].
     ///
     /// [`denied contracts`]: #structfield.contracts_deny_list
     pub fn deny_contract(mut self, contract: impl Into<String>) -> Self {

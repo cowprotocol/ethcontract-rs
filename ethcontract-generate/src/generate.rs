@@ -50,7 +50,7 @@ pub(crate) struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    /// Create a context from the code generation arguments.
+    /// Creates a context from the code generation arguments.
     fn from_builder(contract: &'a Contract, builder: ContractBuilder) -> Result<Self> {
         let raw_contract_name = if let Some(name) = &builder.contract_name_override {
             name

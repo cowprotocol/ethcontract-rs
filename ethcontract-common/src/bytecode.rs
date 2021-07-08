@@ -17,7 +17,7 @@ use web3::types::{Address, Bytes};
 pub struct Bytecode(String);
 
 impl Bytecode {
-    /// Read hex bytecode representation from a string slice.
+    /// Reads hex bytecode representation from a string slice.
     pub fn from_hex_str(s: &str) -> Result<Self, BytecodeError> {
         if s.is_empty() {
             // special case where we have an empty string byte code.
@@ -49,7 +49,7 @@ impl Bytecode {
         Ok(Bytecode(s.to_string()))
     }
 
-    /// Link a library into the current bytecode.
+    /// Links a library into the current bytecode.
     ///
     /// # Panics
     ///
@@ -77,7 +77,7 @@ impl Bytecode {
         Ok(())
     }
 
-    /// Convert a bytecode into its byte representation.
+    /// Converts a bytecode into its byte representation.
     pub fn to_bytes(&self) -> Result<Bytes, LinkError> {
         match self.undefined_libraries().next() {
             Some(library) => Err(LinkError::UndefinedLibrary(library.to_string())),
@@ -85,7 +85,7 @@ impl Bytecode {
         }
     }
 
-    /// Iterator over all libraries remaining in the bytecode.
+    /// Returns an iterator over all libraries remaining in the bytecode.
     pub fn undefined_libraries(&self) -> LibIter<'_> {
         LibIter {
             cursor: &self.0,
@@ -104,7 +104,7 @@ impl Bytecode {
     }
 }
 
-/// internal type for iterating though a bytecode's string code blocks skipping
+/// Internal type for iterating though a bytecode's string code blocks skipping
 /// the `solc` linker placeholders.
 struct CodeIter<'a>(&'a str);
 

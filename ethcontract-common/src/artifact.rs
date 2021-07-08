@@ -24,7 +24,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    /// Create a new empty artifact.
+    /// Creates a new empty artifact.
     pub fn new() -> Self {
         Artifact {
             origin: "<unknown>".to_string(),
@@ -32,7 +32,7 @@ impl Artifact {
         }
     }
 
-    /// Create a new artifact with an origin information.
+    /// Creates a new artifact with an origin information.
     pub fn with_origin(origin: impl Into<String>) -> Self {
         Artifact {
             origin: origin.into(),
@@ -40,7 +40,7 @@ impl Artifact {
         }
     }
 
-    /// Describe where this artifact comes from.
+    /// Provides description of where this artifact comes from.
     ///
     /// This function is used when a human-readable reference to the artifact
     /// is required. It could be anything: path to a json file, url, etc.
@@ -48,7 +48,7 @@ impl Artifact {
         &self.origin
     }
 
-    /// Set new origin for the artifact.
+    /// Sets new origin for the artifact.
     ///
     /// Artifact loaders will set origin to something meaningful in most cases,
     /// so this function should not be used often. There are cases when
@@ -57,22 +57,22 @@ impl Artifact {
         self.origin = origin.into();
     }
 
-    /// Get number of contracts contained in this artifact.
+    /// Gets number of contracts contained in this artifact.
     pub fn len(&self) -> usize {
         self.contracts.len()
     }
 
-    /// Check if this artifact contains no contracts.
+    /// Returns `true` if this artifact contains no contracts.
     pub fn is_empty(&self) -> bool {
         self.contracts.is_empty()
     }
 
-    /// Check whether this artifact has a contract with the given name.
+    /// Returns `true` if this artifact has a contract with the given name.
     pub fn contains(&self, name: &str) -> bool {
         self.contracts.contains_key(name)
     }
 
-    /// Get contract by name.
+    /// Looks up contract by its name and returns a reference to it.
     ///
     /// Some artifact formats allow exporting a single unnamed contract.
     /// In this case, the contract will have an empty string as its name.
@@ -80,19 +80,19 @@ impl Artifact {
         self.contracts.get(name)
     }
 
-    /// Get contract by name.
+    /// Looks up contract by its name and returns a handle that allows
+    /// safely mutating it.
     ///
-    /// Returns a handle that allows mutating the contract. It does not allow
-    /// renaming contract though. For that, you'll need to remove
-    /// it and add again.
+    /// The returned handle does not allow renaming contract. For that,
+    /// you'll need to remove it and add again.
     pub fn get_mut(&mut self, name: &str) -> Option<ContractMut> {
         self.contracts.get_mut(name).map(ContractMut)
     }
 
-    /// Insert a new contract to the artifact.
+    /// Inserts a new contract to the artifact.
     ///
-    /// If contract with this name already exists, replace it
-    /// and return the old contract.
+    /// If contract with this name already exists, replaces it
+    /// and returns the old contract.
     pub fn insert(&mut self, contract: Contract) -> InsertResult {
         match self.contracts.entry(contract.name.clone()) {
             Entry::Occupied(mut o) => {
@@ -109,7 +109,7 @@ impl Artifact {
         }
     }
 
-    /// Remove contract from the artifact.
+    /// Removes contract from the artifact.
     ///
     /// Returns removed contract or [`None`] if contract with the given name
     /// wasn't found.
@@ -117,13 +117,13 @@ impl Artifact {
         self.contracts.remove(name)
     }
 
-    /// Create an iterator that yields the artifact's contracts.
+    /// Creates an iterator that yields the artifact's contracts.
     pub fn iter(&self) -> impl Iterator<Item = &Contract> + '_ {
         self.contracts.values()
     }
 
-    /// Take all contracts from the artifact, leaving it empty,
-    /// and iterate over them.
+    /// Takes all contracts from the artifact, leaving it empty,
+    /// and returns an iterator over the taken contracts.
     pub fn drain(&mut self) -> impl Iterator<Item = Contract> + '_ {
         self.contracts.drain().map(|(_, contract)| contract)
     }
@@ -149,27 +149,27 @@ pub struct InsertResult<'a> {
 pub struct ContractMut<'a>(&'a mut Contract);
 
 impl<'a> ContractMut<'a> {
-    /// Get mutable access to abi.
+    /// Returns mutable reference to contract's abi.
     pub fn abi_mut(&mut self) -> &mut Abi {
         &mut self.0.abi
     }
 
-    /// Get mutable access to bytecode.
+    /// Returns mutable reference to contract's bytecode.
     pub fn bytecode_mut(&mut self) -> &mut Bytecode {
         &mut self.0.bytecode
     }
 
-    /// Get mutable access to networks.
+    /// Returns mutable reference to contract's networks.
     pub fn networks_mut(&mut self) -> &mut HashMap<String, Network> {
         &mut self.0.networks
     }
 
-    /// Get mutable access to devdoc.
+    /// Returns mutable reference to contract's devdoc.
     pub fn devdoc_mut(&mut self) -> &mut Documentation {
         &mut self.0.devdoc
     }
 
-    /// Get mutable access to userdoc.
+    /// Returns mutable reference to contract's userdoc.
     pub fn userdoc_mut(&mut self) -> &mut Documentation {
         &mut self.0.userdoc
     }

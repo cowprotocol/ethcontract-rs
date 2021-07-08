@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-/// Format the raw input source string and return formatted output.
+/// Formats the raw input source string and return formatted output.
 pub fn format(source: &str) -> Result<String> {
     let mut rustfmt = Command::new("rustfmt")
         .args(&["--edition", "2018"])

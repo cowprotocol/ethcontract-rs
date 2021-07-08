@@ -53,7 +53,7 @@ where
     Ok(address_str[2..].parse()?)
 }
 
-/// Perform an HTTP GET request and return the contents of the response.
+/// Performs an HTTP GET request and return the contents of the response.
 pub fn http_get(url: &str) -> Result<String> {
     let mut buffer = Vec::new();
     let mut handle = Easy::new();
