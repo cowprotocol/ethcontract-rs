@@ -282,7 +282,7 @@ fn expand_builder_type(event: &Event) -> Result<TokenStream> {
                 self
             }
 
-            /// Limit the number of events that can be retrieved by this filter.
+            /// Limits the number of events that can be retrieved by this filter.
             ///
             /// Note that this parameter is non-standard.
             pub fn limit(mut self, value: usize) -> Self {
@@ -290,7 +290,7 @@ fn expand_builder_type(event: &Event) -> Result<TokenStream> {
                 self
             }
 
-            /// The polling interval. This is used as the interval between
+            /// Sets the polling interval. This is used as the interval between
             /// consecutive `eth_getFilterChanges` calls to get filter updates.
             pub fn poll_interval(mut self, value: std::time::Duration) -> Self {
                 self.0 = (self.0).poll_interval(value);

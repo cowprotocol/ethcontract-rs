@@ -7,11 +7,11 @@ use serde_json::json;
 
 /// Extension trait for `ethabi::Function`.
 pub trait FunctionExt {
-    /// Compute the method signature in the standard ABI format. This does not
+    /// Computes the method signature in the standard ABI format. This does not
     /// include the output types.
     fn abi_signature(&self) -> String;
 
-    /// Compute the Keccak256 function selector used by contract ABIs.
+    /// Computes the Keccak256 function selector used by contract ABIs.
     fn selector(&self) -> H32;
 }
 
@@ -32,7 +32,7 @@ impl FunctionExt for Function {
 
 /// Extension trait for `ethabi::Event`.
 pub trait EventExt {
-    /// Compute the event signature in human-readable format. The `keccak256`
+    /// Computes the event signature in human-readable format. The `keccak256`
     /// hash of this value is the actual event signature that is used as topic0
     /// in the transaction logs.
     fn abi_signature(&self) -> String;

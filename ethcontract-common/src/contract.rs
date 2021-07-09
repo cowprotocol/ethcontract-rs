@@ -52,7 +52,7 @@ impl Contract {
         }
     }
 
-    /// Parse a truffle artifact from JSON.
+    /// Parses a truffle artifact from JSON.
     pub fn from_json<S>(json: S) -> Result<Self, ArtifactError>
     where
         S: AsRef<str>,

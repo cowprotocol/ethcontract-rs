@@ -69,7 +69,7 @@ pub struct ContractBuilder {
 }
 
 impl ContractBuilder {
-    /// Create a new contract builder with default settings.
+    /// Creates a new contract builder with default settings.
     pub fn new() -> Self {
         ContractBuilder {
             runtime_crate_name: "ethcontract".to_string(),
@@ -83,27 +83,27 @@ impl ContractBuilder {
         }
     }
 
-    /// Set the crate name for the runtime crate. This setting is usually only
+    /// Sets the crate name for the runtime crate. This setting is usually only
     /// needed if the crate was renamed in the Cargo manifest.
     pub fn runtime_crate_name<S>(mut self, name: impl Into<String>) -> Self {
         self.runtime_crate_name = name.into();
         self
     }
 
-    /// Set an optional visibility modifier for the generated module and
+    /// Sets an optional visibility modifier for the generated module and
     /// contract re-export.
     pub fn visibility_modifier<S>(mut self, vis: impl Into<String>) -> Self {
         self.visibility_modifier = Some(vis.into());
         self
     }
 
-    /// Set the optional contract module name override.
+    /// Sets the optional contract module name override.
     pub fn contract_mod_override<S>(mut self, name: impl Into<String>) -> Self {
         self.contract_mod_override = Some(name.into());
         self
     }
 
-    /// Set the optional contract name override. This setting is needed when
+    /// Sets the optional contract name override. This setting is needed when
     /// using an artifact JSON source that does not provide a contract name such
     /// as Etherscan.
     pub fn contract_name_override<S>(mut self, name: impl Into<String>) -> Self {
@@ -111,9 +111,9 @@ impl ContractBuilder {
         self
     }
 
-    /// Add a deployed address and deployment transaction
-    /// hash or block of a contract for a given network. Note that manually specified
-    /// deployments take precedence over deployments in the artifact.
+    /// Adds a deployed address and deployment transaction
+    /// hash or block of a contract for a given network. Note that manually
+    /// specified deployments take precedence over deployments in the artifact.
     ///
     /// This is useful for integration test scenarios where the address of a
     /// contract on the test node is deterministic, but the contract address
@@ -123,7 +123,7 @@ impl ContractBuilder {
         self
     }
 
-    /// Add a deployed address. Parses address from string.
+    /// Adds a deployed address. Parses address from string.
     /// See [`add_deployment`] for more information.
     ///
     /// # Panics
@@ -140,7 +140,7 @@ impl ContractBuilder {
         )
     }
 
-    /// Add a solidity method alias to specify what the method name
+    /// Adds a solidity method alias to specify what the method name
     /// will be in Rust. For solidity methods without an alias, the snake cased
     /// method name will be used.
     pub fn add_method_alias(
@@ -152,8 +152,8 @@ impl ContractBuilder {
         self
     }
 
-    /// Specify whether or not to format the code using a locally installed copy
-    /// of `rustfmt`.
+    /// Specifies whether or not to format the code using a locally installed
+    /// copy of `rustfmt`.
     ///
     /// Note that in case `rustfmt` does not exist or produces an error, the
     /// unformatted code will be used.
@@ -162,7 +162,7 @@ impl ContractBuilder {
         self
     }
 
-    /// Add a custom derive to the derives for event structs and enums.
+    /// Adds a custom derive to the derives for event structs and enums.
     ///
     /// This makes it possible to, for example, derive `serde::Serialize` and
     /// `serde::Deserialize` for events.
@@ -180,7 +180,7 @@ impl ContractBuilder {
         self
     }
 
-    /// Generate the contract bindings.
+    /// Generates the contract bindings.
     pub fn generate(self, contract: &Contract) -> Result<ContractBindings> {
         let rustfmt = self.rustfmt;
         Ok(ContractBindings {
@@ -207,8 +207,8 @@ pub struct ContractBindings {
 }
 
 impl ContractBindings {
-    /// Specify whether or not to format the code using a locally installed copy
-    /// of `rustfmt`.
+    /// Specifies whether or not to format the code using a locally installed
+    /// copy of `rustfmt`.
     ///
     /// Note that in case `rustfmt` does not exist or produces an error, the
     /// unformatted code will be used.
@@ -217,7 +217,7 @@ impl ContractBindings {
         self
     }
 
-    /// Write the bindings to a given `Write`.
+    /// Writes the bindings to a given `Write`.
     pub fn write(&self, mut w: impl Write) -> Result<()> {
         let source = {
             let raw = self.tokens.to_string();
@@ -233,14 +233,14 @@ impl ContractBindings {
         Ok(())
     }
 
-    /// Write the bindings to the specified file.
+    /// Writes the bindings to the specified file.
     pub fn write_to_file(&self, path: impl AsRef<Path>) -> Result<()> {
         let file = File::create(path)?;
         let writer = BufWriter::new(file);
         self.write(writer)
     }
 
-    /// Convert the bindings into its underlying token stream. This allows it
+    /// Converts the bindings into its underlying token stream. This allows it
     /// to be used within a procedural macro.
     pub fn into_tokens(self) -> TokenStream {
         self.tokens

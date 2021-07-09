@@ -32,7 +32,7 @@ pub struct TruffleLoader {
 }
 
 impl TruffleLoader {
-    /// Create a new truffle loader.
+    /// Creates a new truffle loader.
     pub fn new() -> Self {
         TruffleLoader {
             origin: None,
@@ -40,7 +40,7 @@ impl TruffleLoader {
         }
     }
 
-    /// Create a new truffle loader and set an override for artifact's origins.
+    /// Creates a new truffle loader and sets an override for artifact's origins.
     pub fn with_origin(origin: impl Into<String>) -> Self {
         TruffleLoader {
             origin: Some(origin.into()),
@@ -48,7 +48,7 @@ impl TruffleLoader {
         }
     }
 
-    /// Set new override for artifact's origin. See [`origin`] for more info.
+    /// Sets new override for artifact's origin. See [`origin`] for more info.
     ///
     /// [`origin`]: #structfield.origin
     pub fn origin(mut self, origin: impl Into<String>) -> Self {
@@ -56,7 +56,7 @@ impl TruffleLoader {
         self
     }
 
-    /// Set new override for artifact's name. See [`name`] for more info.
+    /// Sets new override for artifact's name. See [`name`] for more info.
     ///
     /// [`name`]: #structfield.name
     pub fn name(mut self, name: impl Into<String>) -> Self {
@@ -146,7 +146,7 @@ impl TruffleLoader {
         Ok(contract)
     }
 
-    /// Serialize a single contract.
+    /// Serializes a single contract.
     pub fn save_to_string(contract: &Contract) -> Result<String, ArtifactError> {
         to_string(contract).map_err(Into::into)
     }
