@@ -43,14 +43,14 @@ use syn::{
 /// // HTTP(S) source
 /// contract!("https://my.domain.local/path/to/contract.json")
 ///
-/// // etherscan.io
+/// // Etherscan source
 /// contract!("etherscan:0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
 ///
-/// // npm package
+/// // NPM package source
 /// contract!("npm:@openzeppelin/contracts@4.2.0/build/contracts/IERC20.json")
 /// ```
 ///
-/// Note that etherscan rate-limits requests to their API, to avoid this an
+/// Note that Etherscan rate-limits requests to their API, to avoid this an
 /// `ETHERSCAN_API_KEY` environment variable can be set. If it is, it will use
 /// that API key when retrieving the contract ABI.
 ///

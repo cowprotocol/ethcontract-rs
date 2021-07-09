@@ -20,7 +20,7 @@ where
 /// data in order to select which Solidity method will be called.
 pub type H32 = [u8; 4];
 
-/// Calculate the function selector as per the contract ABI specification. This
+/// Calculates the function selector as per the contract ABI specification. This
 /// is definied as the first 4 bytes of the Keccak256 hash of the function
 /// signature.
 pub fn function_selector<S>(signature: S) -> H32
