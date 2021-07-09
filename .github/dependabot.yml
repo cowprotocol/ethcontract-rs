@@ -24,3 +24,12 @@ updates:
     open-pull-requests-limit: 10
     versioning-strategy: increase
     rebase-strategy: disabled
+  - package-ecosystem: npm
+    directory: "/examples/hardhat"
+    schedule:
+      interval: weekly
+      time: "02:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 10
+    versioning-strategy: increase
+    rebase-strategy: disabled
