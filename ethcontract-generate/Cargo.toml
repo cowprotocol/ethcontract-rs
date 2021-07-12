@@ -1,6 +1,6 @@
 [package]
 name = "ethcontract-generate"
-version = "0.12.2"
+version = "0.13.0"
 authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -14,7 +14,7 @@ Code generation for type-safe bindings to Ethereum smart contracts.
 [dependencies]
 anyhow = "1.0"
 curl = "0.4"
-ethcontract-common = { version = "0.12.2", path = "../ethcontract-common" }
+ethcontract-common = { version = "0.13.0", path = "../ethcontract-common" }
 Inflector = "0.11"
 proc-macro2 = "1.0"
 quote = "1.0"
