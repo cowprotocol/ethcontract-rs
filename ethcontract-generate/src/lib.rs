@@ -85,20 +85,20 @@ impl ContractBuilder {
 
     /// Sets the crate name for the runtime crate. This setting is usually only
     /// needed if the crate was renamed in the Cargo manifest.
-    pub fn runtime_crate_name<S>(mut self, name: impl Into<String>) -> Self {
+    pub fn runtime_crate_name(mut self, name: impl Into<String>) -> Self {
         self.runtime_crate_name = name.into();
         self
     }
 
     /// Sets an optional visibility modifier for the generated module and
     /// contract re-export.
-    pub fn visibility_modifier<S>(mut self, vis: impl Into<String>) -> Self {
+    pub fn visibility_modifier(mut self, vis: impl Into<String>) -> Self {
         self.visibility_modifier = Some(vis.into());
         self
     }
 
     /// Sets the optional contract module name override.
-    pub fn contract_mod_override<S>(mut self, name: impl Into<String>) -> Self {
+    pub fn contract_mod_override(mut self, name: impl Into<String>) -> Self {
         self.contract_mod_override = Some(name.into());
         self
     }
@@ -106,7 +106,7 @@ impl ContractBuilder {
     /// Sets the optional contract name override. This setting is needed when
     /// using an artifact JSON source that does not provide a contract name such
     /// as Etherscan.
-    pub fn contract_name_override<S>(mut self, name: impl Into<String>) -> Self {
+    pub fn contract_name_override(mut self, name: impl Into<String>) -> Self {
         self.contract_name_override = Some(name.into());
         self
     }
