@@ -439,7 +439,7 @@ fn expand_event_parse_log(cx: &Context) -> TokenStream {
                 let name = Literal::string(&event.name);
                 let decode_event = quote! {
                     log.clone().decode(
-                        Contract::artifact()
+                        Contract::raw_contract()
                             .abi
                             .event(#name)
                             .expect("generated event decode")
@@ -796,7 +796,7 @@ mod tests {
                         .map(|topic| match topic {
                             #foo_signature => Ok(Event::Foo(
                                 log.clone().decode(
-                                    Contract::artifact()
+                                    Contract::raw_contract()
                                         .abi
                                         .event("Foo")
                                         .expect("generated event decode")
@@ -810,7 +810,7 @@ mod tests {
                     }
 
                     if let Ok(data) = log.clone().decode(
-                        Contract::artifact()
+                        Contract::raw_contract()
                             .abi
                             .event("Bar")
                             .expect("generated event decode")
