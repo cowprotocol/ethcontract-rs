@@ -42,7 +42,7 @@ fn expand_deployed(cx: &Context) -> TokenStream {
 
                 let transport = DynTransport::new(web3.transport().clone());
                 let web3 = Web3::new(transport);
-                let instance = Instance::deployed(web3, Contract::artifact().clone()).await?;
+                let instance = Instance::deployed(web3, Contract::raw_contract().clone()).await?;
 
                 Ok(Contract::from_raw(instance))
             }
@@ -135,7 +135,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
                 let transport = DynTransport::new(web3.transport().clone());
                 let web3 = Web3::new(transport);
 
-                let bytecode = Self::artifact().bytecode.clone();
+                let bytecode = Self::raw_contract().bytecode.clone();
                 #link
 
                 DeployBuilder::new(web3, bytecode, #arg).expect("valid deployment args")
@@ -150,7 +150,7 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
             }
 
             fn abi(_: &Self::Context) -> &self::ethcontract::common::Abi {
-                &Self::artifact().abi
+                &Self::raw_contract().abi
             }
 
             fn from_deployment(

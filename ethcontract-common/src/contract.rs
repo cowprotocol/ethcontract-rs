@@ -1,12 +1,9 @@
 //! Module for reading and examining data produced by truffle.
 
-use crate::errors::ArtifactError;
 use crate::Abi;
 use crate::{bytecode::Bytecode, DeploymentInformation};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs::File;
-use std::path::Path;
 use web3::types::Address;
 
 /// Represents a contract data.
@@ -51,25 +48,6 @@ impl Contract {
             userdoc: Default::default(),
         }
     }
-
-    /// Parses a truffle artifact from JSON.
-    pub fn from_json<S>(json: S) -> Result<Self, ArtifactError>
-    where
-        S: AsRef<str>,
-    {
-        let artifact = serde_json::from_str(json.as_ref())?;
-        Ok(artifact)
-    }
-
-    /// Loads a truffle artifact from disk.
-    pub fn load<P>(path: P) -> Result<Self, ArtifactError>
-    where
-        P: AsRef<Path>,
-    {
-        let json = File::open(path)?;
-        let artifact = serde_json::from_reader(json)?;
-        Ok(artifact)
-    }
 }
 
 /// A contract's network configuration.
@@ -96,16 +74,4 @@ pub struct Documentation {
 pub struct DocEntry {
     /// The documentation details for this entry.
     pub details: Option<String>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_empty() {
-        if let Err(err) = Contract::from_json("{}") {
-            panic!("error parsing empty artifact: {:?}", err);
-        }
-    }
 }
