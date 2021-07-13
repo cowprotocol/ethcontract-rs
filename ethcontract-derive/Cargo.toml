@@ -1,6 +1,6 @@
 [package]
 name = "ethcontract-derive"
-version = "0.13.0"
+version = "0.13.1"
 authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -16,8 +16,8 @@ proc-macro = true
 
 [dependencies]
 anyhow = "1.0"
-ethcontract-common = { version = "0.13.0", path = "../ethcontract-common" }
-ethcontract-generate = { version = "0.13.0", path = "../ethcontract-generate" }
+ethcontract-common = { version = "0.13.1", path = "../ethcontract-common" }
+ethcontract-generate = { version = "0.13.1", path = "../ethcontract-generate" }
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = "1.0.12"
