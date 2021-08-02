@@ -107,6 +107,198 @@ impl MockTransport {
         let method = state.method(address, signature);
         method.expect::<P, R>()
     }
+
+    pub fn times<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        times: TimesRange,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+
+        if expectation.sequence.is_some() && !times.is_exact() {
+            panic!("only expectations with an exact call count can be in a sequences")
+        }
+        if expectation.sequence.is_some() && times.lower_bound() == 0 {
+            panic!("expectation in a sequences should be called at least once")
+        }
+
+        expectation.times = times;
+    }
+
+    pub fn in_sequence<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        sequence: &mut mockall::Sequence,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+
+        if !expectation.times.is_exact() {
+            panic!("only expectations with an exact call count can be in a sequences")
+        }
+        if expectation.times.lower_bound() == 0 {
+            panic!("expectation in a sequences should be called at least once")
+        }
+        if expectation.sequence.is_some() {
+            panic!("expectation can't be in multiple sequences")
+        }
+
+        expectation.sequence = Some(sequence.next_handle());
+    }
+
+    pub fn confirmations<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        confirmations: u64,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+        expectation.confirmations = confirmations;
+    }
+
+    pub fn predicate<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        pred: Box<dyn predicates::Predicate<P> + Send>,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+        expectation.predicate = Predicate::Predicate(pred);
+    }
+
+    pub fn predicate_fn<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        pred: Box<dyn Fn(&P) -> bool + Send>,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+        expectation.predicate = Predicate::Function(pred);
+    }
+
+    pub fn predicate_fn_ctx<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        pred: Box<dyn Fn(&CallContext, &P) -> bool + Send>,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+        expectation.predicate = Predicate::TxFunction(pred);
+    }
+
+    pub fn allow_calls<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        allow_calls: bool,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+        expectation.allow_calls = allow_calls;
+    }
+
+    pub fn allow_transactions<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        allow_transactions: bool,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+        expectation.allow_transactions = allow_transactions;
+    }
+
+    pub fn returns<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        returns: R,
+    ) {
+        // Convert `R` into `Token` here because `Token` is `Clone` while `R` is not.
+        // We need to clone result const if method is called multiple times.
+        let token = returns.into_token();
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+        expectation.returns = Returns::Const(token);
+    }
+
+    pub fn returns_fn<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        returns: Box<dyn Fn(P) -> Result<R, String> + Send>,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+        expectation.returns = Returns::Function(returns);
+    }
+
+    pub fn returns_fn_ctx<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        returns: Box<dyn Fn(&CallContext, P) -> Result<R, String> + Send>,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+        expectation.returns = Returns::TxFunction(returns);
+    }
+
+    pub fn returns_error<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+        error: String,
+    ) {
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+        expectation.returns = Returns::Error(error);
+    }
+
+    pub fn returns_default<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+    ) {
+        // Convert `R` into `Token` here because `Token` is `Clone` while `R` is not.
+        // We need to clone result const if method is called multiple times.
+        let mut state = self.state.lock().unwrap();
+        let expectation = state.expectation::<P, R>(address, signature, index, generation);
+        expectation.returns = Returns::Default;
+    }
 }
 
 impl MockTransportState {
@@ -121,6 +313,19 @@ impl MockTransportState {
     /// Returns contract's method.
     fn method(&mut self, address: Address, signature: H32) -> &mut Method {
         self.contract(address).method(signature)
+    }
+
+    /// Returns contract's expectation.
+    fn expectation<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &mut self,
+        address: Address,
+        signature: H32,
+        index: usize,
+        generation: usize,
+    ) -> &mut Expectation<P, R> {
+        self.contract(address)
+            .method(signature)
+            .expectation(index, generation)
     }
 }
 
@@ -513,6 +718,34 @@ impl Method {
         let index = self.expectations.len();
         self.expectations.push(Box::new(Expectation::<P, R>::new()));
         (index, self.generation)
+    }
+
+    /// Returns an expectation.
+    fn expectation<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &mut self,
+        index: usize,
+        generation: usize,
+    ) -> &mut Expectation<P, R> {
+        if generation != self.generation {
+            panic!("old expectations are not valid after checkpoint");
+        }
+
+        let expectation: &mut Expectation<P, R> = self
+            .expectations
+            .get_mut(index)
+            .unwrap()
+            .as_any()
+            .downcast_mut()
+            .unwrap();
+
+        if expectation.checked {
+            panic!(
+                "can't modify expectation for {} because it was already in use",
+                self.description
+            )
+        }
+
+        expectation
     }
 
     /// Executes a transaction or a call.

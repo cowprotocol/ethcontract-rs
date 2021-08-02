@@ -199,7 +199,14 @@ pub struct Expectation<P: Tokenize + Send + 'static, R: Tokenize + Send + 'stati
 impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, R> {
     /// Specifies how many times this expectation can be called.
     pub fn times(self, times: impl Into<TimesRange>) -> Self {
-        todo!()
+        self.transport.times::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            times.into(),
+        );
+        self
     }
 
     /// Indicates that this expectation can be called exactly zero times.
@@ -222,23 +229,44 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
 
     /// Adds this expectation to a sequence.
     pub fn in_sequence(self, sequence: &mut mockall::Sequence) -> Self {
-        todo!()
+        self.transport.in_sequence::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            sequence,
+        );
+        self
     }
 
     /// Sets number of blocks that should be mined on top of the transaction
     /// block. This method can be useful when there are custom transaction
     /// confirmation settings.
     pub fn confirmations(self, confirmations: u64) -> Self {
-        todo!()
+        self.transport.confirmations::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            confirmations,
+        );
+        self
     }
 
     /// Sets predicate for this expectation.
     pub fn predicate<T>(self, pred: T) -> Self
-    where
-        T: TuplePredicate<P> + Send + 'static,
-        <T as predicate::TuplePredicate<P>>::P: Send,
+        where
+            T: TuplePredicate<P> + Send + 'static,
+            <T as predicate::TuplePredicate<P>>::P: Send,
     {
-        todo!()
+        self.transport.predicate::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            Box::new(pred.into_predicate()),
+        );
+        self
     }
 
     /// Sets predicate function for this expectation. This function accepts
@@ -249,7 +277,14 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     ///
     /// [`predicate`]: Expectation::predicate
     pub fn predicate_fn(self, pred: impl Fn(&P) -> bool + Send + 'static) -> Self {
-        todo!()
+        self.transport.predicate_fn::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            Box::new(pred),
+        );
+        self
     }
 
     /// Sets predicate function for this expectation. This function accepts
@@ -264,7 +299,14 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
         self,
         pred: impl Fn(&CallContext, &P) -> bool + Send + 'static,
     ) -> Self {
-        todo!()
+        self.transport.predicate_fn_ctx::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            Box::new(pred),
+        );
+        self
     }
 
     /// Indicates that this expectation only applies to view calls.
@@ -276,7 +318,14 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     ///
     /// [`predicate`]: Expectation::predicate
     pub fn allow_calls(self, allow_calls: bool) -> Self {
-        todo!()
+        self.transport.allow_calls::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            allow_calls,
+        );
+        self
     }
 
     /// Indicates that this expectation only applies to transactions.
@@ -288,7 +337,14 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     ///
     /// [`predicate`]: Expectation::predicate
     pub fn allow_transactions(self, allow_transactions: bool) -> Self {
-        todo!()
+        self.transport.allow_transactions::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            allow_transactions,
+        );
+        self
     }
 
     /// Sets return value of the method.
@@ -300,7 +356,14 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// This method will overwrite any return value or callback
     /// that was set before.
     pub fn returns(self, returns: R) -> Self {
-        todo!()
+        self.transport.returns::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            returns,
+        );
+        self
     }
 
     /// Sets callback function that will be used to calculate return value
@@ -308,7 +371,14 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// and returns method's result or [`Err`] if transaction
     /// should be reverted.
     pub fn returns_fn(self, returns: impl Fn(P) -> Result<R, String> + Send + 'static) -> Self {
-        todo!()
+        self.transport.returns_fn::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            Box::new(returns),
+        );
+        self
     }
 
     /// Sets callback function that will be used to calculate return value
@@ -319,19 +389,39 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
         self,
         returns: impl Fn(&CallContext, P) -> Result<R, String> + Send + 'static,
     ) -> Self {
-        todo!()
+        self.transport.returns_fn_ctx::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            Box::new(returns),
+        );
+        self
     }
 
     /// Sets return value of the method to an error, meaning that calls to this
     /// expectation result in reverted transaction.
     pub fn returns_error(self, error: String) -> Self {
-        todo!()
+        self.transport.returns_error::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+            error,
+        );
+        self
     }
 
     /// Sets return value of the method to a default value for its solidity type.
     /// See [`returns`] for more info.
     pub fn returns_default(self) -> Self {
-        todo!()
+        self.transport.returns_default::<P, R>(
+            self.address,
+            self.signature,
+            self.index,
+            self.generation,
+        );
+        self
     }
 }
 
