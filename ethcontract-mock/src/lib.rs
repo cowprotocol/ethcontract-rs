@@ -22,12 +22,15 @@ mod range;
 /// Mock ethereum node.
 #[derive(Clone)]
 pub struct Mock {
+    transport: details::MockTransport,
 }
 
 impl Mock {
     /// Creates a new mock chain.
     pub fn new(chain_id: u64) -> Self {
-        todo!()
+        Mock {
+            transport: details::MockTransport::new(chain_id),
+        }
     }
 
     /// Creates a `Web3` object that can be used to interact with
@@ -45,7 +48,12 @@ impl Mock {
     /// Deploys a new mocked contract and returns an object that allows
     /// configuring expectations for contract methods.
     pub fn deploy(&self, abi: Abi) -> Contract {
-        todo!()
+        let address = self.transport.deploy(&abi);
+        Contract {
+            transport: self.transport.clone(),
+            address,
+            abi,
+        }
     }
 
     /// Updates gas price that is returned by RPC call `eth_gasPrice`.
@@ -53,7 +61,7 @@ impl Mock {
     /// Mock node does not simulate gas consumption, so this value does not
     /// affect anything if you don't call `eth_gasPrice`.
     pub fn update_gas_price(&self, gas_price: u64) {
-        todo!()
+        self.transport.update_gas_price(gas_price);
     }
 
     /// Verifies that all expectations on all contracts have been met,
@@ -74,6 +82,9 @@ impl std::fmt::Debug for Mock {
 /// This struct allows setting up expectations on which contract methods
 /// will be called, with what arguments, in what order, etc.
 pub struct Contract {
+    transport: details::MockTransport,
+    address: Address,
+    abi: Abi,
 }
 
 impl Contract {
@@ -92,23 +103,23 @@ impl Contract {
     /// Creates a contract `Instance` that can be used to interact with
     /// this contract.
     pub fn instance(&self) -> DynInstance {
-        todo!()
+        DynInstance::at(self.web3(), self.abi.clone(), self.address)
     }
 
     /// Consumes this object and transforms it into a contract `Instance`
     /// that can be used to interact with this contract.
     pub fn into_instance(self) -> DynInstance {
-        todo!()
+        DynInstance::at(self.web3(), self.abi, self.address)
     }
 
     /// Returns a reference to the contract's ABI.
     pub fn abi(&self) -> &Abi {
-        todo!()
+        &self.abi
     }
 
     /// Returns contract's address.
     pub fn address(&self) -> Address {
-        todo!()
+        self.address
     }
 
     /// Adds a new expectation for contract method. See [`Expectation`].
