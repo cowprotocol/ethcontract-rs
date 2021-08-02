@@ -136,7 +136,9 @@ async fn transaction_count_is_supported_for_edge_block() -> Result {
 }
 
 #[tokio::test]
-#[should_panic(expected = "mock node does not support returning transaction count for specific block number")]
+#[should_panic(
+    expected = "mock node does not support returning transaction count for specific block number"
+)]
 async fn transaction_count_is_not_supported_for_custom_block() {
     let web3 = Mock::new(1234).web3();
 

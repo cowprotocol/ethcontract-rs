@@ -1,66 +1,66 @@
-/// Tests for mock crate.
-///
-/// # TODO
-///
-/// Some tests for API are missing:
-///
-/// - malformed input in
-///   - eth_call
-///   - eth_sendTransaction
-///   - eth_sendRawTransaction
-///   - eth_estimateGas
-///
-/// - deployment works
-/// - different contracts have different addresses
-/// - returned instance has correct address
-///
-/// - call to method with no expectations panics
-/// - tx to method with no expectations panics
-/// - call to method with an expectation succeeds
-/// - tx to method with an expectation succeeds
-///
-/// - call expectations only match calls
-/// - tx expectations only match txs
-/// - regular expectations match both calls and txs
-///
-/// - predicate filters expectation so test panics
-/// - predicate filters multiple expectations so test panics
-/// - expectations are evaluated in FIFO order
-/// - predicate_fn gets called
-/// - predicate_fn_ctx gets called
-///
-/// - times can be set for expectation
-/// - if expectation called not enough times, test panics
-/// - if expectation called enough times, test passes
-/// - if expectation called enough times, it is satisfied and test panics
-/// - if expectation called enough times, it is satisfied and next expectation is used
-/// - expectation is not satisfied if calls are not matched by a predicate
-///
-/// - expectations can be added to sequences
-/// - expectation can only be in one sequence
-/// - adding expectation to sequence requires exact time greater than zero
-/// - updating times after expectation was set requires exact time greater than zero
-/// - when method called in-order, test passes
-/// - when method called in-order multiple times, test passes
-/// - when method called out-of-order, test panics
-/// - when method called out-of-order first time with times(2), test panics
-/// - when method called out-of-order last time with times(2), test panics
-///
-/// - default value for solidity type is returned
-/// - rust's Default trait is not honored
-/// - you can set return value
-/// - returns_fn gets called
-/// - returns_fn_ctx gets called
-///
-/// - expectations become immutable after use in calls and txs
-/// - expectations become immutable after use in calls and txs even if they are not matched by a predicate
-/// - new expectations are not immutable
-///
-/// - checkpoint verifies expectations
-/// - checkpoint clears expectations
-/// - expectations become invalid
-///
-/// - confirmations plays nicely with tx.confirmations
+//! Tests for mock crate.
+//!
+//! # TODO
+//!
+//! Some tests for API are missing:
+//!
+//! - malformed input in
+//!   - eth_call
+//!   - eth_sendTransaction
+//!   - eth_sendRawTransaction
+//!   - eth_estimateGas
+//!
+//! - deployment works
+//! - different contracts have different addresses
+//! - returned instance has correct address
+//!
+//! - call to method with no expectations panics
+//! - tx to method with no expectations panics
+//! - call to method with an expectation succeeds
+//! - tx to method with an expectation succeeds
+//!
+//! - call expectations only match calls
+//! - tx expectations only match txs
+//! - regular expectations match both calls and txs
+//!
+//! - predicate filters expectation so test panics
+//! - predicate filters multiple expectations so test panics
+//! - expectations are evaluated in FIFO order
+//! - predicate_fn gets called
+//! - predicate_fn_ctx gets called
+//!
+//! - times can be set for expectation
+//! - if expectation called not enough times, test panics
+//! - if expectation called enough times, test passes
+//! - if expectation called enough times, it is satisfied and test panics
+//! - if expectation called enough times, it is satisfied and next expectation is used
+//! - expectation is not satisfied if calls are not matched by a predicate
+//!
+//! - expectations can be added to sequences
+//! - expectation can only be in one sequence
+//! - adding expectation to sequence requires exact time greater than zero
+//! - updating times after expectation was set requires exact time greater than zero
+//! - when method called in-order, test passes
+//! - when method called in-order multiple times, test passes
+//! - when method called out-of-order, test panics
+//! - when method called out-of-order first time with times(2), test panics
+//! - when method called out-of-order last time with times(2), test panics
+//!
+//! - default value for solidity type is returned
+//! - rust's Default trait is not honored
+//! - you can set return value
+//! - returns_fn gets called
+//! - returns_fn_ctx gets called
+//!
+//! - expectations become immutable after use in calls and txs
+//! - expectations become immutable after use in calls and txs even if they are not matched by a predicate
+//! - new expectations are not immutable
+//!
+//! - checkpoint verifies expectations
+//! - checkpoint clears expectations
+//! - expectations become invalid
+//!
+//! - confirmations plays nicely with tx.confirmations
 
 use crate::{Contract, Mock};
 use ethcontract::dyns::DynWeb3;

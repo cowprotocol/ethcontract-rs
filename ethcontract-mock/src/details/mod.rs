@@ -796,7 +796,7 @@ impl Method {
                 // are only a few expectations for a method, and they are likely
                 // to be filtered out by `is_active`.
                 if let Some(result) =
-                expectation.process_tx(&tx, &self.description, &self.function, params.clone())
+                    expectation.process_tx(&tx, &self.description, &self.function, params.clone())
                 {
                     return result;
                 }
@@ -885,7 +885,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
 }
 
 impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> ExpectationApi
-for Expectation<P, R>
+    for Expectation<P, R>
 {
     fn as_any(&mut self) -> &mut dyn Any {
         self

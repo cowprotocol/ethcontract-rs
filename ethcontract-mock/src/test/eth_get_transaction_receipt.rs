@@ -28,8 +28,7 @@ async fn transaction_receipt_is_returned() -> Result {
 async fn transaction_receipt_is_panicking_when_hash_not_fount() {
     let web3 = Mock::new(1234).web3();
 
-    web3
-        .eth()
+    web3.eth()
         .transaction_receipt(Default::default())
         .await
         .unwrap();

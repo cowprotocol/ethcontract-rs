@@ -73,9 +73,7 @@ async fn estimate_gas_is_supported_for_edge_block() -> Result {
 }
 
 #[tokio::test]
-#[should_panic(
-    expected = "mock node does not support executing methods on non-last block"
-)]
+#[should_panic(expected = "mock node does not support executing methods on non-last block")]
 async fn estimate_gas_is_not_supported_for_custom_block() {
     let (_, web3, contract, instance) = setup();
 
@@ -105,9 +103,7 @@ async fn estimate_gas_is_not_supported_for_custom_block() {
 }
 
 #[tokio::test]
-#[should_panic(
-    expected = "mock node does not support executing methods on earliest block"
-)]
+#[should_panic(expected = "mock node does not support executing methods on earliest block")]
 async fn estimate_gas_is_not_supported_for_earliest_block() {
     let (_, web3, contract, instance) = setup();
 

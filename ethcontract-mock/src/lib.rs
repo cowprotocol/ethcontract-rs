@@ -708,9 +708,9 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// [limiting number of expectation uses]: Expectation::times
     /// [`returns_fn`]: Expectation::returns_fn
     pub fn predicate<T>(self, pred: T) -> Self
-        where
-            T: TuplePredicate<P> + Send + 'static,
-            <T as predicate::TuplePredicate<P>>::P: Send,
+    where
+        T: TuplePredicate<P> + Send + 'static,
+        <T as predicate::TuplePredicate<P>>::P: Send,
     {
         self.transport.predicate::<P, R>(
             self.address,
