@@ -67,7 +67,7 @@ impl Mock {
     /// Verifies that all expectations on all contracts have been met,
     /// then clears all expectations.
     pub fn checkpoint(&self) {
-        todo!()
+        self.transport.checkpoint();
     }
 }
 
@@ -182,7 +182,7 @@ impl Contract {
     /// Verifies that all expectations on this contract have been met,
     /// then clears all expectations.
     pub fn checkpoint(&self) {
-        todo!()
+        self.transport.contract_checkpoint(self.address);
     }
 }
 

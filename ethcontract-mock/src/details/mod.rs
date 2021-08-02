@@ -98,6 +98,13 @@ impl MockTransport {
         state.gas_price = gas_price;
     }
 
+    pub fn checkpoint(&self) {
+        let mut state = self.state.lock().unwrap();
+        for contract in state.contracts.values_mut() {
+            contract.checkpoint();
+        }
+    }
+
     pub fn expect<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
         &self,
         address: Address,
@@ -106,6 +113,12 @@ impl MockTransport {
         let mut state = self.state.lock().unwrap();
         let method = state.method(address, signature);
         method.expect::<P, R>()
+    }
+
+    pub fn contract_checkpoint(&self, address: Address) {
+        let mut state = self.state.lock().unwrap();
+        let contract = state.contract(address);
+        contract.checkpoint();
     }
 
     pub fn times<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
@@ -681,6 +694,20 @@ impl Contract {
 
         method.process_tx(tx, data)
     }
+
+    fn checkpoint(&mut self) {
+        for method in self.methods.values_mut() {
+            method.checkpoint();
+        }
+    }
+}
+
+impl Drop for Contract {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            self.checkpoint();
+        }
+    }
 }
 
 struct Method {
@@ -778,6 +805,14 @@ impl Method {
 
         panic!("unexpected call to {}", self.description)
     }
+
+    fn checkpoint(&mut self) {
+        for expectation in self.expectations.iter_mut() {
+            expectation.verify(&self.description);
+        }
+        self.generation += 1;
+        self.expectations.clear();
+    }
 }
 
 trait ExpectationApi: Send {
@@ -798,6 +833,9 @@ trait ExpectationApi: Send {
         function: &Function,
         params: Vec<Token>,
     ) -> Option<TransactionResult>;
+
+    /// Verifies that this expectation is satisfied.
+    fn verify(&self, description: &str);
 }
 
 struct Expectation<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> {
@@ -899,6 +937,28 @@ for Expectation<P, R>
             result,
             confirmations: self.confirmations,
         })
+    }
+
+    fn verify(&self, description: &str) {
+        if !self.times.contains(self.used) {
+            panic!(
+                "{} was called {} {}, but it was expected to be called {} {} {}",
+                description,
+                self.used,
+                if self.used == 1 { "time" } else { "times" },
+                if self.times.is_exact() {
+                    "exactly"
+                } else {
+                    "at least"
+                },
+                self.times.lower_bound(),
+                if self.times.lower_bound() == 1 {
+                    "time"
+                } else {
+                    "times"
+                }
+            )
+        }
     }
 }
 
