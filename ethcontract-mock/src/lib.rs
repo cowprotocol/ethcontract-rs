@@ -233,6 +233,9 @@ mod details;
 mod predicate;
 mod range;
 
+#[cfg(test)]
+mod test;
+
 /// Mock ethereum node.
 ///
 /// This struct implements a virtual ethereum node with a limited number
