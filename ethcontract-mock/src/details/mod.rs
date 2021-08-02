@@ -173,6 +173,26 @@ impl Transport for MockTransport {
                 let name = "eth_gasPrice";
                 self.gas_price(Parser::new(name, params))
             }
+            "eth_estimateGas" => {
+                let name = "eth_estimateGas";
+                self.estimate_gas(Parser::new(name, params))
+            }
+            "eth_call" => {
+                let name = "eth_call";
+                self.call(Parser::new(name, params))
+            }
+            "eth_sendTransaction" => {
+                let name = "eth_sendTransaction";
+                self.send_transaction(Parser::new(name, params))
+            }
+            "eth_sendRawTransaction" => {
+                let name = "eth_sendRawTransaction";
+                self.send_raw_transaction(Parser::new(name, params))
+            }
+            "eth_getTransactionReceipt" => {
+                let name = "eth_getTransactionReceipt";
+                self.get_transaction_receipt(Parser::new(name, params))
+            }
             unsupported => panic!("mock node does not support rpc method {:?}", unsupported),
         };
 
@@ -220,6 +240,187 @@ impl MockTransport {
         Self::ok(&U256::from(state.gas_price))
     }
 
+    fn estimate_gas(&self, mut args: Parser) -> Result<Value, Error> {
+        let request: CallRequest = args.arg();
+        let block: Option<BlockNumber> = args.block_number_opt();
+        args.done();
+
+        let state = self.state.lock().unwrap();
+
+        let block = block.unwrap_or(BlockNumber::Pending);
+        match block {
+            BlockNumber::Earliest => {
+                panic!("mock node does not support executing methods on earliest block");
+            }
+            BlockNumber::Number(n) if n != state.block.into() => {
+                panic!("mock node does not support executing methods on non-last block");
+            }
+            _ => (),
+        }
+
+        match request.to {
+            None => panic!("call's 'to' field is empty"),
+            Some(to) => to,
+        };
+
+        // TODO:
+        //
+        // We could look up contract's method, match an expectation,
+        // and see if the expectation defines gas price.
+        //
+        // So, for example, this code:
+        //
+        // ```
+        // contract
+        //     .expect_method(signature)
+        //     .with(matcher)
+        //     .gas(100);
+        // ```
+        //
+        // Indicates that call to the method with the given signature
+        // requires 100 gas.
+        //
+        // When estimating gas, we'll check all expectation as if we're
+        // executing a method, but we won't mark any expectation as fulfilled.
+
+        Self::ok(&U256::from(1))
+    }
+
+    fn call(&self, mut args: Parser) -> Result<Value, Error> {
+        let request: CallRequest = args.arg();
+        let block: Option<BlockNumber> = args.block_number_opt();
+
+        let mut state = self.state.lock().unwrap();
+
+        let block = block.unwrap_or(BlockNumber::Pending);
+        match block {
+            BlockNumber::Earliest => {
+                panic!("mock node does not support executing methods on earliest block");
+            }
+            BlockNumber::Number(n) if n != state.block.into() => {
+                panic!("mock node does not support executing methods on non-last block");
+            }
+            _ => (),
+        }
+
+        let from = request.from.unwrap_or_default();
+        let to = match request.to {
+            None => panic!("call's 'to' field is empty"),
+            Some(to) => to,
+        };
+
+        let nonce = state.nonce.get(&from).copied().unwrap_or(0);
+
+        let gas_price = state.gas_price;
+
+        let contract = state.contract(to);
+
+        let context = CallContext {
+            is_view_call: true,
+            from: request.from.unwrap_or_default(),
+            to,
+            nonce: U256::from(nonce),
+            gas: request.gas.unwrap_or_else(|| U256::from(1)),
+            gas_price: request.gas.unwrap_or_else(|| U256::from(gas_price)),
+            value: request.value.unwrap_or_default(),
+        };
+
+        let data = request.data.unwrap_or_default();
+
+        let result = contract.process_tx(context, &data.0);
+
+        match result.result {
+            Ok(data) => Self::ok(Bytes(data)),
+            Err(err) => Err(Error::Rpc(ethcontract::jsonrpc::Error {
+                code: ethcontract::jsonrpc::ErrorCode::ServerError(0),
+                message: format!("execution reverted: {}", err),
+                data: None,
+            })),
+        }
+    }
+
+    fn send_transaction(&self, mut args: Parser) -> Result<Value, Error> {
+        let _request: TransactionRequest = args.arg();
+        args.done();
+
+        // TODO:
+        //
+        // We could support signing if user adds accounts with their private
+        // keys during mock setup.
+
+        panic!("mock node can't sign transactions, use offline signing with private key");
+    }
+
+    fn send_raw_transaction(&self, mut args: Parser) -> Result<Value, Error> {
+        let raw_tx: Bytes = args.arg();
+        args.done();
+
+        let mut state = self.state.lock().unwrap();
+
+        let tx = verify(&raw_tx.0, state.chain_id);
+
+        let nonce = state.nonce.entry(tx.from).or_insert(0);
+        if *nonce != tx.nonce.as_u64() {
+            panic!(
+                "nonce mismatch for account {:#x}: expected {}, actual {}",
+                tx.from,
+                tx.nonce.as_u64(),
+                nonce
+            );
+        }
+        *nonce += 1;
+
+        let contract = state.contract(tx.to);
+
+        let context = CallContext {
+            is_view_call: false,
+            from: tx.from,
+            to: tx.to,
+            nonce: tx.nonce,
+            gas: tx.gas,
+            gas_price: tx.gas_price,
+            value: tx.value,
+        };
+
+        let result = contract.process_tx(context, &tx.data);
+
+        state.block += 1;
+
+        let receipt = TransactionReceipt {
+            transaction_hash: tx.hash,
+            transaction_index: U64::from(0),
+            block_hash: None,
+            block_number: Some(U64::from(state.block)),
+            from: tx.from,
+            to: Some(tx.to),
+            cumulative_gas_used: U256::from(1),
+            gas_used: None,
+            contract_address: None,
+            logs: vec![],
+            status: Some(U64::from(result.result.is_ok() as u64)),
+            root: None,
+            logs_bloom: Default::default(),
+            transaction_type: None,
+        };
+
+        state.receipts.insert(tx.hash, receipt);
+
+        state.block += result.confirmations;
+
+        Self::ok(tx.hash)
+    }
+
+    fn get_transaction_receipt(&self, mut args: Parser) -> Result<Value, Error> {
+        let transaction: H256 = args.arg();
+        args.done();
+
+        let state = self.state.lock().unwrap();
+
+        Self::ok(state.receipts.get(&transaction).unwrap_or_else(|| {
+            panic!("there is no transaction with hash {:#x}", transaction);
+        }))
+    }
+
     fn ok<T: Serialize>(t: T) -> Result<Value, Error> {
         Ok(to_value(t).unwrap())
     }
@@ -260,6 +461,21 @@ impl Contract {
             ),
         }
     }
+
+    fn process_tx(&mut self, tx: CallContext, data: &[u8]) -> TransactionResult {
+        // TODO:
+        //
+        // We could support receive/fallback functions if data is empty.
+
+        if data.len() < 4 {
+            panic!("transaction has invalid call data");
+        }
+
+        let signature = H32::try_from(&data[0..4]).unwrap();
+        let method = self.method(signature);
+
+        method.process_tx(tx, data)
+    }
 }
 
 struct Method {
@@ -298,11 +514,57 @@ impl Method {
         self.expectations.push(Box::new(Expectation::<P, R>::new()));
         (index, self.generation)
     }
+
+    /// Executes a transaction or a call.
+    fn process_tx(&mut self, tx: CallContext, data: &[u8]) -> TransactionResult {
+        if !tx.value.is_zero() && self.function.state_mutability != StateMutability::Payable {
+            panic!(
+                "call to non-payable {} with non-zero value {}",
+                self.description, tx.value,
+            )
+        }
+
+        let params = self
+            .function
+            .decode_input(&data[4..])
+            .unwrap_or_else(|e| panic!("unable to decode input for {}: {:?}", self.description, e));
+
+        for expectation in self.expectations.iter_mut() {
+            if expectation.is_active() {
+                // We clone `params` for each expectation, which could potentially
+                // be inefficient. We assume, however, that in most cases there
+                // are only a few expectations for a method, and they are likely
+                // to be filtered out by `is_active`.
+                if let Some(result) =
+                expectation.process_tx(&tx, &self.description, &self.function, params.clone())
+                {
+                    return result;
+                }
+            }
+        }
+
+        panic!("unexpected call to {}", self.description)
+    }
 }
 
 trait ExpectationApi: Send {
     /// Convert this expectation to `Any` for downcast.
     fn as_any(&mut self) -> &mut dyn Any;
+
+    /// Checks if this expectation is active, i.e., still can be called.
+    fn is_active(&self) -> bool;
+
+    /// Matches and processes this transaction.
+    ///
+    /// If transaction matches this expectation, processes it and returns
+    /// its result. Otherwise, returns `None`.
+    fn process_tx(
+        &mut self,
+        tx: &CallContext,
+        description: &str,
+        function: &Function,
+        params: Vec<Token>,
+    ) -> Option<TransactionResult>;
 }
 
 struct Expectation<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> {
@@ -352,10 +614,58 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
 }
 
 impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> ExpectationApi
-    for Expectation<P, R>
+for Expectation<P, R>
 {
     fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn is_active(&self) -> bool {
+        self.times.can_call(self.used)
+    }
+
+    fn process_tx(
+        &mut self,
+        tx: &CallContext,
+        description: &str,
+        function: &Function,
+        params: Vec<Token>,
+    ) -> Option<TransactionResult> {
+        self.checked = true;
+
+        if tx.is_view_call && !self.allow_calls || !tx.is_view_call && !self.allow_transactions {
+            return None;
+        }
+
+        if !self.times.can_call(self.used) {
+            return None;
+        }
+
+        let param = P::from_token(Token::Tuple(params))
+            .unwrap_or_else(|e| panic!("unable to decode input for {}: {:?}", description, e));
+
+        if !self.predicate.can_call(tx, &param) {
+            return None;
+        }
+
+        self.used += 1;
+        if let Some(sequence) = &self.sequence {
+            sequence.verify(description);
+
+            if self.used == self.times.lower_bound() {
+                sequence.satisfy();
+            }
+        }
+
+        let result = self
+            .returns
+            .process_tx(function, tx, param)
+            .map(|result| ethcontract::common::abi::encode(&[result]));
+
+        Some(TransactionResult {
+            result,
+            confirmations: self.confirmations,
+        })
     }
 }
 
@@ -366,10 +676,35 @@ enum Predicate<P: Tokenize + Send + 'static> {
     TxFunction(Box<dyn Fn(&CallContext, &P) -> bool + Send>),
 }
 
+impl<P: Tokenize + Send + 'static> Predicate<P> {
+    fn can_call(&self, tx: &CallContext, param: &P) -> bool {
+        match self {
+            Predicate::None => true,
+            Predicate::Predicate(p) => p.eval(param),
+            Predicate::Function(f) => f(param),
+            Predicate::TxFunction(f) => f(tx, param),
+        }
+    }
+}
+
 enum Returns<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> {
     Default,
     Error(String),
     Const(Token),
     Function(Box<dyn Fn(P) -> Result<R, String> + Send>),
     TxFunction(Box<dyn Fn(&CallContext, P) -> Result<R, String> + Send>),
+}
+
+impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Returns<P, R> {
+    fn process_tx(&self, function: &Function, tx: &CallContext, param: P) -> Result<Token, String> {
+        match self {
+            Returns::Default => Ok(default::default_tuple(
+                function.inputs.iter().map(|i| &i.kind),
+            )),
+            Returns::Error(error) => Err(error.clone()),
+            Returns::Const(token) => Ok(token.clone()),
+            Returns::Function(f) => f(param).map(Tokenize::into_token),
+            Returns::TxFunction(f) => f(tx, param).map(Tokenize::into_token),
+        }
+    }
 }
