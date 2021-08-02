@@ -1,15 +1,20 @@
 //! Implementation details of mock node.
 
 use std::collections::HashMap;
+use std::future::ready;
 use std::sync::{Arc, Mutex};
 
 use ethcontract::common::abi::{Function, Token};
 use ethcontract::common::hash::H32;
 use ethcontract::common::{Abi, FunctionExt};
+use ethcontract::jsonrpc::serde::Serialize;
+use ethcontract::jsonrpc::serde_json::to_value;
+use ethcontract::jsonrpc::{Call, MethodCall, Params, Value};
 use ethcontract::tokens::Tokenize;
-use ethcontract::web3::types::TransactionReceipt;
-use ethcontract::web3::RequestId;
-use ethcontract::{Address, H160, H256};
+use ethcontract::web3::types::{TransactionReceipt, U256, U64};
+use ethcontract::web3::{helpers, Error, RequestId, Transport};
+use ethcontract::{Address, BlockNumber, H160, H256};
+use parse::Parser;
 
 use crate::range::TimesRange;
 use crate::CallContext;
@@ -86,6 +91,107 @@ impl MockTransport {
     pub fn update_gas_price(&self, gas_price: u64) {
         let mut state = self.state.lock().unwrap();
         state.gas_price = gas_price;
+    }
+}
+
+impl Transport for MockTransport {
+    type Out = std::future::Ready<Result<Value, Error>>;
+
+    /// Prepares an RPC call for given method with parameters.
+    ///
+    /// We don't have to deal with network issues, so we are relaxed about
+    /// request IDs, idempotency checks and so on.
+    fn prepare(&self, method: &str, params: Vec<Value>) -> (RequestId, Call) {
+        let mut state = self.state.lock().unwrap();
+
+        let id = state.request_id;
+        state.request_id += 1;
+
+        let request = helpers::build_request(id, method, params);
+
+        (id, request)
+    }
+
+    /// Executes a prepared RPC call.
+    fn send(&self, _: RequestId, request: Call) -> Self::Out {
+        let MethodCall { method, params, .. } = match request {
+            Call::MethodCall(method_call) => method_call,
+            Call::Notification(_) => panic!("rpc notifications are not supported"),
+            _ => panic!("unknown or invalid rpc call type"),
+        };
+
+        let params = match params {
+            Params::None => Vec::new(),
+            Params::Array(array) => array,
+            Params::Map(_) => panic!("passing arguments by map is not supported"),
+        };
+
+        let result = match method.as_str() {
+            "eth_blockNumber" => {
+                let name = "eth_blockNumber";
+                self.block_number(Parser::new(name, params))
+            }
+            "eth_chainId" => {
+                let name = "eth_chainId";
+                self.chain_id(Parser::new(name, params))
+            }
+            "eth_getTransactionCount" => {
+                let name = "eth_getTransactionCount";
+                self.transaction_count(Parser::new(name, params))
+            }
+            "eth_gasPrice" => {
+                let name = "eth_gasPrice";
+                self.gas_price(Parser::new(name, params))
+            }
+            unsupported => panic!("mock node does not support rpc method {:?}", unsupported),
+        };
+
+        ready(result)
+    }
+}
+
+impl MockTransport {
+    fn block_number(&self, args: Parser) -> Result<Value, Error> {
+        args.done();
+
+        let state = self.state.lock().unwrap();
+        Self::ok(&U64::from(state.block))
+    }
+
+    fn chain_id(&self, args: Parser) -> Result<Value, Error> {
+        args.done();
+
+        let state = self.state.lock().unwrap();
+        Self::ok(&U256::from(state.chain_id))
+    }
+
+    fn transaction_count(&self, mut args: Parser) -> Result<Value, Error> {
+        let address: Address = args.arg();
+        let block: Option<BlockNumber> = args.block_number_opt();
+        args.done();
+
+        let block = block.unwrap_or(BlockNumber::Pending);
+        let state = self.state.lock().unwrap();
+        let transaction_count = match block {
+            BlockNumber::Earliest => 0,
+            BlockNumber::Number(n) if n == 0.into() => 0,
+            BlockNumber::Number(n) if n != state.block.into() => {
+                panic!("mock node does not support returning transaction count for specific block number");
+            }
+            _ => state.nonce.get(&address).copied().unwrap_or(0),
+        };
+        Self::ok(&U256::from(transaction_count))
+    }
+
+    fn gas_price(&self, args: Parser) -> Result<Value, Error> {
+        args.done();
+
+        let state = self.state.lock().unwrap();
+        Self::ok(&U256::from(state.gas_price))
+    }
+
+    fn ok<T: Serialize>(t: T) -> Result<Value, Error> {
+        Ok(to_value(t).unwrap())
     }
 }
 

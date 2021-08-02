@@ -36,13 +36,13 @@ impl Mock {
     /// Creates a `Web3` object that can be used to interact with
     /// the mocked chain.
     pub fn web3(&self) -> DynWeb3 {
-        todo!()
+        DynWeb3::new(self.transport())
     }
 
     /// Creates a `Transport` object that can be used to interact with
     /// the mocked chain.
     pub fn transport(&self) -> DynTransport {
-        todo!()
+        DynTransport::new(self.transport.clone())
     }
 
     /// Deploys a new mocked contract and returns an object that allows
@@ -91,13 +91,13 @@ impl Contract {
     /// Creates a `Web3` object that can be used to interact with
     /// the mocked chain on which this contract is deployed.
     pub fn web3(&self) -> DynWeb3 {
-        todo!()
+        DynWeb3::new(self.transport())
     }
 
     /// Creates a `Transport` object that can be used to interact with
     /// the mocked chain.
     pub fn transport(&self) -> DynTransport {
-        todo!()
+        DynTransport::new(self.transport.clone())
     }
 
     /// Creates a contract `Instance` that can be used to interact with
