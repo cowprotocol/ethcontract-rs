@@ -15,6 +15,7 @@ use std::marker::PhantomData;
 #[doc(no_inline)]
 pub use ethcontract::contract::Signature;
 
+mod details;
 mod predicate;
 mod range;
 
