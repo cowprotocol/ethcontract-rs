@@ -1,21 +1,26 @@
 //! Implementation details of mock node.
 
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::future::ready;
 use std::sync::{Arc, Mutex};
 
-use ethcontract::common::abi::{Function, Token};
+use ethcontract::common::abi::{Function, StateMutability, Token};
 use ethcontract::common::hash::H32;
 use ethcontract::common::{Abi, FunctionExt};
 use ethcontract::jsonrpc::serde::Serialize;
 use ethcontract::jsonrpc::serde_json::to_value;
 use ethcontract::jsonrpc::{Call, MethodCall, Params, Value};
 use ethcontract::tokens::Tokenize;
-use ethcontract::web3::types::{TransactionReceipt, U256, U64};
+use ethcontract::web3::types::{
+    Bytes, CallRequest, TransactionReceipt, TransactionRequest, U256, U64,
+};
 use ethcontract::web3::{helpers, Error, RequestId, Transport};
 use ethcontract::{Address, BlockNumber, H160, H256};
 use parse::Parser;
+use sign::verify;
 
+use crate::details::transaction::TransactionResult;
 use crate::range::TimesRange;
 use crate::CallContext;
 use std::any::Any;
@@ -91,6 +96,31 @@ impl MockTransport {
     pub fn update_gas_price(&self, gas_price: u64) {
         let mut state = self.state.lock().unwrap();
         state.gas_price = gas_price;
+    }
+
+    pub fn expect<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &self,
+        address: Address,
+        signature: H32,
+    ) -> (usize, usize) {
+        let mut state = self.state.lock().unwrap();
+        let method = state.method(address, signature);
+        method.expect::<P, R>()
+    }
+}
+
+impl MockTransportState {
+    /// Returns contract at the given address, panics if contract does not exist.
+    fn contract(&mut self, address: Address) -> &mut Contract {
+        match self.contracts.get_mut(&address) {
+            Some(contract) => contract,
+            None => panic!("there is no mocked contract with address {:#x}", address),
+        }
+    }
+
+    /// Returns contract's method.
+    fn method(&mut self, address: Address, signature: H32) -> &mut Method {
+        self.contract(address).method(signature)
     }
 }
 
@@ -219,6 +249,17 @@ impl Contract {
 
         Contract { address, methods }
     }
+
+    fn method(&mut self, signature: H32) -> &mut Method {
+        match self.methods.get_mut(&signature) {
+            Some(method) => method,
+            None => panic!(
+                "contract {:#x} doesn't have method with signature 0x{}",
+                self.address,
+                hex::encode(signature)
+            ),
+        }
+    }
 }
 
 struct Method {
@@ -247,6 +288,15 @@ impl Method {
             generation: 0,
             expectations: Vec::new(),
         }
+    }
+
+    /// Adds new expectation.
+    fn expect<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static>(
+        &mut self,
+    ) -> (usize, usize) {
+        let index = self.expectations.len();
+        self.expectations.push(Box::new(Expectation::<P, R>::new()));
+        (index, self.generation)
     }
 }
 
