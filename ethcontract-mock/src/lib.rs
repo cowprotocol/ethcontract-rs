@@ -628,10 +628,11 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     ///
     /// An expectation can be in one sequence only.
     ///
-    /// Also, an expectation should be callable exactly once. Use [`once`]
-    /// before calling `in_sequence`.
+    /// Also, an expectation should have [`times`] limit set to an exact
+    /// number of calls, i.e., [`once`], two times, and so on.
     ///
     /// [mockall documentation]: https://docs.rs/mockall/#sequences
+    /// [`times`]: Expectation::times
     /// [`once`]: Expectation::once
     pub fn in_sequence(self, sequence: &mut mockall::Sequence) -> Self {
         self.transport.in_sequence::<P, R>(
