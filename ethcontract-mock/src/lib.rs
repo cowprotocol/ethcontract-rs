@@ -232,6 +232,7 @@ pub use ethcontract::contract::Signature;
 mod details;
 mod predicate;
 mod range;
+pub mod utils;
 
 #[cfg(test)]
 mod test;
