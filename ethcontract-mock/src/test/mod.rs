@@ -62,6 +62,7 @@
 //!
 //! - confirmations plays nicely with tx.confirmations
 
+use crate::utils::*;
 use crate::{Contract, Mock};
 use ethcontract::dyns::DynWeb3;
 use ethcontract::prelude::*;
@@ -78,18 +79,6 @@ mod eth_transaction_count;
 type Result = std::result::Result<(), Box<dyn std::error::Error>>;
 
 ethcontract::contract!("examples/truffle/build/contracts/IERC20.json");
-
-fn address_for(who: &str) -> Address {
-    account_for(who).address()
-}
-
-fn account_for(who: &str) -> Account {
-    use ethcontract::web3::signing::keccak256;
-    Account::Offline(
-        PrivateKey::from_raw(keccak256(who.as_bytes())).unwrap(),
-        None,
-    )
-}
 
 fn setup() -> (Mock, DynWeb3, Contract, IERC20) {
     let mock = Mock::new(1234);
