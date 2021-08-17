@@ -19,7 +19,7 @@
   },
   "homepage": "https://github.com/gnosis/ethcontract-rs",
   "devDependencies": {
-    "hardhat": "^2.5.0",
+    "hardhat": "^2.6.0",
     "hardhat-deploy": "^0.8.11"
   }
 }
