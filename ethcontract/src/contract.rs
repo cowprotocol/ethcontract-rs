@@ -1,4 +1,4 @@
-//! Abtraction for interacting with ethereum smart contracts. Provides methods
+//! Abstraction for interacting with ethereum smart contracts. Provides methods
 //! for sending transactions to contracts as well as querying current contract
 //! state.
 
@@ -26,6 +26,35 @@ pub use self::event::{
     StreamEvent, Topic,
 };
 pub use self::method::{MethodBuilder, MethodDefaults, ViewMethodBuilder};
+use std::marker::PhantomData;
+
+/// Method signature with additional info about method's input and output types.
+///
+/// Additional type parameters are used to help with type inference
+/// for instance's [`method`] and [`view_method`] functions.
+///
+/// [`method`]: `Instance::method`
+/// [`view_method`]: `Instance::view_method`
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+pub struct Signature<P, R>(pub H32, pub std::marker::PhantomData<(P, R)>);
+
+impl<P, R> Signature<P, R> {
+    /// Wraps raw signature.
+    pub fn new(signature: H32) -> Self {
+        Signature(signature, PhantomData)
+    }
+
+    /// Unwraps raw signature.
+    pub fn into_inner(self) -> H32 {
+        self.0
+    }
+}
+
+impl<P, R> From<H32> for Signature<P, R> {
+    fn from(signature: H32) -> Self {
+        Signature::new(signature)
+    }
+}
 
 /// Represents a contract instance at an address. Provides methods for
 /// contract interaction.
@@ -163,17 +192,22 @@ impl<T: Transport> Instance<T> {
     /// Returns a method builder to setup a call or transaction on a smart
     /// contract method. Note that calls just get evaluated on a node but do not
     /// actually commit anything to the block chain.
-    pub fn method<P, R>(&self, signature: H32, params: P) -> AbiResult<MethodBuilder<T, R>>
+    pub fn method<P, R>(
+        &self,
+        signature: impl Into<Signature<P, R>>,
+        params: P,
+    ) -> AbiResult<MethodBuilder<T, R>>
     where
         P: Tokenize,
         R: Tokenize,
     {
+        let signature = signature.into().into_inner();
         let signature = signature.as_ref();
         let function = self
             .methods
             .get(signature)
             .map(|(name, index)| &self.abi.functions[name][*index])
-            .ok_or_else(|| AbiError::InvalidName(hex::encode(&signature)))?;
+            .ok_or_else(|| AbiError::InvalidName(hex::encode(signature)))?;
         let tokens = match params.into_token() {
             ethcontract_common::abi::Token::Tuple(tokens) => tokens,
             _ => unreachable!("function arguments are always tuples"),
@@ -195,7 +229,11 @@ impl<T: Transport> Instance<T> {
     /// Returns a view method builder to setup a call to a smart contract. View
     /// method builders can't actually send transactions and only query contract
     /// state.
-    pub fn view_method<P, R>(&self, signature: H32, params: P) -> AbiResult<ViewMethodBuilder<T, R>>
+    pub fn view_method<P, R>(
+        &self,
+        signature: impl Into<Signature<P, R>>,
+        params: P,
+    ) -> AbiResult<ViewMethodBuilder<T, R>>
     where
         P: Tokenize,
         R: Tokenize,
