@@ -28,14 +28,34 @@ fn expand_deployed(cx: &Context) -> TokenStream {
             ///
             /// Note that this does not verify that a contract with a matching
             /// `Abi` is actually deployed at the given address.
-            pub async fn deployed<F, T>(
+            pub async fn deployed<F, B, T>(
                 web3: &self::ethcontract::web3::api::Web3<T>,
             ) -> Result<Self, self::ethcontract::errors::DeployError>
             where
                 F: std::future::Future<
-                       Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
-                   > + Send + 'static,
-                T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
+                        Output = Result<
+                            self::ethcontract::json::Value,
+                            self::ethcontract::web3::Error,
+                        >,
+                    > + Send
+                    + 'static,
+                B: std::future::Future<
+                        Output = Result<
+                            Vec<
+                                Result<
+                                    self::ethcontract::json::Value,
+                                    self::ethcontract::web3::Error,
+                                >,
+                            >,
+                            self::ethcontract::web3::Error,
+                        >,
+                    > + Send
+                    + 'static,
+                T: self::ethcontract::web3::Transport<Out = F>
+                    + self::ethcontract::web3::BatchTransport<Batch = B>
+                    + Send
+                    + Sync
+                    + 'static,
             {
                 use self::ethcontract::{Instance, Web3};
                 use self::ethcontract::transport::DynTransport;
@@ -119,14 +139,34 @@ fn expand_deploy(cx: &Context) -> Result<TokenStream> {
         impl Contract {
             #doc
             #[allow(clippy::too_many_arguments)]
-            pub fn builder<F, T>(
+            pub fn builder<F, B, T>(
                 web3: &self::ethcontract::web3::api::Web3<T> #lib_input #input ,
             ) -> self::ethcontract::dyns::DynDeployBuilder<Self>
             where
                 F: std::future::Future<
-                       Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
-                   > + Send + 'static,
-                T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
+                        Output = Result<
+                            self::ethcontract::json::Value,
+                            self::ethcontract::web3::Error,
+                        >,
+                    > + Send
+                    + 'static,
+                B: std::future::Future<
+                        Output = Result<
+                            Vec<
+                                Result<
+                                    self::ethcontract::json::Value,
+                                    self::ethcontract::web3::Error,
+                                >,
+                            >,
+                            self::ethcontract::web3::Error,
+                        >,
+                    > + Send
+                    + 'static,
+                T: self::ethcontract::web3::Transport<Out = F>
+                    + self::ethcontract::web3::BatchTransport<Batch = B>
+                    + Send
+                    + Sync
+                    + 'static,
             {
                 use self::ethcontract::dyns::DynTransport;
                 use self::ethcontract::contract::DeployBuilder;

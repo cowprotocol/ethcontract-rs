@@ -14,7 +14,7 @@ async fn block_number_initially_zero() -> Result {
 async fn block_number_advanced_after_tx() -> Result {
     let (_, web3, contract, instance) = setup();
 
-    contract.expect(IERC20::signatures().transfer());
+    contract.expect(ERC20::signatures().transfer());
 
     assert_eq!(web3.eth().block_number().await?, 0.into());
 
@@ -33,7 +33,7 @@ async fn block_number_advanced_and_confirmed_after_tx() -> Result {
     let (_, web3, contract, instance) = setup();
 
     contract
-        .expect(IERC20::signatures().transfer())
+        .expect(ERC20::signatures().transfer())
         .confirmations(5);
 
     assert_eq!(web3.eth().block_number().await?, 0.into());
@@ -52,7 +52,7 @@ async fn block_number_advanced_and_confirmed_after_tx() -> Result {
 async fn block_number_is_not_advanced_after_call_or_gas_estimation() -> Result {
     let (_, web3, contract, instance) = setup();
 
-    contract.expect(IERC20::signatures().transfer());
+    contract.expect(ERC20::signatures().transfer());
 
     assert_eq!(web3.eth().block_number().await?, 0.into());
 
