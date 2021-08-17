@@ -26,7 +26,7 @@ pub enum Error {
     #[error("expected a different token type")]
     TypeMismatch,
     /// Tokenize::from_token is called with integer that doesn't fit in the rust type.
-    #[error("abi integer is does not fit rust integer")]
+    #[error("abi integer does not fit rust integer")]
     IntegerMismatch,
     /// Tokenize::from_token token is fixed bytes with wrong length.
     #[error("expected a different number of fixed bytes")]
@@ -56,6 +56,19 @@ pub trait Tokenize {
     Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, PartialOrd, Ord, Serialize,
 )]
 pub struct Bytes<T>(pub T);
+
+impl Tokenize for Token {
+    fn from_token(token: Token) -> Result<Self, Error>
+    where
+        Self: Sized,
+    {
+        Ok(token)
+    }
+
+    fn into_token(self) -> Token {
+        self
+    }
+}
 
 impl Tokenize for Bytes<Vec<u8>> {
     fn from_token(token: Token) -> Result<Self, Error>
