@@ -101,10 +101,7 @@ impl DynTransport {
     }
 
     /// Casts this transport into the underlying type.
-    pub fn downcast<T>(&self) -> Option<&T>
-    where
-        T: Transport + BatchTransport + Send + Sync + 'static,
-    {
+    pub fn downcast<T: Any + Send + Sync + 'static>(&self) -> Option<&T> {
         self.inner.inner().downcast_ref()
     }
 }
@@ -212,7 +209,7 @@ mod tests {
         let concrete_transport: &TestTransport = dyn_transport.downcast().unwrap();
         concrete_transport.prepare("test", vec![json!(28)]);
 
-        // This works because dyn transport does not downcast.
+        // This works because dyn transport does not double-wrap.
         let dyn_dyn_transport = DynTransport::new(dyn_transport);
         let concrete_transport: &TestTransport = dyn_dyn_transport.downcast().unwrap();
         concrete_transport.prepare("test", vec![json!(28)]);
