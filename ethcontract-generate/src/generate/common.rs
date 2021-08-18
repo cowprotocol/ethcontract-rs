@@ -68,19 +68,38 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             ///
             /// Note that this does not verify that a contract with a matching
             /// `Abi` is actually deployed at the given address.
-            pub fn at<F, T>(
+            pub fn at<F, B, T>(
                 web3: &self::ethcontract::web3::api::Web3<T>,
                 address: self::ethcontract::Address,
             ) -> Self
             where
                 F: std::future::Future<
-                       Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
-                   > + Send + 'static,
-                T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
+                        Output = Result<
+                            self::ethcontract::json::Value,
+                            self::ethcontract::web3::Error,
+                        >,
+                    > + Send
+                    + 'static,
+                B: std::future::Future<
+                        Output = Result<
+                            Vec<
+                                Result<
+                                    self::ethcontract::json::Value,
+                                    self::ethcontract::web3::Error,
+                                >,
+                            >,
+                            self::ethcontract::web3::Error,
+                        >,
+                    > + Send
+                    + 'static,
+                T: self::ethcontract::web3::Transport<Out = F>
+                    + self::ethcontract::web3::BatchTransport<Batch = B>
+                    + Send
+                    + Sync
+                    + 'static,
             {
                 Contract::with_deployment_info(web3, address, None)
             }
-
 
             /// Creates a new contract instance with the specified `web3` provider with
             /// the given `Abi` at the given `Address` and an optional transaction hash.
@@ -90,16 +109,36 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
             /// Note that this does not verify that a contract with a matching `Abi` is
             /// actually deployed at the given address nor that the transaction hash,
             /// when provided, is actually for this contract deployment.
-            pub fn with_deployment_info<F, T>(
+            pub fn with_deployment_info<F, B, T>(
                 web3: &self::ethcontract::web3::api::Web3<T>,
                 address: self::ethcontract::Address,
                 deployment_information: Option<ethcontract::common::DeploymentInformation>,
             ) -> Self
             where
                 F: std::future::Future<
-                       Output = Result<self::ethcontract::json::Value, self::ethcontract::web3::Error>
-                   > + Send + 'static,
-                T: self::ethcontract::web3::Transport<Out = F> + Send + Sync + 'static,
+                        Output = Result<
+                            self::ethcontract::json::Value,
+                            self::ethcontract::web3::Error,
+                        >,
+                    > + Send
+                    + 'static,
+                B: std::future::Future<
+                        Output = Result<
+                            Vec<
+                                Result<
+                                    self::ethcontract::json::Value,
+                                    self::ethcontract::web3::Error,
+                                >,
+                            >,
+                            self::ethcontract::web3::Error,
+                        >,
+                    > + Send
+                    + 'static,
+                T: self::ethcontract::web3::Transport<Out = F>
+                    + self::ethcontract::web3::BatchTransport<Batch = B>
+                    + Send
+                    + Sync
+                    + 'static,
             {
                 use self::ethcontract::Instance;
                 use self::ethcontract::transport::DynTransport;

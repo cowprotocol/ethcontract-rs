@@ -15,27 +15,34 @@ use std::fmt::Debug;
 use std::future::Future;
 use std::sync::Arc;
 use web3::error::Error as Web3Error;
-use web3::{RequestId, Transport};
+use web3::{BatchTransport, RequestId, Transport};
 
 /// Type alias for the output future in for the `DynTransport`'s `Transport`
 /// implementation.
 type BoxedFuture = BoxFuture<'static, Result<Value, Web3Error>>;
+type BoxedBatch = BoxFuture<'static, Result<Vec<Result<Value, Web3Error>>, Web3Error>>;
 
 /// Helper trait that wraps `Transport` trait so it can be used as a trait
 /// object. This trait is implemented for all `Transport`'s.
 trait TransportBoxed: Debug {
     /// Wraps `Transport::prepend`
     fn prepare_boxed(&self, method: &str, params: Vec<Value>) -> (RequestId, Call);
+
     /// Wraps `Transport::send`
     fn send_boxed(&self, id: RequestId, request: Call) -> BoxedFuture;
+
     /// Wraps `Transport::execute`
     fn execute_boxed(&self, method: &str, params: Vec<Value>) -> BoxedFuture;
+
+    /// Wraps `BatchTransport::send_batch`
+    fn send_batch_boxed(&self, requests: Vec<(RequestId, Call)>) -> BoxedBatch;
 }
 
-impl<F, T> TransportBoxed for T
+impl<F, B, T> TransportBoxed for T
 where
     F: Future<Output = Result<Value, Web3Error>> + Send + 'static,
-    T: Transport<Out = F>,
+    B: Future<Output = Result<Vec<Result<Value, Web3Error>>, Web3Error>> + Send + 'static,
+    T: Transport<Out = F> + BatchTransport<Batch = B> + Debug,
 {
     #[inline(always)]
     fn prepare_boxed(&self, method: &str, params: Vec<Value>) -> (RequestId, Call) {
@@ -51,6 +58,10 @@ where
     fn execute_boxed(&self, method: &str, params: Vec<Value>) -> BoxedFuture {
         self.execute(method, params).boxed()
     }
+
+    fn send_batch_boxed(&self, requests: Vec<(RequestId, Call)>) -> BoxedBatch {
+        self.send_batch(requests.into_iter()).boxed()
+    }
 }
 
 /// Dynamic `Transport` implementation to allow for a generic-free contract API.
@@ -62,10 +73,11 @@ pub struct DynTransport {
 
 impl DynTransport {
     /// Wrap a `Transport` in a `DynTransport`
-    pub fn new<F, T>(inner: T) -> Self
+    pub fn new<F, B, T>(inner: T) -> Self
     where
         F: Future<Output = Result<Value, Web3Error>> + Send + 'static,
-        T: Transport<Out = F> + Sync + Send + 'static,
+        B: Future<Output = Result<Vec<Result<Value, Web3Error>>, Web3Error>> + Send + 'static,
+        T: Transport<Out = F> + BatchTransport<Batch = B> + Sync + Send + 'static,
     {
         let inner_ref: &dyn Any = &inner;
         let inner_arc = match inner_ref.downcast_ref::<DynTransport>() {
@@ -104,6 +116,17 @@ impl Transport for DynTransport {
     #[inline(always)]
     fn execute(&self, method: &str, params: Vec<Value>) -> Self::Out {
         self.inner.execute_boxed(method, params)
+    }
+}
+
+impl BatchTransport for DynTransport {
+    type Batch = BoxedBatch;
+
+    fn send_batch<T>(&self, requests: T) -> Self::Batch
+    where
+        T: IntoIterator<Item = (RequestId, Call)>,
+    {
+        self.inner.send_batch_boxed(requests.into_iter().collect())
     }
 }
 

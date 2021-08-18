@@ -5,7 +5,7 @@ use ethcontract::transaction::ResolveCondition;
 async fn transaction_receipt_is_returned() -> Result {
     let (_, web3, contract, instance) = setup();
 
-    contract.expect(IERC20::signatures().transfer());
+    contract.expect(ERC20::signatures().transfer());
 
     let hash = instance
         .transfer(address_for("Bob"), 100.into())
