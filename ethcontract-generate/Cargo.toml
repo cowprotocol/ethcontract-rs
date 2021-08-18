@@ -6,7 +6,7 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/gnosis/ethcontract-rs"
 homepage = "https://github.com/gnosis/ethcontract-rs"
-documentation = "https://docs.rs/ethcontract"
+documentation = "https://docs.rs/ethcontract-generate"
 description = """
 Code generation for type-safe bindings to Ethereum smart contracts.
 """

@@ -6,7 +6,7 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/gnosis/ethcontract-rs"
 homepage = "https://github.com/gnosis/ethcontract-rs"
-documentation = "https://docs.rs/ethcontract"
+documentation = "https://docs.rs/ethcontract-common"
 description = """
 Common types for ethcontract-rs runtime and proc macro.
 """
