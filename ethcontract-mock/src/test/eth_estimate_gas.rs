@@ -5,7 +5,7 @@ use ethcontract::web3::types::CallRequest;
 async fn estimate_gas_returns_one() -> Result {
     let (_, _, contract, instance) = setup();
 
-    contract.expect(IERC20::signatures().transfer());
+    contract.expect(ERC20::signatures().transfer());
 
     let gas = instance
         .transfer(address_for("Alice"), 100.into())
@@ -22,7 +22,7 @@ async fn estimate_gas_returns_one() -> Result {
 async fn estimate_gas_is_supported_for_edge_block() -> Result {
     let (_, web3, contract, instance) = setup();
 
-    contract.expect(IERC20::signatures().transfer());
+    contract.expect(ERC20::signatures().transfer());
 
     instance
         .transfer(address_for("Bob"), 100.into())
@@ -77,7 +77,7 @@ async fn estimate_gas_is_supported_for_edge_block() -> Result {
 async fn estimate_gas_is_not_supported_for_custom_block() {
     let (_, web3, contract, instance) = setup();
 
-    contract.expect(IERC20::signatures().transfer());
+    contract.expect(ERC20::signatures().transfer());
 
     let request = {
         let tx = instance
@@ -107,7 +107,7 @@ async fn estimate_gas_is_not_supported_for_custom_block() {
 async fn estimate_gas_is_not_supported_for_earliest_block() {
     let (_, web3, contract, instance) = setup();
 
-    contract.expect(IERC20::signatures().transfer());
+    contract.expect(ERC20::signatures().transfer());
 
     let request = {
         let tx = instance

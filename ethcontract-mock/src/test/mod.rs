@@ -64,10 +64,11 @@
 
 use crate::utils::*;
 use crate::{Contract, Mock};
-use ethcontract::dyns::DynWeb3;
+use ethcontract::dyns::DynBatchWeb3;
 use ethcontract::prelude::*;
 use predicates::prelude::*;
 
+mod batch;
 mod eth_block_number;
 mod eth_chain_id;
 mod eth_estimate_gas;
@@ -78,13 +79,13 @@ mod eth_transaction_count;
 
 type Result = std::result::Result<(), Box<dyn std::error::Error>>;
 
-ethcontract::contract!("examples/truffle/build/contracts/IERC20.json");
+ethcontract::contract!("examples/truffle/build/contracts/ERC20.json");
 
-fn setup() -> (Mock, DynWeb3, Contract, IERC20) {
+fn setup() -> (Mock, DynBatchWeb3, Contract, ERC20) {
     let mock = Mock::new(1234);
     let web3 = mock.web3();
-    let contract = mock.deploy(IERC20::raw_contract().abi.clone());
-    let mut instance = IERC20::at(&web3, contract.address);
+    let contract = mock.deploy(ERC20::raw_contract().abi.clone());
+    let mut instance = ERC20::at(&web3, contract.address);
     instance.defaults_mut().from = Some(account_for("Alice"));
 
     (mock, web3, contract, instance)
@@ -93,21 +94,21 @@ fn setup() -> (Mock, DynWeb3, Contract, IERC20) {
 #[tokio::test]
 async fn general_test() {
     let mock = crate::Mock::new(1234);
-    let contract = mock.deploy(IERC20::raw_contract().abi.clone());
+    let contract = mock.deploy(ERC20::raw_contract().abi.clone());
 
     let called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 
     let mut sequence = mockall::Sequence::new();
 
     contract
-        .expect(IERC20::signatures().balance_of())
+        .expect(ERC20::signatures().balance_of())
         .once()
         .predicate((predicate::eq(address_for("Bob")),))
         .returns(U256::from(0))
         .in_sequence(&mut sequence);
 
     contract
-        .expect(IERC20::signatures().transfer())
+        .expect(ERC20::signatures().transfer())
         .once()
         .predicate_fn_ctx(|ctx, _| !ctx.is_view_call)
         .returns_fn_ctx({
@@ -129,18 +130,18 @@ async fn general_test() {
         .in_sequence(&mut sequence);
 
     contract
-        .expect(IERC20::signatures().balance_of())
+        .expect(ERC20::signatures().balance_of())
         .once()
         .predicate((predicate::eq(address_for("Bob")),))
         .returns(U256::from(100))
         .in_sequence(&mut sequence);
 
     contract
-        .expect(IERC20::signatures().balance_of())
+        .expect(ERC20::signatures().balance_of())
         .predicate((predicate::eq(address_for("Alice")),))
         .returns(U256::from(100000));
 
-    let actual_contract = IERC20::at(&mock.web3(), contract.address);
+    let actual_contract = ERC20::at(&mock.web3(), contract.address);
 
     let balance = actual_contract
         .balance_of(address_for("Bob"))

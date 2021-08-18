@@ -221,7 +221,7 @@ use crate::predicate::TuplePredicate;
 use crate::range::TimesRange;
 use ethcontract::common::hash::H32;
 use ethcontract::common::Abi;
-use ethcontract::dyns::{DynInstance, DynTransport, DynWeb3};
+use ethcontract::dyns::{DynBatchInstance, DynBatchTransport, DynBatchWeb3};
 use ethcontract::tokens::Tokenize;
 use ethcontract::{Address, U256};
 use std::marker::PhantomData;
@@ -268,14 +268,14 @@ impl Mock {
 
     /// Creates a `Web3` object that can be used to interact with
     /// the mocked chain.
-    pub fn web3(&self) -> DynWeb3 {
-        DynWeb3::new(self.transport())
+    pub fn web3(&self) -> DynBatchWeb3 {
+        DynBatchWeb3::new(self.transport())
     }
 
     /// Creates a `Transport` object that can be used to interact with
     /// the mocked chain.
-    pub fn transport(&self) -> DynTransport {
-        DynTransport::new(self.transport.clone())
+    pub fn transport(&self) -> DynBatchTransport {
+        DynBatchTransport::new(self.transport.clone())
     }
 
     /// Deploys a new mocked contract and returns an object that allows
@@ -332,26 +332,26 @@ pub struct Contract {
 impl Contract {
     /// Creates a `Web3` object that can be used to interact with
     /// the mocked chain on which this contract is deployed.
-    pub fn web3(&self) -> DynWeb3 {
-        DynWeb3::new(self.transport())
+    pub fn web3(&self) -> DynBatchWeb3 {
+        DynBatchWeb3::new(self.transport())
     }
 
     /// Creates a `Transport` object that can be used to interact with
     /// the mocked chain.
-    pub fn transport(&self) -> DynTransport {
-        DynTransport::new(self.transport.clone())
+    pub fn transport(&self) -> DynBatchTransport {
+        DynBatchTransport::new(self.transport.clone())
     }
 
     /// Creates a contract `Instance` that can be used to interact with
     /// this contract.
-    pub fn instance(&self) -> DynInstance {
-        DynInstance::at(self.web3(), self.abi.clone(), self.address)
+    pub fn instance(&self) -> DynBatchInstance {
+        DynBatchInstance::at(self.web3(), self.abi.clone(), self.address)
     }
 
     /// Consumes this object and transforms it into a contract `Instance`
     /// that can be used to interact with this contract.
-    pub fn into_instance(self) -> DynInstance {
-        DynInstance::at(self.web3(), self.abi, self.address)
+    pub fn into_instance(self) -> DynBatchInstance {
+        DynBatchInstance::at(self.web3(), self.abi, self.address)
     }
 
     /// Returns a reference to the contract's ABI.

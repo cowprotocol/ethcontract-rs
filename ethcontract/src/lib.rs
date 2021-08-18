@@ -138,7 +138,7 @@ pub mod dyns {
     use crate::contract::{
         AllEventsBuilder, DeployBuilder, EventBuilder, Instance, MethodBuilder, ViewMethodBuilder,
     };
-    pub use crate::transport::DynTransport;
+    pub use crate::transport::{DynTransport, DynBatchTransport};
     use web3::api::Web3;
 
     /// Type alias for a `Web3` with an underlying `DynTransport`.
@@ -161,6 +161,27 @@ pub mod dyns {
 
     /// Type alias for a `LogStream` with an underlying `DynTransport`.
     pub type DynAllEventsBuilder<E> = AllEventsBuilder<DynTransport, E>;
+
+    /// Type alias for a `Web3` with an underlying `DynBatchTransport`.
+    pub type DynBatchWeb3 = Web3<DynBatchTransport>;
+
+    /// Type alias for an `Instance` with an underlying `DynBatchTransport`.
+    pub type DynBatchInstance = Instance<DynBatchTransport>;
+
+    /// Type alias for a `DeployBuilder` with an underlying `DynBatchTransport`.
+    pub type DynBatchDeployBuilder<D> = DeployBuilder<DynBatchTransport, D>;
+
+    /// Type alias for a `MethodBuilder` with an underlying `DynBatchTransport`.
+    pub type DynBatchMethodBuilder<R> = MethodBuilder<DynBatchTransport, R>;
+
+    /// Type alias for a `ViewMethodBuilder` with an underlying `DynBatchTransport`.
+    pub type DynBatchViewMethodBuilder<R> = ViewMethodBuilder<DynBatchTransport, R>;
+
+    /// Type alias for a `EventBuilder` with an underlying `DynBatchTransport`.
+    pub type DynBatchEventBuilder<E> = EventBuilder<DynBatchTransport, E>;
+
+    /// Type alias for a `LogStream` with an underlying `DynBatchTransport`.
+    pub type DynBatchAllEventsBuilder<E> = AllEventsBuilder<DynBatchTransport, E>;
 }
 
 #[doc(hidden)]

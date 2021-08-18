@@ -15,7 +15,7 @@ use ethcontract::tokens::Tokenize;
 use ethcontract::web3::types::{
     Bytes, CallRequest, TransactionReceipt, TransactionRequest, U256, U64,
 };
-use ethcontract::web3::{helpers, Error, RequestId, Transport};
+use ethcontract::web3::{helpers, BatchTransport, Error, RequestId, Transport};
 use ethcontract::{Address, BlockNumber, H160, H256};
 use parse::Parser;
 use sign::verify;
@@ -362,6 +362,28 @@ impl Transport for MockTransport {
 
     /// Executes a prepared RPC call.
     fn send(&self, _: RequestId, request: Call) -> Self::Out {
+        ready(self.process_call(request))
+    }
+}
+
+impl BatchTransport for MockTransport {
+    type Batch = std::future::Ready<Result<Vec<Result<Value, Error>>, Error>>;
+
+    fn send_batch<T>(&self, requests: T) -> Self::Batch
+    where
+        T: IntoIterator<Item = (RequestId, Call)>,
+    {
+        let results = requests
+            .into_iter()
+            .map(|(_, call)| self.process_call(call))
+            .collect();
+
+        ready(Ok(results))
+    }
+}
+
+impl MockTransport {
+    fn process_call(&self, request: Call) -> Result<Value, Error> {
         let MethodCall { method, params, .. } = match request {
             Call::MethodCall(method_call) => method_call,
             Call::Notification(_) => panic!("rpc notifications are not supported"),
@@ -414,11 +436,9 @@ impl Transport for MockTransport {
             unsupported => panic!("mock node does not support rpc method {:?}", unsupported),
         };
 
-        ready(result)
+        result
     }
-}
 
-impl MockTransport {
     fn block_number(&self, args: Parser) -> Result<Value, Error> {
         args.done();
 
