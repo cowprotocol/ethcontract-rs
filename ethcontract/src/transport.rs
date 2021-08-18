@@ -197,7 +197,7 @@ impl BatchTransport for DynBatchTransport {
 impl From<DynBatchTransport> for DynTransport {
     fn from(t: DynBatchTransport) -> Self {
         DynTransport {
-            inner: t.inner.into_transport()
+            inner: t.inner.into_transport(),
         }
     }
 }

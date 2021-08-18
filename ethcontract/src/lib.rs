@@ -138,7 +138,7 @@ pub mod dyns {
     use crate::contract::{
         AllEventsBuilder, DeployBuilder, EventBuilder, Instance, MethodBuilder, ViewMethodBuilder,
     };
-    pub use crate::transport::{DynTransport, DynBatchTransport};
+    pub use crate::transport::{DynBatchTransport, DynTransport};
     use web3::api::Web3;
 
     /// Type alias for a `Web3` with an underlying `DynTransport`.
