@@ -183,6 +183,7 @@ fn expand_signature_accessor(
     ));
     quote! {
         #doc
+        #[allow(clippy::type_complexity)]
         pub fn #name(&self) -> self::ethcontract::contract::Signature<#input_types, #outputs> {
             self::ethcontract::contract::Signature::new(#selector)
         }
