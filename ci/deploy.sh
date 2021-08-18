@@ -54,6 +54,7 @@ check_manifest_version ethcontract-common/Cargo.toml
 check_manifest_version ethcontract-generate/Cargo.toml
 check_manifest_version ethcontract-derive/Cargo.toml
 check_manifest_version ethcontract/Cargo.toml
+check_manifest_version ethcontract-mock/Cargo.toml
 
 function cargo_publish {
 	(cd $1; cargo publish --token $token $options)
@@ -76,3 +77,4 @@ cargo_publish ethcontract-common
 cargo_publish ethcontract-generate
 cargo_publish ethcontract-derive
 cargo_publish ethcontract
+cargo_publish ethcontract-mock
