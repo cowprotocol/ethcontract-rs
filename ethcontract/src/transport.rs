@@ -24,7 +24,7 @@ type BoxedBatch = BoxFuture<'static, Result<Vec<Result<Value, Web3Error>>, Web3E
 
 /// Helper trait that wraps `Transport` trait so it can be used as a trait
 /// object. This trait is implemented for all `Transport`'s.
-trait TransportBoxed: Debug {
+trait TransportBoxed: Debug + Send + Sync + 'static {
     /// Wraps `Transport::prepend`
     fn prepare_boxed(&self, method: &str, params: Vec<Value>) -> (RequestId, Call);
 
@@ -36,13 +36,16 @@ trait TransportBoxed: Debug {
 
     /// Wraps `BatchTransport::send_batch`
     fn send_batch_boxed(&self, requests: Vec<(RequestId, Call)>) -> BoxedBatch;
+
+    /// Returns reference to inner transport.
+    fn inner(&self) -> &(dyn Any + Send + Sync);
 }
 
 impl<F, B, T> TransportBoxed for T
 where
     F: Future<Output = Result<Value, Web3Error>> + Send + 'static,
     B: Future<Output = Result<Vec<Result<Value, Web3Error>>, Web3Error>> + Send + 'static,
-    T: Transport<Out = F> + BatchTransport<Batch = B> + Debug,
+    T: Transport<Out = F> + BatchTransport<Batch = B> + Debug + Send + Sync + 'static,
 {
     #[inline(always)]
     fn prepare_boxed(&self, method: &str, params: Vec<Value>) -> (RequestId, Call) {
@@ -59,8 +62,14 @@ where
         self.execute(method, params).boxed()
     }
 
+    #[inline(always)]
     fn send_batch_boxed(&self, requests: Vec<(RequestId, Call)>) -> BoxedBatch {
         self.send_batch(requests.into_iter()).boxed()
+    }
+
+    #[inline(always)]
+    fn inner(&self) -> &(dyn Any + Send + Sync) {
+        self
     }
 }
 
@@ -68,7 +77,7 @@ where
 /// This type wraps any `Transport` type and implements `Transport` itself.
 #[derive(Debug)]
 pub struct DynTransport {
-    inner: Arc<dyn TransportBoxed + Sync + Send + 'static>,
+    inner: Arc<dyn TransportBoxed>,
 }
 
 impl DynTransport {
@@ -77,7 +86,7 @@ impl DynTransport {
     where
         F: Future<Output = Result<Value, Web3Error>> + Send + 'static,
         B: Future<Output = Result<Vec<Result<Value, Web3Error>>, Web3Error>> + Send + 'static,
-        T: Transport<Out = F> + BatchTransport<Batch = B> + Sync + Send + 'static,
+        T: Transport<Out = F> + BatchTransport<Batch = B> + Send + Sync + 'static,
     {
         let inner_ref: &dyn Any = &inner;
         let inner_arc = match inner_ref.downcast_ref::<DynTransport>() {
@@ -89,6 +98,11 @@ impl DynTransport {
         };
 
         DynTransport { inner: inner_arc }
+    }
+
+    /// Casts this transport into the underlying type.
+    pub fn downcast<T: Any + Send + Sync + 'static>(&self) -> Option<&T> {
+        self.inner.inner().downcast_ref()
     }
 }
 
@@ -185,5 +199,19 @@ mod tests {
             // if it wasn't safe.
             let _ = dyn_transport.prepare("test", vec![json!(28)]);
         });
+    }
+
+    #[test]
+    fn dyn_transport_is_downcastable() {
+        let transport = TestTransport::new();
+
+        let dyn_transport = DynTransport::new(transport);
+        let concrete_transport: &TestTransport = dyn_transport.downcast().unwrap();
+        concrete_transport.prepare("test", vec![json!(28)]);
+
+        // This works because dyn transport does not double-wrap.
+        let dyn_dyn_transport = DynTransport::new(dyn_transport);
+        let concrete_transport: &TestTransport = dyn_dyn_transport.downcast().unwrap();
+        concrete_transport.prepare("test", vec![json!(28)]);
     }
 }
