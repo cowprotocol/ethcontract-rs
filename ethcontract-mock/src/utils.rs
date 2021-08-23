@@ -90,13 +90,11 @@ pub fn account() -> Account {
 /// [Mock]: crate::Mock
 #[macro_export]
 macro_rules! mock_contract {
-    ($mock:ident, $contract:ident) => {
-        {
-            let mock = $mock;
-            let contract = mock.deploy($contract::raw_contract().abi.clone());
-            let instance = $contract::at(&contract.web3(), contract.address());
+    ($mock:ident, $contract:ident) => {{
+        let mock = $mock;
+        let contract = mock.deploy($contract::raw_contract().abi.clone());
+        let instance = $contract::at(&contract.web3(), contract.address());
 
-            (contract, instance)
-        }
-    };
+        (contract, instance)
+    }};
 }
