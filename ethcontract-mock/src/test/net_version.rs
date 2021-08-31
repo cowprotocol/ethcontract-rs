@@ -21,7 +21,7 @@ async fn net_version() -> Result {
 
 #[tokio::test]
 async fn net_version_main() -> Result {
-    let web3 = Mock::new(1).web3();  // simulate mainnet
+    let web3 = Mock::new(1).web3(); // simulate mainnet
 
     assert_eq!(web3.net().version().await?, "1");
 
