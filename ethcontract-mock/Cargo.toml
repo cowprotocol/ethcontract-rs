@@ -1,6 +1,6 @@
 [package]
 name = "ethcontract-mock"
-version = "0.15.2"
+version = "0.15.3"
 authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -12,7 +12,7 @@ Tools for mocking ethereum contracts.
 """
 
 [dependencies]
-ethcontract = { version = "0.15.2", path = "../ethcontract" }
+ethcontract = { version = "0.15.3", path = "../ethcontract" }
 hex = "0.4"
 mockall = "0.10"
 rlp = "0.5"
@@ -20,4 +20,4 @@ predicates = "1.0"
 
 [dev-dependencies]
 tokio = { version = "1.6", features = ["macros"] }
-ethcontract-derive = { version = "0.15.2", path = "../ethcontract-derive" }
+ethcontract-derive = { version = "0.15.3", path = "../ethcontract-derive" }
