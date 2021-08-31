@@ -962,7 +962,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> ExpectationApi
         let result = self
             .returns
             .process_tx(function, tx, param)
-            .map(|result| ethcontract::common::abi::encode(&[result]));
+            .map(|result| ethcontract::common::abi::encode(&result));
 
         Some(TransactionResult {
             result,
@@ -1020,15 +1020,51 @@ enum Returns<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> {
 }
 
 impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Returns<P, R> {
-    fn process_tx(&self, function: &Function, tx: &CallContext, param: P) -> Result<Token, String> {
+    fn process_tx(
+        &self,
+        function: &Function,
+        tx: &CallContext,
+        param: P,
+    ) -> Result<Vec<Token>, String> {
         match self {
-            Returns::Default => Ok(default::default_tuple(
-                function.inputs.iter().map(|i| &i.kind),
-            )),
+            Returns::Default => Ok(function
+                .outputs
+                .iter()
+                .map(|i| default::default(&i.kind))
+                .collect()),
             Returns::Error(error) => Err(error.clone()),
-            Returns::Const(token) => Ok(token.clone()),
-            Returns::Function(f) => f(param).map(Tokenize::into_token),
-            Returns::TxFunction(f) => f(tx, param).map(Tokenize::into_token),
+            Returns::Const(token) => Ok(Self::convert_result(token.clone(), function)),
+            Returns::Function(f) => {
+                f(param).map(|x| Self::convert_result(x.into_token(), function))
+            }
+            Returns::TxFunction(f) => {
+                f(tx, param).map(|x| Self::convert_result(x.into_token(), function))
+            }
+        }
+    }
+
+    fn convert_result(token: Token, function: &Function) -> Vec<Token> {
+        // When ethcontract determines appropriate rust type
+        // for function output, it has a special case
+        // for functions that return a single element.
+        // Normally, function return type would always be a tuple.
+        // With a single return value, the tuple is unwrapped
+        // to make code more ergonomic:
+        //
+        // - for `function x()` output type is `()`,
+        // - for `function x() returns (T)` output type is `T` (not `(T,)`),
+        // - for `function x() returns (A, B, ...)` output type is `(A, B, ...)`.
+        //
+        // We need to account for this conversion
+        // and wrap output of any function that returns a single value
+        // into an additional tuple.
+        if function.outputs.len() == 1 {
+            vec![token]
+        } else {
+            match token {
+                Token::Tuple(tuple) => tuple,
+                _ => unreachable!(),
+            }
         }
     }
 }
