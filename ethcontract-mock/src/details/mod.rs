@@ -399,39 +399,43 @@ impl MockTransport {
         let result = match method.as_str() {
             "eth_blockNumber" => {
                 let name = "eth_blockNumber";
-                self.block_number(Parser::new(name, params))
+                self.eth_block_number(Parser::new(name, params))
             }
             "eth_chainId" => {
                 let name = "eth_chainId";
-                self.chain_id(Parser::new(name, params))
+                self.eth_chain_id(Parser::new(name, params))
             }
             "eth_getTransactionCount" => {
                 let name = "eth_getTransactionCount";
-                self.transaction_count(Parser::new(name, params))
+                self.eth_transaction_count(Parser::new(name, params))
             }
             "eth_gasPrice" => {
                 let name = "eth_gasPrice";
-                self.gas_price(Parser::new(name, params))
+                self.eth_gas_price(Parser::new(name, params))
             }
             "eth_estimateGas" => {
                 let name = "eth_estimateGas";
-                self.estimate_gas(Parser::new(name, params))
+                self.eth_estimate_gas(Parser::new(name, params))
             }
             "eth_call" => {
                 let name = "eth_call";
-                self.call(Parser::new(name, params))
+                self.eth_call(Parser::new(name, params))
             }
             "eth_sendTransaction" => {
                 let name = "eth_sendTransaction";
-                self.send_transaction(Parser::new(name, params))
+                self.eth_send_transaction(Parser::new(name, params))
             }
             "eth_sendRawTransaction" => {
                 let name = "eth_sendRawTransaction";
-                self.send_raw_transaction(Parser::new(name, params))
+                self.eth_send_raw_transaction(Parser::new(name, params))
             }
             "eth_getTransactionReceipt" => {
                 let name = "eth_getTransactionReceipt";
-                self.get_transaction_receipt(Parser::new(name, params))
+                self.eth_get_transaction_receipt(Parser::new(name, params))
+            }
+            "net_version" => {
+                let name = "net_version";
+                self.net_version(Parser::new(name, params))
             }
             unsupported => panic!("mock node does not support rpc method {:?}", unsupported),
         };
@@ -439,21 +443,21 @@ impl MockTransport {
         result
     }
 
-    fn block_number(&self, args: Parser) -> Result<Value, Error> {
+    fn eth_block_number(&self, args: Parser) -> Result<Value, Error> {
         args.done();
 
         let state = self.state.lock().unwrap();
         Self::ok(&U64::from(state.block))
     }
 
-    fn chain_id(&self, args: Parser) -> Result<Value, Error> {
+    fn eth_chain_id(&self, args: Parser) -> Result<Value, Error> {
         args.done();
 
         let state = self.state.lock().unwrap();
         Self::ok(&U256::from(state.chain_id))
     }
 
-    fn transaction_count(&self, mut args: Parser) -> Result<Value, Error> {
+    fn eth_transaction_count(&self, mut args: Parser) -> Result<Value, Error> {
         let address: Address = args.arg();
         let block: Option<BlockNumber> = args.block_number_opt();
         args.done();
@@ -471,14 +475,14 @@ impl MockTransport {
         Self::ok(&U256::from(transaction_count))
     }
 
-    fn gas_price(&self, args: Parser) -> Result<Value, Error> {
+    fn eth_gas_price(&self, args: Parser) -> Result<Value, Error> {
         args.done();
 
         let state = self.state.lock().unwrap();
         Self::ok(&U256::from(state.gas_price))
     }
 
-    fn estimate_gas(&self, mut args: Parser) -> Result<Value, Error> {
+    fn eth_estimate_gas(&self, mut args: Parser) -> Result<Value, Error> {
         let request: CallRequest = args.arg();
         let block: Option<BlockNumber> = args.block_number_opt();
         args.done();
@@ -524,7 +528,7 @@ impl MockTransport {
         Self::ok(&U256::from(1))
     }
 
-    fn call(&self, mut args: Parser) -> Result<Value, Error> {
+    fn eth_call(&self, mut args: Parser) -> Result<Value, Error> {
         let request: CallRequest = args.arg();
         let block: Option<BlockNumber> = args.block_number_opt();
 
@@ -577,7 +581,7 @@ impl MockTransport {
         }
     }
 
-    fn send_transaction(&self, mut args: Parser) -> Result<Value, Error> {
+    fn eth_send_transaction(&self, mut args: Parser) -> Result<Value, Error> {
         let _request: TransactionRequest = args.arg();
         args.done();
 
@@ -589,7 +593,7 @@ impl MockTransport {
         panic!("mock node can't sign transactions, use offline signing with private key");
     }
 
-    fn send_raw_transaction(&self, mut args: Parser) -> Result<Value, Error> {
+    fn eth_send_raw_transaction(&self, mut args: Parser) -> Result<Value, Error> {
         let raw_tx: Bytes = args.arg();
         args.done();
 
@@ -648,7 +652,7 @@ impl MockTransport {
         Self::ok(tx.hash)
     }
 
-    fn get_transaction_receipt(&self, mut args: Parser) -> Result<Value, Error> {
+    fn eth_get_transaction_receipt(&self, mut args: Parser) -> Result<Value, Error> {
         let transaction: H256 = args.arg();
         args.done();
 
@@ -657,6 +661,13 @@ impl MockTransport {
         Self::ok(state.receipts.get(&transaction).unwrap_or_else(|| {
             panic!("there is no transaction with hash {:#x}", transaction);
         }))
+    }
+
+    fn net_version(&self, args: Parser) -> Result<Value, Error> {
+        args.done();
+
+        let state = self.state.lock().unwrap();
+        Self::ok(state.chain_id.to_string())
     }
 
     fn ok<T: Serialize>(t: T) -> Result<Value, Error> {
