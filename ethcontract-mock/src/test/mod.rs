@@ -77,6 +77,7 @@ mod eth_get_transaction_receipt;
 mod eth_send_transaction;
 mod eth_transaction_count;
 mod net_version;
+mod returns;
 
 type Result = std::result::Result<(), Box<dyn std::error::Error>>;
 

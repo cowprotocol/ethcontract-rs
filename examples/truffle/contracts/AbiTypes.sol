@@ -137,5 +137,10 @@ contract AbiTypes {
   function roundtripFixedU8Array(uint8[3] calldata a) public view returns (uint8[3] calldata) {
     return a;
   }
-
+  function multipleResults() public view returns (uint8, uint8, uint8) {
+    return (1, 2, 3);
+  }
+  function multipleResultsStruct() public view returns (S memory, S memory) {
+    return (S(0, 1), S(2, 3));
+  }
 }
