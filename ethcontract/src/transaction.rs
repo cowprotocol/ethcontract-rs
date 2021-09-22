@@ -76,8 +76,7 @@ pub struct TransactionBuilder<T: Transport> {
     pub to: Option<Address>,
     /// Optional gas amount to use for transaction. Defaults to estimated gas.
     pub gas: Option<U256>,
-    /// Optional gas price to use for transaction. Defaults to estimated gas
-    /// price from the node (i.e. `GasPrice::Standard`).
+    /// Optional gas price to use for transaction. Defaults to None.
     pub gas_price: Option<GasPrice>,
     /// The ETH value to send with the transaction. Defaults to 0.
     pub value: Option<U256>,
@@ -183,8 +182,10 @@ impl<T: Transport> TransactionBuilder<T> {
     /// Estimate the gas required for this transaction.
     pub async fn estimate_gas(self) -> Result<U256, ExecutionError> {
         let from = self.from.map(|account| account.address());
-        let gas_price = self.gas_price.and_then(|gas_price| gas_price.value());
-
+        let resolved_gas_price = self
+            .gas_price
+            .map(|gas_price| gas_price.resolve_for_transaction())
+            .unwrap_or_default();
         self.web3
             .eth()
             .estimate_gas(
@@ -192,13 +193,13 @@ impl<T: Transport> TransactionBuilder<T> {
                     from,
                     to: self.to,
                     gas: None,
-                    gas_price,
+                    gas_price: resolved_gas_price.gas_price,
                     value: self.value,
                     data: self.data.clone(),
-                    transaction_type: None,
+                    transaction_type: resolved_gas_price.transaction_type,
                     access_list: None,
-                    max_fee_per_gas: None,
-                    max_priority_fee_per_gas: None,
+                    max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+                    max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
                 },
                 None,
             )
@@ -255,7 +256,7 @@ mod tests {
             .from(Account::Local(from, Some(TransactionCondition::Block(100))))
             .to(to)
             .gas(1.into())
-            .gas_price(2.into())
+            .gas_price(2.0.into())
             .value(28.into())
             .data(Bytes(vec![0x13, 0x37]))
             .nonce(42.into())
@@ -311,13 +312,14 @@ mod tests {
             "logsBloom": H2048::zero(),
             "logs": [],
             "status": "0x1",
+            "effectiveGasPrice": "0x0",
         }));
 
         let builder = TransactionBuilder::new(web3)
             .from(Account::Offline(key, Some(chain_id)))
             .to(Address::zero())
             .gas(0x1337.into())
-            .gas_price(0x00ba_b10c.into())
+            .gas_price(f64::from(0x00ba_b10c).into())
             .nonce(0x42.into())
             .confirmations(1);
         let tx_raw = builder
@@ -364,13 +366,14 @@ mod tests {
             "gasUsed": "0x1337",
             "logsBloom": H2048::zero(),
             "logs": [],
+            "effectiveGasPrice": "0x0",
         }));
 
         let builder = TransactionBuilder::new(web3)
             .from(Account::Offline(key, Some(chain_id)))
             .to(Address::zero())
             .gas(0x1337.into())
-            .gas_price(0x00ba_b10c.into())
+            .gas_price(f64::from(0x00ba_b10c).into())
             .nonce(0x42.into());
         let tx_raw = builder
             .clone()

@@ -83,21 +83,16 @@ impl Debug for PrivateKey {
 // Taken from rust-web3's signing.rs.
 impl Key for &'_ PrivateKey {
     fn sign(&self, message: &[u8], chain_id: Option<u64>) -> Result<Signature, SigningError> {
-        let message = Message::from_slice(message).map_err(|_| SigningError::InvalidMessage)?;
-        let (recovery_id, signature) = Secp256k1::signing_only()
-            .sign_ecdsa_recoverable(&message, self)
-            .serialize_compact();
+        let signature = self.sign_message(message)?;
 
-        let standard_v = recovery_id.to_i32() as u64;
-        let v = if let Some(chain_id) = chain_id {
-            standard_v + 35 + chain_id * 2
-        } else {
-            standard_v + 27
-        };
-        let r = H256::from_slice(&signature[..32]);
-        let s = H256::from_slice(&signature[32..]);
-
-        Ok(Signature { v, r, s })
+        Ok(Signature {
+            v: if let Some(chain_id) = chain_id {
+                signature.v + 35 + chain_id * 2
+            } else {
+                signature.v + 27
+            },
+            ..signature
+        })
     }
 
     fn sign_message(&self, message: &[u8]) -> Result<Signature, SigningError> {

@@ -12,6 +12,9 @@ pub struct Transaction {
     pub value: U256,
     pub data: Vec<u8>,
     pub hash: H256,
+    pub transaction_type: u64,
+    pub max_fee_per_gas: U256,
+    pub max_priority_fee_per_gas: U256,
 }
 
 /// Transaction execution result.

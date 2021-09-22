@@ -22,10 +22,10 @@ impl<T: Transport> TransactionBuilder<T> {
     /// signed transactions or raw signed transaction `Bytes` when sending a raw
     /// transaction.
     pub async fn build(self) -> Result<Transaction, ExecutionError> {
-        let gas_price = self.gas_price.unwrap_or_default();
         let options = TransactionOptions {
             to: self.to,
             gas: self.gas,
+            gas_price: self.gas_price,
             value: self.value,
             data: self.data,
             nonce: self.nonce,
@@ -36,7 +36,6 @@ impl<T: Transport> TransactionBuilder<T> {
                 build_transaction_request_for_local_signing(
                     self.web3,
                     None,
-                    gas_price,
                     TransactionRequestOptions(options, None),
                 )
                 .await?,
@@ -45,7 +44,6 @@ impl<T: Transport> TransactionBuilder<T> {
                 build_transaction_request_for_local_signing(
                     self.web3,
                     Some(from),
-                    gas_price,
                     TransactionRequestOptions(options, condition),
                 )
                 .await?,
@@ -55,7 +53,6 @@ impl<T: Transport> TransactionBuilder<T> {
                     self.web3,
                     from,
                     password,
-                    gas_price,
                     TransactionRequestOptions(options, condition),
                 )
                 .await
@@ -65,7 +62,7 @@ impl<T: Transport> TransactionBuilder<T> {
                 })?
             }
             Some(Account::Offline(key, chain_id)) => {
-                build_offline_signed_transaction(self.web3, key, chain_id, gas_price, options)
+                build_offline_signed_transaction(self.web3, key, chain_id, options)
                     .await
                     .map(|signed| Transaction::Raw {
                         bytes: signed.raw_transaction,
@@ -122,6 +119,8 @@ struct TransactionOptions {
     pub to: Option<Address>,
     /// The amount of gas to use for the transaction.
     pub gas: Option<U256>,
+    /// Optional gas price to use for transaction.
+    pub gas_price: Option<GasPrice>,
     /// The ETH value to send with the transaction.
     pub value: Option<U256>,
     /// The data for the transaction.
@@ -139,25 +138,25 @@ struct TransactionRequestOptions(TransactionOptions, Option<TransactionCondition
 impl TransactionRequestOptions {
     /// Builds a `TransactionRequest` from a `TransactionRequestOptions` by
     /// specifying the missing parameters.
-    fn build_request(
-        self,
-        from: Address,
-        gas_price: Option<U256>,
-        gas: Option<U256>,
-    ) -> TransactionRequest {
+    fn build_request(self, from: Address, gas: Option<U256>) -> TransactionRequest {
+        let resolved_gas_price = self
+            .0
+            .gas_price
+            .map(|gas_price| gas_price.resolve_for_transaction())
+            .unwrap_or_default();
         TransactionRequest {
             from,
             to: self.0.to,
             gas,
-            gas_price,
+            gas_price: resolved_gas_price.gas_price,
             value: self.0.value,
             data: self.0.data,
             nonce: self.0.nonce,
             condition: self.1,
-            transaction_type: None,
+            transaction_type: resolved_gas_price.transaction_type,
             access_list: None,
-            max_fee_per_gas: None,
-            max_priority_fee_per_gas: None,
+            max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+            max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
         }
     }
 }
@@ -166,7 +165,6 @@ impl TransactionRequestOptions {
 async fn build_transaction_request_for_local_signing<T: Transport>(
     web3: Web3<T>,
     from: Option<Address>,
-    gas_price: GasPrice,
     options: TransactionRequestOptions,
 ) -> Result<TransactionRequest, ExecutionError> {
     let from = match from {
@@ -178,10 +176,8 @@ async fn build_transaction_request_for_local_signing<T: Transport>(
             .get(0)
             .ok_or(ExecutionError::NoLocalAccounts)?,
     };
-    let gas = resolve_gas_limit(&web3, from, gas_price, &options.0).await?;
-    let gas_price = gas_price.resolve_for_transaction_request(&web3).await?;
-
-    let request = options.build_request(from, gas_price, Some(gas));
+    let gas = resolve_gas_limit(&web3, from, &options.0).await?;
+    let request = options.build_request(from, Some(gas));
 
     Ok(request)
 }
@@ -191,13 +187,10 @@ async fn build_transaction_signed_with_locked_account<T: Transport>(
     web3: Web3<T>,
     from: Address,
     password: Password,
-    gas_price: GasPrice,
     options: TransactionRequestOptions,
 ) -> Result<RawTransaction, ExecutionError> {
-    let gas = resolve_gas_limit(&web3, from, gas_price, &options.0).await?;
-    let gas_price = gas_price.resolve_for_transaction_request(&web3).await?;
-
-    let request = options.build_request(from, gas_price, Some(gas));
+    let gas = resolve_gas_limit(&web3, from, &options.0).await?;
+    let request = options.build_request(from, Some(gas));
     let signed_tx = web3.personal().sign_transaction(request, &password).await?;
 
     Ok(signed_tx)
@@ -212,27 +205,28 @@ async fn build_offline_signed_transaction<T: Transport>(
     web3: Web3<T>,
     key: PrivateKey,
     chain_id: Option<u64>,
-    gas_price: GasPrice,
     options: TransactionOptions,
 ) -> Result<SignedTransaction, ExecutionError> {
-    let gas = resolve_gas_limit(&web3, key.public_address(), gas_price, &options).await?;
-    let gas_price = gas_price.resolve(&web3).await?;
-
+    let gas = resolve_gas_limit(&web3, key.public_address(), &options).await?;
+    let resolved_gas_price = options
+        .gas_price
+        .map(|gas_price| gas_price.resolve_for_transaction())
+        .unwrap_or_default();
     let signed = web3
         .accounts()
         .sign_transaction(
             TransactionParameters {
                 nonce: options.nonce,
-                gas_price: Some(gas_price),
+                gas_price: resolved_gas_price.gas_price,
                 gas,
                 to: options.to,
                 value: options.value.unwrap_or_default(),
                 data: options.data.unwrap_or_default(),
                 chain_id,
-                transaction_type: None,
+                transaction_type: resolved_gas_price.transaction_type,
                 access_list: None,
-                max_fee_per_gas: None,
-                max_priority_fee_per_gas: None,
+                max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+                max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
             },
             &key,
         )
@@ -244,9 +238,12 @@ async fn build_offline_signed_transaction<T: Transport>(
 async fn resolve_gas_limit<T: Transport>(
     web3: &Web3<T>,
     from: Address,
-    gas_price: GasPrice,
     options: &TransactionOptions,
 ) -> Result<U256, ExecutionError> {
+    let resolved_gas_price = options
+        .gas_price
+        .map(|gas_price| gas_price.resolve_for_transaction())
+        .unwrap_or_default();
     match options.gas {
         Some(value) => Ok(value),
         None => Ok(web3
@@ -256,13 +253,13 @@ async fn resolve_gas_limit<T: Transport>(
                     from: Some(from),
                     to: options.to,
                     gas: None,
-                    gas_price: gas_price.value(),
+                    gas_price: resolved_gas_price.gas_price,
                     value: options.value,
                     data: options.data.clone(),
-                    transaction_type: None,
+                    transaction_type: resolved_gas_price.transaction_type,
                     access_list: None,
-                    max_fee_per_gas: None,
-                    max_priority_fee_per_gas: None,
+                    max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+                    max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
                 },
                 None,
             )
@@ -287,7 +284,6 @@ mod tests {
         let tx = build_transaction_request_for_local_signing(
             web3,
             Some(from),
-            GasPrice::Standard,
             TransactionRequestOptions::default(),
         )
         .immediate()
@@ -317,7 +313,6 @@ mod tests {
         let tx = build_transaction_request_for_local_signing(
             web3,
             None,
-            GasPrice::Standard,
             TransactionRequestOptions::default(),
         )
         .immediate()
@@ -347,50 +342,29 @@ mod tests {
 
         transport.add_response(json!(accounts)); // get accounts
         transport.add_response(json!("0x9a5")); // gas limit
-        transport.add_response(json!("0x42")); // gas price
         let tx = build_transaction_request_for_local_signing(
             web3,
             None,
-            GasPrice::Scaled(2.0),
-            TransactionRequestOptions::default(),
+            TransactionRequestOptions {
+                0: TransactionOptions {
+                    gas_price: Some(66.0.into()),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
         )
         .immediate()
         .expect("failed to build local transaction");
 
         transport.assert_request("eth_accounts", &[]);
-        transport.assert_request("eth_estimateGas", &[json!({ "from": json!(accounts[0]) })]);
-        transport.assert_request("eth_gasPrice", &[]);
+        transport.assert_request(
+            "eth_estimateGas",
+            &[json!({ "from": json!(accounts[0]), "gasPrice": format!("{:#x}", 66), })],
+        );
         transport.assert_no_more_requests();
 
         assert_eq!(tx.from, accounts[0]);
-        assert_eq!(tx.gas_price, Some(U256::from(0x42 * 2)));
-        assert_eq!(tx.gas, Some(U256::from(0x9a5)));
-    }
-
-    #[test]
-    fn tx_build_local_with_extra_gas_price() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let from = addr!("0xffffffffffffffffffffffffffffffffffffffff");
-
-        transport.add_response(json!("0x9a5")); // gas limit
-        transport.add_response(json!("0x42")); // gas price
-        let tx = build_transaction_request_for_local_signing(
-            web3,
-            Some(from),
-            GasPrice::Scaled(2.0),
-            TransactionRequestOptions::default(),
-        )
-        .immediate()
-        .expect("failed to build local transaction");
-
-        transport.assert_request("eth_estimateGas", &[json!({ "from": json!(from) })]);
-        transport.assert_request("eth_gasPrice", &[]);
-        transport.assert_no_more_requests();
-
-        assert_eq!(tx.from, from);
-        assert_eq!(tx.gas_price, Some(U256::from(0x42 * 2)));
+        assert_eq!(tx.gas_price, Some(U256::from(0x42)));
         assert_eq!(tx.gas, Some(U256::from(0x9a5)));
     }
 
@@ -403,14 +377,17 @@ mod tests {
 
         transport.add_response(json!("0x9a5")); // gas limit
 
-        let tx = build_transaction_request_for_local_signing(
-            web3,
-            Some(from),
-            GasPrice::Value(1337.into()),
-            TransactionRequestOptions::default(),
-        )
-        .immediate()
-        .expect("failed to build local transaction");
+        let options = TransactionRequestOptions {
+            0: TransactionOptions {
+                gas_price: Some(1337.0.into()),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let tx = build_transaction_request_for_local_signing(web3, Some(from), options)
+            .immediate()
+            .expect("failed to build local transaction");
 
         transport.assert_request(
             "eth_estimateGas",
@@ -431,7 +408,6 @@ mod tests {
         let err = build_transaction_request_for_local_signing(
             web3,
             None,
-            GasPrice::Standard,
             TransactionRequestOptions::default(),
         )
         .immediate()
@@ -476,7 +452,6 @@ mod tests {
             web3,
             from,
             pw.into(),
-            GasPrice::Standard,
             TransactionRequestOptions(
                 TransactionOptions {
                     to: Some(to),
@@ -510,61 +485,6 @@ mod tests {
     }
 
     #[test]
-    fn tx_build_locked_with_extra_gas_price() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let from = addr!("0x9876543210987654321098765432109876543210");
-        let pw = "foobar";
-        let gas_price = U256::from(1337);
-        let signed = bytes!("0x0123456789"); // doesn't have to be valid, we don't check
-        let hash = H256::from_low_u64_be(1);
-        let gas = json!("0x9a5");
-
-        transport.add_response(gas.clone());
-        transport.add_response(json!(gas_price));
-        transport.add_response(json!({
-            "raw": signed,
-            "tx": {
-                "hash": "0x0000000000000000000000000000000000000000000000000000000000000001",
-                "nonce": "0x0",
-                "from": from,
-                "value": "0x0",
-                "gas": "0x0",
-                "gasPrice": gas_price,
-                "input": "0x",
-            }
-        })); // sign transaction
-        let tx = build_transaction_signed_with_locked_account(
-            web3,
-            from,
-            pw.into(),
-            GasPrice::Scaled(2.0),
-            TransactionRequestOptions::default(),
-        )
-        .immediate()
-        .expect("failed to build locked transaction");
-
-        transport.assert_request("eth_estimateGas", &[json!({ "from": from })]);
-        transport.assert_request("eth_gasPrice", &[]);
-        transport.assert_request(
-            "personal_signTransaction",
-            &[
-                json!({
-                    "from": from,
-                    "gasPrice": gas_price * 2,
-                    "gas": gas,
-                }),
-                json!(pw),
-            ],
-        );
-        transport.assert_no_more_requests();
-
-        assert_eq!(tx.raw, signed);
-        assert_eq!(tx.tx.hash, hash);
-    }
-
-    #[test]
     fn tx_build_offline() {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
@@ -579,7 +499,6 @@ mod tests {
         let chain_id = 77777;
 
         transport.add_response(json!(gas));
-        transport.add_response(json!(gas_price * 2));
         transport.add_response(json!(nonce));
         transport.add_response(json!(format!("{:#x}", chain_id)));
 
@@ -587,9 +506,9 @@ mod tests {
             web3.clone(),
             key.clone(),
             None,
-            GasPrice::Standard,
             TransactionOptions {
                 to: Some(to),
+                gas_price: Some(gas_price.into()),
                 ..Default::default()
             },
         )
@@ -602,41 +521,21 @@ mod tests {
             &[json!({
                 "from": from,
                 "to": to,
+                "gasPrice": gas_price,
             })],
         );
-        transport.assert_request("eth_gasPrice", &[]);
         transport.assert_request("eth_getTransactionCount", &[json!(from), json!("latest")]);
         transport.assert_request("eth_chainId", &[]);
         transport.assert_no_more_requests();
 
-        transport.add_response(json!(gas_price));
-
         let tx2 = build_offline_signed_transaction(
-            web3.clone(),
-            key.clone(),
-            Some(chain_id),
-            GasPrice::Scaled(2.0),
-            TransactionOptions {
-                to: Some(to),
-                gas: Some(gas),
-                nonce: Some(nonce),
-                ..Default::default()
-            },
-        )
-        .immediate()
-        .expect("failed to build offline transaction");
-
-        transport.assert_request("eth_gasPrice", &[]);
-        transport.assert_no_more_requests();
-
-        let tx3 = build_offline_signed_transaction(
             web3,
             key,
             Some(chain_id),
-            GasPrice::Value(gas_price * 2),
             TransactionOptions {
                 to: Some(to),
                 gas: Some(gas),
+                gas_price: Some(gas_price.into()),
                 nonce: Some(nonce),
                 ..Default::default()
             },
@@ -649,6 +548,5 @@ mod tests {
 
         // check that if we sign with same values we get same results
         assert_eq!(tx1, tx2);
-        assert_eq!(tx2, tx3);
     }
 }

@@ -299,6 +299,7 @@ mod tests {
             "gasUsed": "0x1337",
             "logsBloom": H2048::zero(),
             "logs": [],
+            "effectiveGasPrice": "0x0",
         })
     }
 
