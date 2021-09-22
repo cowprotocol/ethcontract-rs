@@ -2,7 +2,7 @@
 //! intended to be used directly but to be used by a contract `Instance` with
 //! [Instance::method](ethcontract::contract::Instance::method).
 
-use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
+use crate::transaction::{Account, TransactionBuilder, TransactionResult, TypedGasPrice};
 use crate::{batch::CallBatch, errors::MethodError, tokens::Tokenize};
 use ethcontract_common::abi::{Function, Token};
 use std::marker::PhantomData;
@@ -18,7 +18,7 @@ pub struct MethodDefaults {
     /// Default gas amount to use for transaction.
     pub gas: Option<U256>,
     /// Default gas price to use for transaction.
-    pub gas_price: Option<GasPrice>,
+    pub gas_price: Option<TypedGasPrice>,
 }
 
 /// Data used for building a contract method call or transaction. The method
@@ -87,7 +87,7 @@ impl<T: Transport, R: Tokenize> MethodBuilder<T, R> {
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: GasPrice) -> Self {
+    pub fn gas_price(mut self, value: TypedGasPrice) -> Self {
         self.tx = self.tx.gas_price(value);
         self
     }
@@ -184,7 +184,7 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: GasPrice) -> Self {
+    pub fn gas_price(mut self, value: TypedGasPrice) -> Self {
         self.m = self.m.gas_price(value);
         self
     }
@@ -227,17 +227,29 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
     }
 
     fn decompose(self) -> (Function, CallRequest, Option<BlockId>) {
+        let (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type) =
+            match self.m.tx.gas_price {
+                Some(gas_price) => (
+                    gas_price.legacy(),
+                    gas_price.eip1559().and_then(|pair| Some(pair.0)),
+                    gas_price.eip1559().and_then(|pair| Some(pair.1)),
+                    gas_price.transaction_type(),
+                ),
+                None => Default::default(),
+            };
         (
             self.m.function,
             CallRequest {
                 from: self.m.tx.from.map(|account| account.address()),
                 to: Some(self.m.tx.to.unwrap_or_default()),
                 gas: self.m.tx.gas,
-                gas_price: self.m.tx.gas_price.and_then(|gas_price| gas_price.value()),
+                gas_price,
                 value: self.m.tx.value,
                 data: self.m.tx.data,
-                transaction_type: None,
+                transaction_type,
                 access_list: None,
+                max_fee_per_gas,
+                max_priority_fee_per_gas,
             },
             self.block,
         )

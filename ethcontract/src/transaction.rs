@@ -5,11 +5,13 @@ mod build;
 pub mod confirm;
 pub mod gas_price;
 mod send;
+pub mod typed_gas_price;
 
 pub use self::build::Transaction;
 use self::confirm::ConfirmParams;
 pub use self::gas_price::GasPrice;
 pub use self::send::TransactionResult;
+pub use self::typed_gas_price::TypedGasPrice;
 use crate::errors::ExecutionError;
 use crate::secret::{Password, PrivateKey};
 use web3::api::Web3;
@@ -78,7 +80,7 @@ pub struct TransactionBuilder<T: Transport> {
     pub gas: Option<U256>,
     /// Optional gas price to use for transaction. Defaults to estimated gas
     /// price from the node (i.e. `GasPrice::Standard`).
-    pub gas_price: Option<GasPrice>,
+    pub gas_price: Option<TypedGasPrice>,
     /// The ETH value to send with the transaction. Defaults to 0.
     pub value: Option<U256>,
     /// The data for the transaction. Defaults to empty data.
@@ -130,7 +132,7 @@ impl<T: Transport> TransactionBuilder<T> {
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: GasPrice) -> Self {
+    pub fn gas_price(mut self, value: TypedGasPrice) -> Self {
         self.gas_price = Some(value);
         self
     }
@@ -183,8 +185,16 @@ impl<T: Transport> TransactionBuilder<T> {
     /// Estimate the gas required for this transaction.
     pub async fn estimate_gas(self) -> Result<U256, ExecutionError> {
         let from = self.from.map(|account| account.address());
-        let gas_price = self.gas_price.and_then(|gas_price| gas_price.value());
-
+        let (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type) =
+        match self.gas_price {
+            Some(gas_price) => (
+                gas_price.legacy(),
+                gas_price.eip1559().and_then(|pair| Some(pair.0)),
+                gas_price.eip1559().and_then(|pair| Some(pair.1)),
+                gas_price.transaction_type(),
+            ),
+            None => Default::default(),
+        };
         self.web3
             .eth()
             .estimate_gas(
@@ -195,8 +205,10 @@ impl<T: Transport> TransactionBuilder<T> {
                     gas_price,
                     value: self.value,
                     data: self.data.clone(),
-                    transaction_type: None,
+                    transaction_type,
                     access_list: None,
+                    max_fee_per_gas,
+                    max_priority_fee_per_gas,
                 },
                 None,
             )

@@ -44,7 +44,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 uint = "0.9"
-web3 = { version = "0.17", default-features = false, features = ["signing"] }
+web3 = { git = "https://github.com/tomusdrw/rust-web3.git" }
 zeroize = "1.1"
 
 [dev-dependencies]
