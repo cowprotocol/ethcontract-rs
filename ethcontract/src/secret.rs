@@ -103,6 +103,10 @@ impl Key for &'_ PrivateKey {
     fn address(&self) -> Address {
         self.public_address()
     }
+
+    fn sign_message(&self, message: &[u8]) -> Result<Signature, SigningError> {
+        todo!()
+    }
 }
 
 /// An internal type that allows us to implement `Zeroize` on `SecretKey`. This

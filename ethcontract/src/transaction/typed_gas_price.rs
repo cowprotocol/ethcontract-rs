@@ -40,6 +40,7 @@ impl TypedGasPrice {
         }
     }
 
+    /// Returns either legacy or 1559 type of transaction.
     pub fn transaction_type(&self) -> Option<U64> {
         match self {
             TypedGasPrice::Legacy(_) => None,
@@ -86,12 +87,29 @@ impl Default for TypedGasPrice {
     }
 }
 
+impl From<U256> for TypedGasPrice {
+    fn from(value: U256) -> Self {
+        TypedGasPrice::Legacy(GasPrice::from(value))
+    }
+}
+
+impl From<(U256, U256)> for TypedGasPrice {
+    fn from(value: (U256, U256)) -> Self {
+        TypedGasPrice::Eip1559(value)
+    }
+}
+
+/// Resolves the gas price into a value. Returns a future that resolves once
 pub enum TypedGasPriceResolved {
+    /// Legacy
     Legacy(U256),
+    /// 1559
     Eip1559((U256, U256)),
 }
 
+
 impl TypedGasPriceResolved {
+    /// Prepares the data for transaction
     pub fn resolve_for_transaction(
         &self,
     ) -> (Option<U256>, Option<U256>, Option<U256>, Option<U64>) {
@@ -103,12 +121,6 @@ impl TypedGasPriceResolved {
         }
     }
 }
-
-// impl From<U256> for GasPrice {
-//     fn from(value: U256) -> Self {
-//         GasPrice::Value(value)
-//     }
-// }
 
 // macro_rules! impl_gas_price_from_integer {
 //     ($($t:ty),* $(,)?) => {
