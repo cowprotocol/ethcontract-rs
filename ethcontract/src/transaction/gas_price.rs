@@ -3,6 +3,20 @@
 use primitive_types::U256;
 use web3::types::U64;
 
+#[derive(Debug, Default)]
+/// Data related to gas price, prepared for populating the transaction object.
+pub struct ResolvedTransactionGasPrice {
+    /// Legacy gas price, populated if transaction type is legacy
+    pub gas_price: Option<U256>,
+    /// Maximum gas price willing to pay for the transaction, populated if transaction type is eip1559
+    pub max_fee_per_gas: Option<U256>,
+    /// Priority fee used to incentivize miners to include the tx in case of network congestion.
+    /// Populated if transaction type is eip1559
+    pub max_priority_fee_per_gas: Option<U256>,
+    /// Equal to None for legacy transaction, equal to 2 for eip1559 transaction
+    pub transaction_type: Option<U64>,
+}
+
 /// The gas price setting to use.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GasPrice {
@@ -11,25 +25,41 @@ pub enum GasPrice {
     Legacy(U256),
 
     /// Eip1559 type of transactions, using two values (max_fee_per_gas, max_priority_fee_per_gas)
-    Eip1559((U256, U256)),
+    Eip1559 {
+        /// Maximum gas price willing to pay for the transaction.
+        max_fee_per_gas: U256,
+        /// Priority fee used to incentivize miners to include the tx in case of network congestion.
+        max_priority_fee_per_gas: U256,
+    },
 }
 
 impl GasPrice {
-    /// Prepares the data for transaction. Returns tuple:
-    /// (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type)
-    pub fn resolve_for_transaction(
-        &self,
-    ) -> (Option<U256>, Option<U256>, Option<U256>, Option<U64>) {
+    /// Prepares the data for transaction.
+    pub fn resolve_for_transaction(&self) -> ResolvedTransactionGasPrice {
         match self {
-            GasPrice::Legacy(value) => (Some(*value), None, None, None),
-            GasPrice::Eip1559(pair) => (None, Some(pair.0), Some(pair.1), Some(2.into())),
+            GasPrice::Legacy(value) => ResolvedTransactionGasPrice {
+                gas_price: Some(*value),
+                ..Default::default()
+            },
+            GasPrice::Eip1559 {
+                max_fee_per_gas,
+                max_priority_fee_per_gas,
+            } => ResolvedTransactionGasPrice {
+                max_fee_per_gas: Some(*max_fee_per_gas),
+                max_priority_fee_per_gas: Some(*max_priority_fee_per_gas),
+                transaction_type: Some(2.into()),
+                ..Default::default()
+            },
         }
     }
 }
 
 impl Default for GasPrice {
     fn default() -> Self {
-        GasPrice::Eip1559(Default::default())
+        GasPrice::Eip1559 {
+            max_fee_per_gas: Default::default(),
+            max_priority_fee_per_gas: Default::default(),
+        }
     }
 }
 
@@ -47,7 +77,10 @@ impl From<f64> for GasPrice {
 
 impl From<(U256, U256)> for GasPrice {
     fn from(value: (U256, U256)) -> Self {
-        GasPrice::Eip1559(value)
+        GasPrice::Eip1559 {
+            max_fee_per_gas: value.0,
+            max_priority_fee_per_gas: value.1,
+        }
     }
 }
 

@@ -76,8 +76,7 @@ pub struct TransactionBuilder<T: Transport> {
     pub to: Option<Address>,
     /// Optional gas amount to use for transaction. Defaults to estimated gas.
     pub gas: Option<U256>,
-    /// Optional gas price to use for transaction. Defaults to estimated gas
-    /// price from the node (i.e. `GasPrice::Standard`).
+    /// Optional gas price to use for transaction. Defaults to Eip1559 gas price with zeroos.
     pub gas_price: Option<GasPrice>,
     /// The ETH value to send with the transaction. Defaults to 0.
     pub value: Option<U256>,
@@ -183,8 +182,10 @@ impl<T: Transport> TransactionBuilder<T> {
     /// Estimate the gas required for this transaction.
     pub async fn estimate_gas(self) -> Result<U256, ExecutionError> {
         let from = self.from.map(|account| account.address());
-        let (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type) =
-            self.gas_price.unwrap_or_default().resolve_for_transaction();
+        let resolved_gas_price = self
+            .gas_price
+            .map(|gas_price| gas_price.resolve_for_transaction())
+            .unwrap_or_default();
         self.web3
             .eth()
             .estimate_gas(
@@ -192,13 +193,13 @@ impl<T: Transport> TransactionBuilder<T> {
                     from,
                     to: self.to,
                     gas: None,
-                    gas_price,
+                    gas_price: resolved_gas_price.gas_price,
                     value: self.value,
                     data: self.data.clone(),
-                    transaction_type,
+                    transaction_type: resolved_gas_price.transaction_type,
                     access_list: None,
-                    max_fee_per_gas,
-                    max_priority_fee_per_gas,
+                    max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+                    max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
                 },
                 None,
             )

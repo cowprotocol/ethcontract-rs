@@ -227,25 +227,25 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
     }
 
     fn decompose(self) -> (Function, CallRequest, Option<BlockId>) {
-        let (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type) = self
+        let resolved_gas_price = self
             .m
             .tx
             .gas_price
-            .unwrap_or_default()
-            .resolve_for_transaction();
+            .map(|gas_price| gas_price.resolve_for_transaction())
+            .unwrap_or_default();
         (
             self.m.function,
             CallRequest {
                 from: self.m.tx.from.map(|account| account.address()),
                 to: Some(self.m.tx.to.unwrap_or_default()),
                 gas: self.m.tx.gas,
-                gas_price,
+                gas_price: resolved_gas_price.gas_price,
                 value: self.m.tx.value,
                 data: self.m.tx.data,
-                transaction_type,
+                transaction_type: resolved_gas_price.transaction_type,
                 access_list: None,
-                max_fee_per_gas,
-                max_priority_fee_per_gas,
+                max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+                max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
             },
             self.block,
         )

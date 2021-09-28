@@ -145,21 +145,20 @@ impl TransactionRequestOptions {
         gas_price: GasPrice,
         gas: Option<U256>,
     ) -> TransactionRequest {
-        let (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type) =
-            gas_price.resolve_for_transaction();
+        let resolved_gas_price = gas_price.resolve_for_transaction();
         TransactionRequest {
             from,
             to: self.0.to,
             gas,
-            gas_price,
+            gas_price: resolved_gas_price.gas_price,
             value: self.0.value,
             data: self.0.data,
             nonce: self.0.nonce,
             condition: self.1,
-            transaction_type,
+            transaction_type: resolved_gas_price.transaction_type,
             access_list: None,
-            max_fee_per_gas,
-            max_priority_fee_per_gas,
+            max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+            max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
         }
     }
 }
@@ -214,23 +213,22 @@ async fn build_offline_signed_transaction<T: Transport>(
     options: TransactionOptions,
 ) -> Result<SignedTransaction, ExecutionError> {
     let gas = resolve_gas_limit(&web3, key.public_address(), gas_price, &options).await?;
-    let (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type) =
-        gas_price.resolve_for_transaction();
+    let resolved_gas_price = gas_price.resolve_for_transaction();
     let signed = web3
         .accounts()
         .sign_transaction(
             TransactionParameters {
                 nonce: options.nonce,
-                gas_price,
+                gas_price: resolved_gas_price.gas_price,
                 gas,
                 to: options.to,
                 value: options.value.unwrap_or_default(),
                 data: options.data.unwrap_or_default(),
                 chain_id,
-                transaction_type,
+                transaction_type: resolved_gas_price.transaction_type,
                 access_list: None,
-                max_fee_per_gas,
-                max_priority_fee_per_gas,
+                max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+                max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
             },
             &key,
         )
@@ -245,8 +243,7 @@ async fn resolve_gas_limit<T: Transport>(
     gas_price: GasPrice,
     options: &TransactionOptions,
 ) -> Result<U256, ExecutionError> {
-    let (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type) =
-        gas_price.resolve_for_transaction();
+    let resolved_gas_price = gas_price.resolve_for_transaction();
     match options.gas {
         Some(value) => Ok(value),
         None => Ok(web3
@@ -256,13 +253,13 @@ async fn resolve_gas_limit<T: Transport>(
                     from: Some(from),
                     to: options.to,
                     gas: None,
-                    gas_price,
+                    gas_price: resolved_gas_price.gas_price,
                     value: options.value,
                     data: options.data.clone(),
-                    transaction_type,
+                    transaction_type: resolved_gas_price.transaction_type,
                     access_list: None,
-                    max_fee_per_gas,
-                    max_priority_fee_per_gas,
+                    max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+                    max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
                 },
                 None,
             )
