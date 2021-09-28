@@ -6,7 +6,7 @@
 
 use crate::errors::ExecutionError;
 use crate::secret::{Password, PrivateKey};
-use crate::transaction::typed_gas_price::{TypedGasPrice, TypedGasPriceResolved};
+use crate::transaction::gas_price::GasPrice;
 use crate::transaction::{Account, TransactionBuilder};
 use web3::api::Web3;
 use web3::types::{
@@ -142,7 +142,7 @@ impl TransactionRequestOptions {
     fn build_request(
         self,
         from: Address,
-        gas_price: TypedGasPriceResolved,
+        gas_price: GasPrice,
         gas: Option<U256>,
     ) -> TransactionRequest {
         let (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type) =
@@ -168,7 +168,7 @@ impl TransactionRequestOptions {
 async fn build_transaction_request_for_local_signing<T: Transport>(
     web3: Web3<T>,
     from: Option<Address>,
-    gas_price: TypedGasPrice,
+    gas_price: GasPrice,
     options: TransactionRequestOptions,
 ) -> Result<TransactionRequest, ExecutionError> {
     let from = match from {
@@ -181,8 +181,6 @@ async fn build_transaction_request_for_local_signing<T: Transport>(
             .ok_or(ExecutionError::NoLocalAccounts)?,
     };
     let gas = resolve_gas_limit(&web3, from, gas_price, &options.0).await?;
-    let gas_price = gas_price.resolve(&web3).await?;
-
     let request = options.build_request(from, gas_price, Some(gas));
 
     Ok(request)
@@ -193,12 +191,10 @@ async fn build_transaction_signed_with_locked_account<T: Transport>(
     web3: Web3<T>,
     from: Address,
     password: Password,
-    gas_price: TypedGasPrice,
+    gas_price: GasPrice,
     options: TransactionRequestOptions,
 ) -> Result<RawTransaction, ExecutionError> {
     let gas = resolve_gas_limit(&web3, from, gas_price, &options.0).await?;
-    let gas_price = gas_price.resolve(&web3).await?;
-
     let request = options.build_request(from, gas_price, Some(gas));
     let signed_tx = web3.personal().sign_transaction(request, &password).await?;
 
@@ -214,12 +210,10 @@ async fn build_offline_signed_transaction<T: Transport>(
     web3: Web3<T>,
     key: PrivateKey,
     chain_id: Option<u64>,
-    gas_price: TypedGasPrice,
+    gas_price: GasPrice,
     options: TransactionOptions,
 ) -> Result<SignedTransaction, ExecutionError> {
     let gas = resolve_gas_limit(&web3, key.public_address(), gas_price, &options).await?;
-    let gas_price = gas_price.resolve(&web3).await?;
-
     let (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type) =
         gas_price.resolve_for_transaction();
     let signed = web3
@@ -248,15 +242,11 @@ async fn build_offline_signed_transaction<T: Transport>(
 async fn resolve_gas_limit<T: Transport>(
     web3: &Web3<T>,
     from: Address,
-    gas_price: TypedGasPrice,
+    gas_price: GasPrice,
     options: &TransactionOptions,
 ) -> Result<U256, ExecutionError> {
-    let (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type) = (
-        gas_price.legacy(),
-        gas_price.eip1559().and_then(|pair| Some(pair.0)),
-        gas_price.eip1559().and_then(|pair| Some(pair.1)),
-        gas_price.transaction_type()
-    );
+    let (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type) =
+        gas_price.resolve_for_transaction();
     match options.gas {
         Some(value) => Ok(value),
         None => Ok(web3

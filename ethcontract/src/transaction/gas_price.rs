@@ -1,121 +1,60 @@
 //! Implementation of gas price estimation.
 
-use crate::errors::ExecutionError;
 use primitive_types::U256;
-use web3::api::Web3;
-use web3::Transport;
+use web3::types::U64;
 
 /// The gas price setting to use.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum GasPrice {
-    /// The standard estimated gas price from the node, this is usually the
-    /// median gas price from the last few blocks. This is the default gas price
-    /// used by transactions.
-    Standard,
-    /// A factor of the estimated gas price from the node. `GasPrice::Standard`
-    /// is similar to `GasPrice::Scaled(1.0)` but because of how the scaling is
-    /// calculated, `GasPrice::Scaled(1.0)` can lead to some rounding errors
-    /// caused by converting the estimated gas price from the node to a `f64`
-    /// and back.
-    Scaled(f64),
-    /// Specify a specific gas price to use for the transaction. This will cause
-    /// the transaction `SendFuture` to not query the node for a gas price
-    /// estimation.
-    Value(U256),
+    /// Legacy type of transactions, using single gas price value. Equivalent to sending
+    /// eip1559 transaction with max_fee_per_gas = max_priority_fee_per_gas = gas_price
+    Legacy(U256),
+
+    /// Eip1559 type of transactions, using two values (max_fee_per_gas, max_priority_fee_per_gas)
+    Eip1559((U256, U256)),
 }
 
 impl GasPrice {
-    /// A low gas price. Using this may result in long confirmation times for
-    /// transactions, or the transactions not being mined at all.
-    pub fn low() -> Self {
-        GasPrice::Scaled(0.8)
-    }
-
-    /// A high gas price that usually results in faster mining times.
-    /// transactions, or the transactions not being mined at all.
-    pub fn high() -> Self {
-        GasPrice::Scaled(6.0)
-    }
-
-    /// Returns `Some(value)` if the gas price is explicitly specified, `None`
-    /// otherwise.
-    pub fn value(&self) -> Option<U256> {
+    /// Prepares the data for transaction. Returns tuple:
+    /// (gas_price, max_fee_per_gas, max_priority_fee_per_gas, transaction_type)
+    pub fn resolve_for_transaction(
+        &self,
+    ) -> (Option<U256>, Option<U256>, Option<U256>, Option<U64>) {
         match self {
-            GasPrice::Value(value) => Some(*value),
-            _ => None,
+            GasPrice::Legacy(value) => (Some(*value), None, None, None),
+            GasPrice::Eip1559(pair) => (None, Some(pair.0), Some(pair.1), Some(2.into())),
         }
-    }
-
-    /// Resolves the gas price into a value. Returns a future that resolves once
-    /// the gas price is calculated as this may require contacting the node for
-    /// gas price estimates in the case of `GasPrice::Standard` and
-    /// `GasPrice::Scaled`.
-    pub async fn resolve<T: Transport>(self, web3: &Web3<T>) -> Result<U256, ExecutionError> {
-        let resolved_gas_price = match self {
-            GasPrice::Standard => web3.eth().gas_price().await?,
-            GasPrice::Scaled(factor) => {
-                let gas_price = web3.eth().gas_price().await?;
-                scale_gas_price(gas_price, factor)
-            }
-            GasPrice::Value(value) => value,
-        };
-
-        Ok(resolved_gas_price)
-    }
-
-    /// Resolves the gas price into an `Option<U256>` intendend to be used by a
-    /// `TransactionRequest`. Note that `TransactionRequest`s gas price default
-    /// to the node's estimate (i.e. `GasPrice::Standard`) when omitted, so this
-    /// allows for a small optimization by foregoing a JSON RPC request.
-    pub async fn resolve_for_transaction_request<T: Transport>(
-        self,
-        web3: &Web3<T>,
-    ) -> Result<Option<U256>, ExecutionError> {
-        let gas_price = match self {
-            GasPrice::Standard => None,
-            _ => Some(self.resolve(web3).await?),
-        };
-
-        Ok(gas_price)
     }
 }
 
 impl Default for GasPrice {
     fn default() -> Self {
-        GasPrice::Standard
+        GasPrice::Eip1559(Default::default())
     }
 }
 
 impl From<U256> for GasPrice {
     fn from(value: U256) -> Self {
-        GasPrice::Value(value)
+        GasPrice::Legacy(value)
     }
 }
 
-macro_rules! impl_gas_price_from_integer {
-    ($($t:ty),* $(,)?) => {
-        $(
-            impl From<$t> for GasPrice {
-                fn from(value: $t) -> Self {
-                    GasPrice::Value(value.into())
-                }
-            }
-        )*
-    };
+impl From<f64> for GasPrice {
+    fn from(value: f64) -> Self {
+        U256::from_f64_lossy(value).into()
+    }
 }
 
-impl_gas_price_from_integer! {
-    i8, i16, i32, i64, i128, isize,
-    u8, u16, u32, u64, u128, usize,
+impl From<(U256, U256)> for GasPrice {
+    fn from(value: (U256, U256)) -> Self {
+        GasPrice::Eip1559(value)
+    }
 }
 
-/// Apply a scaling factor to a gas price.
-fn scale_gas_price(gas_price: U256, factor: f64) -> U256 {
-    // NOTE: U256 does not support floating point multiplication we have to
-    //   convert everything to floats to multiply the factor and then convert
-    //   back. We are OK with the loss of precision here.
-    let gas_price_f = gas_price.to_f64_lossy();
-    U256::from_f64_lossy(gas_price_f * factor)
+impl From<(f64, f64)> for GasPrice {
+    fn from(value: (f64, f64)) -> Self {
+        (U256::from_f64_lossy(value.0), U256::from_f64_lossy(value.0)).into()
+    }
 }
 
 #[cfg(test)]

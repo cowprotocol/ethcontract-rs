@@ -3,7 +3,7 @@
 
 use crate::errors::{DeployError, ExecutionError};
 use crate::tokens::Tokenize;
-use crate::transaction::{Account, TransactionBuilder, TransactionResult, TypedGasPrice};
+use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
 use ethcontract_common::abi::Error as AbiError;
 use ethcontract_common::{Abi, Bytecode};
 use std::marker::PhantomData;
@@ -108,7 +108,7 @@ where
 
     /// Specify the gas price to use, if not specified then the estimated gas
     /// price will be used.
-    pub fn gas_price(mut self, value: TypedGasPrice) -> Self {
+    pub fn gas_price(mut self, value: GasPrice) -> Self {
         self.tx = self.tx.gas_price(value);
         self
     }
