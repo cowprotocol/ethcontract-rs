@@ -138,12 +138,10 @@ struct TransactionRequestOptions(TransactionOptions, Option<TransactionCondition
 impl TransactionRequestOptions {
     /// Builds a `TransactionRequest` from a `TransactionRequestOptions` by
     /// specifying the missing parameters.
-    fn build_request(
-        self,
-        from: Address,
-        gas: Option<U256>,
-    ) -> TransactionRequest {
-        let resolved_gas_price = self.0.gas_price
+    fn build_request(self, from: Address, gas: Option<U256>) -> TransactionRequest {
+        let resolved_gas_price = self
+            .0
+            .gas_price
             .map(|gas_price| gas_price.resolve_for_transaction())
             .unwrap_or_default();
         TransactionRequest {
@@ -210,7 +208,8 @@ async fn build_offline_signed_transaction<T: Transport>(
     options: TransactionOptions,
 ) -> Result<SignedTransaction, ExecutionError> {
     let gas = resolve_gas_limit(&web3, key.public_address(), &options).await?;
-    let resolved_gas_price = options.gas_price
+    let resolved_gas_price = options
+        .gas_price
         .map(|gas_price| gas_price.resolve_for_transaction())
         .unwrap_or_default();
     let signed = web3
@@ -241,7 +240,8 @@ async fn resolve_gas_limit<T: Transport>(
     from: Address,
     options: &TransactionOptions,
 ) -> Result<U256, ExecutionError> {
-    let resolved_gas_price = options.gas_price
+    let resolved_gas_price = options
+        .gas_price
         .map(|gas_price| gas_price.resolve_for_transaction())
         .unwrap_or_default();
     match options.gas {
