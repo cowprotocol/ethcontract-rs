@@ -76,7 +76,7 @@ pub struct TransactionBuilder<T: Transport> {
     pub to: Option<Address>,
     /// Optional gas amount to use for transaction. Defaults to estimated gas.
     pub gas: Option<U256>,
-    /// Optional gas price to use for transaction. Defaults to Eip1559 gas price with zeroos.
+    /// Optional gas price to use for transaction. Defaults to None.
     pub gas_price: Option<GasPrice>,
     /// The ETH value to send with the transaction. Defaults to 0.
     pub value: Option<U256>,
