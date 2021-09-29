@@ -54,15 +54,6 @@ impl GasPrice {
     }
 }
 
-impl Default for GasPrice {
-    fn default() -> Self {
-        GasPrice::Eip1559 {
-            max_fee_per_gas: Default::default(),
-            max_priority_fee_per_gas: Default::default(),
-        }
-    }
-}
-
 impl From<U256> for GasPrice {
     fn from(value: U256) -> Self {
         GasPrice::Legacy(value)

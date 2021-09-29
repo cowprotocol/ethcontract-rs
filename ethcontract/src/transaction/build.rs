@@ -22,7 +22,6 @@ impl<T: Transport> TransactionBuilder<T> {
     /// signed transactions or raw signed transaction `Bytes` when sending a raw
     /// transaction.
     pub async fn build(self) -> Result<Transaction, ExecutionError> {
-        let gas_price = self.gas_price.unwrap_or_default();
         let options = TransactionOptions {
             to: self.to,
             gas: self.gas,
@@ -36,7 +35,7 @@ impl<T: Transport> TransactionBuilder<T> {
                 build_transaction_request_for_local_signing(
                     self.web3,
                     None,
-                    gas_price,
+                    self.gas_price,
                     TransactionRequestOptions(options, None),
                 )
                 .await?,
@@ -45,7 +44,7 @@ impl<T: Transport> TransactionBuilder<T> {
                 build_transaction_request_for_local_signing(
                     self.web3,
                     Some(from),
-                    gas_price,
+                    self.gas_price,
                     TransactionRequestOptions(options, condition),
                 )
                 .await?,
@@ -55,7 +54,7 @@ impl<T: Transport> TransactionBuilder<T> {
                     self.web3,
                     from,
                     password,
-                    gas_price,
+                    self.gas_price,
                     TransactionRequestOptions(options, condition),
                 )
                 .await
@@ -65,7 +64,7 @@ impl<T: Transport> TransactionBuilder<T> {
                 })?
             }
             Some(Account::Offline(key, chain_id)) => {
-                build_offline_signed_transaction(self.web3, key, chain_id, gas_price, options)
+                build_offline_signed_transaction(self.web3, key, chain_id, self.gas_price, options)
                     .await
                     .map(|signed| Transaction::Raw {
                         bytes: signed.raw_transaction,
@@ -142,10 +141,12 @@ impl TransactionRequestOptions {
     fn build_request(
         self,
         from: Address,
-        gas_price: GasPrice,
+        gas_price: Option<GasPrice>,
         gas: Option<U256>,
     ) -> TransactionRequest {
-        let resolved_gas_price = gas_price.resolve_for_transaction();
+        let resolved_gas_price = gas_price
+            .map(|gas_price| gas_price.resolve_for_transaction())
+            .unwrap_or_default();
         TransactionRequest {
             from,
             to: self.0.to,
@@ -167,7 +168,7 @@ impl TransactionRequestOptions {
 async fn build_transaction_request_for_local_signing<T: Transport>(
     web3: Web3<T>,
     from: Option<Address>,
-    gas_price: GasPrice,
+    gas_price: Option<GasPrice>,
     options: TransactionRequestOptions,
 ) -> Result<TransactionRequest, ExecutionError> {
     let from = match from {
@@ -190,7 +191,7 @@ async fn build_transaction_signed_with_locked_account<T: Transport>(
     web3: Web3<T>,
     from: Address,
     password: Password,
-    gas_price: GasPrice,
+    gas_price: Option<GasPrice>,
     options: TransactionRequestOptions,
 ) -> Result<RawTransaction, ExecutionError> {
     let gas = resolve_gas_limit(&web3, from, gas_price, &options.0).await?;
@@ -209,11 +210,13 @@ async fn build_offline_signed_transaction<T: Transport>(
     web3: Web3<T>,
     key: PrivateKey,
     chain_id: Option<u64>,
-    gas_price: GasPrice,
+    gas_price: Option<GasPrice>,
     options: TransactionOptions,
 ) -> Result<SignedTransaction, ExecutionError> {
     let gas = resolve_gas_limit(&web3, key.public_address(), gas_price, &options).await?;
-    let resolved_gas_price = gas_price.resolve_for_transaction();
+    let resolved_gas_price = gas_price
+        .map(|gas_price| gas_price.resolve_for_transaction())
+        .unwrap_or_default();
     let signed = web3
         .accounts()
         .sign_transaction(
@@ -240,10 +243,12 @@ async fn build_offline_signed_transaction<T: Transport>(
 async fn resolve_gas_limit<T: Transport>(
     web3: &Web3<T>,
     from: Address,
-    gas_price: GasPrice,
+    gas_price: Option<GasPrice>,
     options: &TransactionOptions,
 ) -> Result<U256, ExecutionError> {
-    let resolved_gas_price = gas_price.resolve_for_transaction();
+    let resolved_gas_price = gas_price
+        .map(|gas_price| gas_price.resolve_for_transaction())
+        .unwrap_or_default();
     match options.gas {
         Some(value) => Ok(value),
         None => Ok(web3
