@@ -3,7 +3,7 @@
 use primitive_types::U256;
 use web3::types::U64;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 /// Data related to gas price, prepared for populating the transaction object.
 pub struct ResolvedTransactionGasPrice {
     /// Legacy gas price, populated if transaction type is legacy
@@ -77,95 +77,66 @@ impl From<(U256, U256)> for GasPrice {
 
 impl From<(f64, f64)> for GasPrice {
     fn from(value: (f64, f64)) -> Self {
-        (U256::from_f64_lossy(value.0), U256::from_f64_lossy(value.0)).into()
+        (U256::from_f64_lossy(value.0), U256::from_f64_lossy(value.1)).into()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test::prelude::*;
 
     #[test]
-    fn gas_price_scalling() {
-        assert_eq!(scale_gas_price(1_000_000.into(), 2.0), 2_000_000.into());
-        assert_eq!(scale_gas_price(1_000_000.into(), 1.5), 1_500_000.into());
-        assert_eq!(scale_gas_price(U256::MAX, 2.0), U256::MAX);
+    fn resolve_for_transaction_legacy() {
+        //assert data for legacy type of transaction is prepared
+        let resolved_gas_price = GasPrice::Legacy(100.into()).resolve_for_transaction();
+        assert_eq!(resolved_gas_price.gas_price, Some(100.into()));
+        assert_eq!(resolved_gas_price.transaction_type, None);
     }
 
     #[test]
-    fn resolve_gas_price() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
-
-        let gas_price = U256::from(1_000_000);
-
-        transport.add_response(json!(gas_price));
-        assert_eq!(
-            GasPrice::Standard
-                .resolve(&web3)
-                .immediate()
-                .expect("error resolving gas price"),
-            gas_price
-        );
-        transport.assert_request("eth_gasPrice", &[]);
-        transport.assert_no_more_requests();
-
-        transport.add_response(json!(gas_price));
-        assert_eq!(
-            GasPrice::Scaled(2.0)
-                .resolve(&web3)
-                .immediate()
-                .expect("error resolving gas price"),
-            gas_price * 2
-        );
-        transport.assert_request("eth_gasPrice", &[]);
-        transport.assert_no_more_requests();
-
-        assert_eq!(
-            GasPrice::Value(gas_price)
-                .resolve(&web3)
-                .immediate()
-                .expect("error resolving gas price"),
-            gas_price
-        );
-        transport.assert_no_more_requests();
+    fn resolve_for_transaction_eip1559() {
+        //assert data for eip1559 type of transaction is prepared
+        let resolved_gas_price = GasPrice::Eip1559 {
+            max_fee_per_gas: 100.into(),
+            max_priority_fee_per_gas: 50.into(),
+        }
+        .resolve_for_transaction();
+        assert_eq!(resolved_gas_price.max_fee_per_gas, Some(100.into()));
+        assert_eq!(resolved_gas_price.max_priority_fee_per_gas, Some(50.into()));
+        assert_eq!(resolved_gas_price.transaction_type, Some(2.into()));
     }
 
     #[test]
-    fn resolve_gas_price_for_transaction_request() {
-        let mut transport = TestTransport::new();
-        let web3 = Web3::new(transport.clone());
+    fn gas_price_convertor_u256() {
+        //assert that legacy type of transaction is built when single U256 value is provided
+        let legacy_transaction_type: GasPrice = U256::from(100).into();
+        assert_eq!(legacy_transaction_type, GasPrice::Legacy(100.into()));
 
-        let gas_price = U256::from(1_000_000);
+        //assert that legacy type of transaction is built when single f64 value is provided
+        let legacy_transaction_type: GasPrice = 100.0.into();
+        assert_eq!(legacy_transaction_type, GasPrice::Legacy(100.into()));
+    }
 
+    #[test]
+    fn gas_price_convertor_u256_u256() {
+        //assert that EIP1559 type of transaction is built when double U256 value is provided
+        let eip1559_transaction_type: GasPrice = (U256::from(100), U256::from(50)).into();
         assert_eq!(
-            GasPrice::Standard
-                .resolve_for_transaction_request(&web3)
-                .immediate()
-                .expect("error resolving gas price"),
-            None
+            eip1559_transaction_type,
+            GasPrice::Eip1559 {
+                max_fee_per_gas: 100.into(),
+                max_priority_fee_per_gas: 50.into()
+            }
         );
-        transport.assert_no_more_requests();
 
-        transport.add_response(json!(gas_price));
+        //assert that EIP1559 type of transaction is built when double f64 value is provided
+        let eip1559_transaction_type: GasPrice = (100.0, 50.0).into();
         assert_eq!(
-            GasPrice::Scaled(2.0)
-                .resolve_for_transaction_request(&web3)
-                .immediate()
-                .expect("error resolving gas price"),
-            Some(gas_price * 2),
+            eip1559_transaction_type,
+            GasPrice::Eip1559 {
+                max_fee_per_gas: 100.into(),
+                max_priority_fee_per_gas: 50.into()
+            }
         );
-        transport.assert_request("eth_gasPrice", &[]);
-        transport.assert_no_more_requests();
-
-        assert_eq!(
-            GasPrice::Value(gas_price)
-                .resolve_for_transaction_request(&web3)
-                .immediate()
-                .expect("error resolving gas price"),
-            Some(gas_price)
-        );
-        transport.assert_no_more_requests();
     }
 }

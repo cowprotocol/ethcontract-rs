@@ -256,7 +256,7 @@ mod tests {
             .from(Account::Local(from, Some(TransactionCondition::Block(100))))
             .to(to)
             .gas(1.into())
-            .gas_price(2.into())
+            .gas_price(2.0.into())
             .value(28.into())
             .data(Bytes(vec![0x13, 0x37]))
             .nonce(42.into())
@@ -312,13 +312,14 @@ mod tests {
             "logsBloom": H2048::zero(),
             "logs": [],
             "status": "0x1",
+            "effectiveGasPrice": "0x0",
         }));
 
         let builder = TransactionBuilder::new(web3)
             .from(Account::Offline(key, Some(chain_id)))
             .to(Address::zero())
             .gas(0x1337.into())
-            .gas_price(0x00ba_b10c.into())
+            .gas_price(f64::from(0x00ba_b10c).into())
             .nonce(0x42.into())
             .confirmations(1);
         let tx_raw = builder
@@ -365,13 +366,14 @@ mod tests {
             "gasUsed": "0x1337",
             "logsBloom": H2048::zero(),
             "logs": [],
+            "effectiveGasPrice": "0x0",
         }));
 
         let builder = TransactionBuilder::new(web3)
             .from(Account::Offline(key, Some(chain_id)))
             .to(Address::zero())
             .gas(0x1337.into())
-            .gas_price(0x00ba_b10c.into())
+            .gas_price(f64::from(0x00ba_b10c).into())
             .nonce(0x42.into());
         let tx_raw = builder
             .clone()

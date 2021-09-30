@@ -313,7 +313,7 @@ mod tests {
         let tx = MethodBuilder::<_, U256>::new(web3, function, address, data.clone())
             .from(Account::Local(from, None))
             .gas(1.into())
-            .gas_price(2.into())
+            .gas_price(2.0.into())
             .value(28.into())
             .nonce(42.into())
             .into_inner();
@@ -321,7 +321,7 @@ mod tests {
         assert_eq!(tx.from.map(|a| a.address()), Some(from));
         assert_eq!(tx.to, Some(address));
         assert_eq!(tx.gas, Some(1.into()));
-        assert_eq!(tx.gas_price, Some(2.into()));
+        assert_eq!(tx.gas_price, Some(2.0.into()));
         assert_eq!(tx.value, Some(28.into()));
         assert_eq!(tx.data, Some(data));
         assert_eq!(tx.nonce, Some(42.into()));
@@ -344,7 +344,7 @@ mod tests {
         ))
         .from(from)
         .gas(1.into())
-        .gas_price(2.into())
+        .gas_price(2.0.into())
         .value(28.into())
         .block(BlockId::Number(100.into()));
 
@@ -413,13 +413,13 @@ mod tests {
             .with_defaults(&MethodDefaults {
                 from: Some(Account::Local(from, None)),
                 gas: Some(1.into()),
-                gas_price: Some(2.into()),
+                gas_price: Some(2.0.into()),
             })
             .into_inner();
 
         assert_eq!(tx.from.map(|a| a.address()), Some(from));
         assert_eq!(tx.gas, Some(1.into()));
-        assert_eq!(tx.gas_price, Some(2.into()));
+        assert_eq!(tx.gas_price, Some(2.0.into()));
         transport.assert_no_more_requests();
     }
 }

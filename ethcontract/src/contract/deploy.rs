@@ -188,7 +188,7 @@ mod tests {
             .expect("error creating deploy builder")
             .from(Account::Local(from, None))
             .gas(1.into())
-            .gas_price(2.into())
+            .gas_price(2.0.into())
             .value(28.into())
             .nonce(42.into())
             .into_inner();
@@ -196,7 +196,7 @@ mod tests {
         assert_eq!(tx.from.map(|a| a.address()), Some(from));
         assert_eq!(tx.to, None);
         assert_eq!(tx.gas, Some(1.into()));
-        assert_eq!(tx.gas_price, Some(2.into()));
+        assert_eq!(tx.gas_price, Some(2.0.into()));
         assert_eq!(tx.value, Some(28.into()));
         assert_eq!(tx.data, Some(bytecode.to_bytes().unwrap()));
         assert_eq!(tx.nonce, Some(42.into()));
