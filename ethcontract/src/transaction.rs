@@ -70,7 +70,7 @@ impl Default for ResolveCondition {
 pub struct TransactionBuilder<T: Transport> {
     web3: Web3<T>,
     /// The sender of the transaction with the signing strategy to use. Defaults
-    /// to locally signing on the node with the default acount.
+    /// to locally signing on the node with the default account.
     pub from: Option<Account>,
     /// The receiver of the transaction.
     pub to: Option<Address>,
