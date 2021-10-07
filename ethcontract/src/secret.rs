@@ -100,12 +100,21 @@ impl Key for &'_ PrivateKey {
         Ok(Signature { v, r, s })
     }
 
-    fn address(&self) -> Address {
-        self.public_address()
+    fn sign_message(&self, message: &[u8]) -> Result<Signature, SigningError> {
+        let message = Message::from_slice(message).map_err(|_| SigningError::InvalidMessage)?;
+        let (recovery_id, signature) = Secp256k1::signing_only()
+            .sign_recoverable(&message, self)
+            .serialize_compact();
+
+        let v = recovery_id.to_i32() as u64;
+        let r = H256::from_slice(&signature[..32]);
+        let s = H256::from_slice(&signature[32..]);
+
+        Ok(Signature { v, r, s })
     }
 
-    fn sign_message(&self, message: &[u8]) -> Result<Signature, SigningError> {
-        todo!()
+    fn address(&self) -> Address {
+        self.public_address()
     }
 }
 

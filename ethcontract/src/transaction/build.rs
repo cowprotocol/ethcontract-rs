@@ -357,7 +357,10 @@ mod tests {
         .expect("failed to build local transaction");
 
         transport.assert_request("eth_accounts", &[]);
-        transport.assert_request("eth_estimateGas", &[json!({ "from": json!(accounts[0]), "gasPrice": format!("{:#x}", 66), })]);
+        transport.assert_request(
+            "eth_estimateGas",
+            &[json!({ "from": json!(accounts[0]), "gasPrice": format!("{:#x}", 66), })],
+        );
         transport.assert_no_more_requests();
 
         assert_eq!(tx.from, accounts[0]);
