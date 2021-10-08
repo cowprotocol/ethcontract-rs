@@ -5,9 +5,9 @@
 //! Samples of derived contracts for documentation purposes in order to
 //! illustrate what the generated API.
 
-//ethcontract::contract!("examples/truffle/build/contracts/DocumentedContract.json",);
-//ethcontract::contract!("examples/truffle/build/contracts/SimpleLibrary.json",);
-//ethcontract::contract!("examples/truffle/build/contracts/LinkedContract.json",);
-//ethcontract::contract!("examples/truffle/build/contracts/IERC20.json",);
+ethcontract::contract!("examples/truffle/build/contracts/DocumentedContract.json",);
+ethcontract::contract!("examples/truffle/build/contracts/SimpleLibrary.json",);
+ethcontract::contract!("examples/truffle/build/contracts/LinkedContract.json",);
+ethcontract::contract!("examples/truffle/build/contracts/IERC20.json",);
 
 fn main() {}
