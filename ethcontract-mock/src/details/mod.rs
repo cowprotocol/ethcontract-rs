@@ -643,6 +643,7 @@ impl MockTransport {
             root: None,
             logs_bloom: Default::default(),
             transaction_type: None,
+            effective_gas_price: tx.gas_price,
         };
 
         state.receipts.insert(tx.hash, receipt);
