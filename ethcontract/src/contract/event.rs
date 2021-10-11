@@ -551,6 +551,7 @@ mod tests {
             "gasUsed": "0x1337",
             "logsBloom": H2048::zero(),
             "logs": [],
+            "effectiveGasPrice": "0x0",
         }));
         // get latest block
         transport.add_response(json!(U64::from(20)));

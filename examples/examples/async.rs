@@ -52,6 +52,8 @@ async fn main() {
             condition: None,
             transaction_type: None,
             access_list: None,
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
         })
         .await
         .expect("send eth failed");
