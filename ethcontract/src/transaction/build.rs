@@ -529,8 +529,8 @@ mod tests {
         transport.assert_no_more_requests();
 
         let tx2 = build_offline_signed_transaction(
-            web3.clone(),
-            key.clone(),
+            web3,
+            key,
             Some(chain_id),
             TransactionOptions {
                 to: Some(to),
