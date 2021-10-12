@@ -1413,10 +1413,10 @@ hardhat-deploy@^0.9.3:
     murmur-128 "^0.2.1"
     qs "^6.9.4"
 
-hardhat@^2.6.0:
-  version "2.6.0"
-  resolved "https://registry.yarnpkg.com/hardhat/-/hardhat-2.6.0.tgz#a00a44d36559a880c170dca6363cc33f7545364b"
-  integrity sha512-NEM2pe11QXWXB7k49heOLQA9vxihG4DJ0712KjMT9NYSZgLOMcWswJ3tvn+/ND6vzLn6Z4pqr2x/kWSfllWFuw==
+hardhat@^2.6.5:
+  version "2.6.5"
+  resolved "https://registry.yarnpkg.com/hardhat/-/hardhat-2.6.5.tgz#61d3e22da34e1b175bbe599f77396b32f9788b58"
+  integrity sha512-sBhREWZjQTtR/KMMp2F3ySuDqL0norjNq68geR3nlXRHXYKuNKeL7xqVsmldekt3sVB5Wh1WX7xDX79kvUr+fA==
   dependencies:
     "@ethereumjs/block" "^3.4.0"
     "@ethereumjs/blockchain" "^5.4.0"
