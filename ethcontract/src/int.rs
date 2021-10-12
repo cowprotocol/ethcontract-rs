@@ -28,7 +28,9 @@ fn twos_complement(u: U256) -> U256 {
 fn handle_overflow<T>((result, overflow): (T, bool)) -> T {
     #[cfg(debug_assertions)]
     {
-        assert!(!overflow, "overflow");
+        if overflow {
+            panic!("overflow");
+        }
     }
 
     let _ = overflow;
