@@ -48,7 +48,7 @@ pub enum ResolveCondition {
     Pending,
     /// Wait for confirmation with the specified `ConfirmParams`. A confirmed
     /// transaction is always mined. There is a chance, however, that the block
-    /// in which the transaction was mined becomes an ommer block. Confirming
+    /// in which the transaction was mined becomes an uncle block. Confirming
     /// with a higher block count significantly decreases this probability.
     ///
     /// See `ConfirmParams` documentation for more details on the exact
@@ -56,6 +56,7 @@ pub enum ResolveCondition {
     Confirmed(ConfirmParams),
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for ResolveCondition {
     fn default() -> Self {
         ResolveCondition::Confirmed(Default::default())
