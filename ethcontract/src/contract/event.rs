@@ -26,7 +26,6 @@ use web3::Transport;
 #[must_use = "event builders do nothing unless you stream them"]
 pub struct EventBuilder<T: Transport, E: Tokenize> {
     /// The underlying web3 instance.
-    #[allow(dead_code)]
     web3: Web3<T>,
     /// The event ABI data for encoding topic filters and decoding logs.
     event: AbiEvent,
