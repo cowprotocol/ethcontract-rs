@@ -7,6 +7,7 @@ use serde::de::{Error as DeError, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
 use std::fmt::{Formatter, Result as FmtResult};
+use std::mem;
 use web3::types::{Address, Bytes};
 
 /// The string representation of the byte code. Note that this must be a
