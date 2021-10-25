@@ -470,10 +470,12 @@
     "@sentry/types" "5.30.0"
     tslib "^1.9.3"
 
-"@solidity-parser/parser@^0.11.0":
-  version "0.11.1"
-  resolved "https://registry.yarnpkg.com/@solidity-parser/parser/-/parser-0.11.1.tgz#fa840af64840c930f24a9c82c08d4a092a068add"
-  integrity sha512-H8BSBoKE8EubJa0ONqecA2TviT3TnHeC4NpgnAHSUiuhZoQBfPB4L2P9bs8R6AoTW10Endvh3vc+fomVMIDIYQ==
+"@solidity-parser/parser@^0.14.0":
+  version "0.14.0"
+  resolved "https://registry.yarnpkg.com/@solidity-parser/parser/-/parser-0.14.0.tgz#d51f074efb0acce0e953ec48133561ed710cebc0"
+  integrity sha512-cX0JJRcmPtNUJpzD2K7FdA7qQsTOk1UZnFx2k7qAg9ZRvuaH5NBe5IEdBMXGlmf2+FmjhqbygJ26H8l2SV7aKQ==
+  dependencies:
+    antlr4ts "^0.5.0-alpha.4"
 
 "@types/abstract-leveldown@*":
   version "5.0.2"
@@ -623,6 +625,11 @@ ansi-styles@^4.1.0:
   integrity sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg==
   dependencies:
     color-convert "^2.0.1"
+
+antlr4ts@^0.5.0-alpha.4:
+  version "0.5.0-alpha.4"
+  resolved "https://registry.yarnpkg.com/antlr4ts/-/antlr4ts-0.5.0-alpha.4.tgz#71702865a87478ed0b40c0709f422cf14d51652a"
+  integrity sha512-WPQDt1B74OfPv/IMS2ekXAKkTZIHl88uMetg6q3OTqgFxZ/dxDXI0EWLyZid/1Pe6hTftyg5N7gel5wNAGxXyQ==
 
 anymatch@~3.1.1, anymatch@~3.1.2:
   version "3.1.2"
@@ -1414,10 +1421,10 @@ hardhat-deploy@^0.9.4:
     murmur-128 "^0.2.1"
     qs "^6.9.4"
 
-hardhat@^2.6.6:
-  version "2.6.6"
-  resolved "https://registry.yarnpkg.com/hardhat/-/hardhat-2.6.6.tgz#11d2dc4c1659fcbb8632de9399b1b4999f8b3628"
-  integrity sha512-GneZAwvNxf3cNobYTmMSp2qGX/yJyUmHD/xjW+8zF2AgWkLS33CHmGn4aRFKqfjsk7BS7FU6jqMmmZhHHO3gUw==
+hardhat@^2.6.7:
+  version "2.6.7"
+  resolved "https://registry.yarnpkg.com/hardhat/-/hardhat-2.6.7.tgz#f9949e58f019439f0c5299b24e7f91d6c6a5ff29"
+  integrity sha512-Mua01f6ZN1feQLktHSH2p5A5LCdA+Wf7+O2lJDH6wClvWPtI2eqKNNY2gxBwYXoQ28GZrT3K6mqQOZeRWAca6Q==
   dependencies:
     "@ethereumjs/block" "^3.4.0"
     "@ethereumjs/blockchain" "^5.4.0"
@@ -1426,7 +1433,7 @@ hardhat@^2.6.6:
     "@ethereumjs/vm" "^5.5.2"
     "@ethersproject/abi" "^5.1.2"
     "@sentry/node" "^5.18.1"
-    "@solidity-parser/parser" "^0.11.0"
+    "@solidity-parser/parser" "^0.14.0"
     "@types/bn.js" "^5.1.0"
     "@types/lru-cache" "^5.1.0"
     abort-controller "^3.0.0"
