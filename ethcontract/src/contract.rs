@@ -14,7 +14,7 @@ use ethcontract_common::abi::{Error as AbiError, Result as AbiResult};
 use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::hash::H32;
 use ethcontract_common::{Abi, Bytecode, Contract, DeploymentInformation};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::hash::Hash;
 use web3::api::Web3;
 use web3::types::{Address, Bytes, H256};
@@ -365,7 +365,7 @@ impl<T: Transport> Deploy<T> for Instance<T> {
 /// Utility function for creating a mapping between a unique signature and a
 /// name-index pair for accessing contract ABI items.
 fn create_mapping<T, S, F>(
-    elements: &HashMap<String, Vec<T>>,
+    elements: &BTreeMap<String, Vec<T>>,
     signature: F,
 ) -> HashMap<S, (String, usize)>
 where
