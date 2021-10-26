@@ -22,13 +22,11 @@ pub fn verify(raw_tx: &[u8], node_chain_id: u64) -> Transaction {
         err();
     }
 
-    if res(rlp.at(3)).size() == 0 {
-        // TODO:
-        //
-        // We could support deployments via RPC calls by introducing
-        // something like `expect_deployment` method to `Mock` struct.
-        panic!("mock client does not support deploying contracts via transaction, use `Mock::deploy` instead");
-    }
+    // TODO:
+    //
+    // We could support deployments via RPC calls by introducing
+    // something like `expect_deployment` method to `Mock` struct.
+    assert!(!(res(rlp.at(3)).size() == 0), "mock client does not support deploying contracts via transaction, use `Mock::deploy` instead");
 
     let nonce: U256 = res(rlp.val_at(0));
     let gas_price: U256 = res(rlp.val_at(1));
@@ -46,9 +44,10 @@ pub fn verify(raw_tx: &[u8], node_chain_id: u64) -> Transaction {
         _ => panic!("invalid transaction signature, v value is out of range"),
     };
 
-    if chain_id != node_chain_id {
-        panic!("invalid transaction signature, chain id mismatch");
-    }
+    assert!(
+        !(chain_id != node_chain_id),
+        "invalid transaction signature, chain id mismatch"
+    );
 
     let msg_hash = {
         let mut rlp = rlp::RlpStream::new();

@@ -46,6 +46,7 @@ mod tests {
             inputs: vec![Param {
                 name: "".into(),
                 kind: ParamType::String,
+                internal_type: None,
             }],
             outputs: Vec::new(),
             constant: true,
