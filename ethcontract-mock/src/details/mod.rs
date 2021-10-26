@@ -602,14 +602,13 @@ impl MockTransport {
         let tx = verify(&raw_tx.0, state.chain_id);
 
         let nonce = state.nonce.entry(tx.from).or_insert(0);
-        if *nonce != tx.nonce.as_u64() {
-            panic!(
-                "nonce mismatch for account {:#x}: expected {}, actual {}",
-                tx.from,
-                tx.nonce.as_u64(),
-                nonce
-            );
-        }
+        assert!(
+            !(*nonce != tx.nonce.as_u64()),
+            "nonce mismatch for account {:#x}: expected {}, actual {}",
+            tx.from,
+            tx.nonce.as_u64(),
+            nonce
+        );
         *nonce += 1;
 
         let contract = state.contract(tx.to);
@@ -717,9 +716,7 @@ impl Contract {
         //
         // We could support receive/fallback functions if data is empty.
 
-        if data.len() < 4 {
-            panic!("transaction has invalid call data");
-        }
+        assert!(!(data.len() < 4), "transaction has invalid call data");
 
         let signature = H32::try_from(&data[0..4]).unwrap();
         let method = self.method(signature);
@@ -785,9 +782,10 @@ impl Method {
         index: usize,
         generation: usize,
     ) -> &mut Expectation<P, R> {
-        if generation != self.generation {
-            panic!("old expectations are not valid after checkpoint");
-        }
+        assert!(
+            !(generation != self.generation),
+            "old expectations are not valid after checkpoint"
+        );
 
         let expectation: &mut Expectation<P, R> = self
             .expectations
