@@ -291,6 +291,7 @@ mod tests {
             outputs: vec![Param {
                 name: "".to_owned(),
                 kind: ParamType::Uint(256),
+                internal_type: None,
             }],
             constant: false,
             state_mutability: Default::default(),
