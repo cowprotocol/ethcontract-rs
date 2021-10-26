@@ -3,7 +3,7 @@
 use crate::Abi;
 use crate::{bytecode::Bytecode, DeploymentInformation};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{BTreeMap, HashMap};
 use web3::types::Address;
 
 /// Represents a contract data.
