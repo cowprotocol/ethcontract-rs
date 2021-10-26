@@ -28,9 +28,7 @@ fn twos_complement(u: U256) -> U256 {
 fn handle_overflow<T>((result, overflow): (T, bool)) -> T {
     #[cfg(debug_assertions)]
     {
-        if overflow {
-            panic!("overflow");
-        }
+        assert!(!overflow, "overflow");
     }
 
     let _ = overflow;
@@ -1708,9 +1706,7 @@ mod tests {
     #[test]
     #[cfg_attr(debug_assertions, should_panic)]
     fn div_euclid_overflow() {
-        // We only attempt to print here because of the must_use
-        // error: unused return value of `int::I256::div_euclid` that must be used
-        println!("{}", I256::MIN.div_euclid(-I256::one()));
+        let _ = I256::MIN.div_euclid(-I256::one());
     }
 
     #[test]
