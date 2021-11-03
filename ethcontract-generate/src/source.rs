@@ -99,8 +99,9 @@ impl Source {
     /// directory for resolving relative paths. See [`parse`] for more details
     /// on supported source strings.
     pub fn with_root(root: impl AsRef<Path>, source: &str) -> Result<Self> {
+        let root = root.as_ref();
         let base = Url::from_directory_path(root)
-            .map_err(|_| anyhow!("root path '{}' is not absolute"))?;
+            .map_err(|_| anyhow!("root path '{}' is not absolute", root.display()))?;
         let url = base.join(source.as_ref())?;
 
         match url.scheme() {
