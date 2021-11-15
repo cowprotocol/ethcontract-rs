@@ -23,7 +23,7 @@
   "homepage": "https://github.com/gnosis/ethcontract-rs",
   "devDependencies": {
     "@gnosis.pm/util-contracts": "^3.0.1",
-    "@openzeppelin/contracts": "4.3.2",
+    "@openzeppelin/contracts": "4.3.3",
     "@truffle/hdwallet-provider": "^1.4.3",
     "truffle": "^5.4.15",
     "truffle-plugin-verify": "^0.5.15"
