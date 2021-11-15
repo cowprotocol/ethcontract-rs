@@ -1386,10 +1386,10 @@ growl@1.10.5:
   resolved "https://registry.yarnpkg.com/growl/-/growl-1.10.5.tgz#f2735dc2283674fa67478b10181059355c369e5e"
   integrity sha512-qBr4OuELkhPenW6goKVXiv47US3clb3/IbuWF9KNKEijAy9oeHxU9IgzjvJhHkUzhaj7rOUD7+YGWqUjLp5oSA==
 
-hardhat-deploy@^0.9.4:
-  version "0.9.4"
-  resolved "https://registry.yarnpkg.com/hardhat-deploy/-/hardhat-deploy-0.9.4.tgz#8039b6283e8adc8bc908a3af8079f0d4c9850387"
-  integrity sha512-0Zr8R5SAq6oK/gi170yCDqPTvKNPHdlm6wQe3ZQg/uiIDZxofpRM2frQVPUFlgdI2yUXtVcGBiPcC2r2fEockw==
+hardhat-deploy@^0.9.8:
+  version "0.9.8"
+  resolved "https://registry.yarnpkg.com/hardhat-deploy/-/hardhat-deploy-0.9.8.tgz#197375e043ff2b06e7879c4119f801bdd11a493b"
+  integrity sha512-f7s3mG4wHnZuQWR+W4QVnPIE0OshgBrf19gvqRBqMbH9cDw4IxBXKWYSVTPXHXNITjwE3CA9Rqx+52Ee1ovtAA==
   dependencies:
     "@ethersproject/abi" "^5.4.0"
     "@ethersproject/abstract-signer" "^5.4.1"
