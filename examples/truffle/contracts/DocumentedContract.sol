@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 /**
@@ -14,7 +15,7 @@ contract DocumentedContract {
   /*
    * @dev Creates a new owned instance of `DocumentedContract`.
    */
-  constructor(address owner_) public {
+  constructor(address owner_) {
     owner = owner_;
   }
 
