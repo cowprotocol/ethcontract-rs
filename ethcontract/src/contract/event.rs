@@ -25,8 +25,6 @@ use web3::Transport;
 #[derive(Debug)]
 #[must_use = "event builders do nothing unless you stream them"]
 pub struct EventBuilder<T: Transport, E: Tokenize> {
-    /// The underlying web3 instance.
-    web3: Web3<T>,
     /// The event ABI data for encoding topic filters and decoding logs.
     event: AbiEvent,
     /// The web3 filter builder used for creating a log filter.
@@ -41,7 +39,6 @@ impl<T: Transport, E: Tokenize> EventBuilder<T, E> {
     /// and address.
     pub fn new(web3: Web3<T>, event: AbiEvent, address: Address) -> Self {
         EventBuilder {
-            web3: web3.clone(),
             event,
             filter: LogFilterBuilder::new(web3).address(vec![address]),
             topics: RawTopicFilter::default(),

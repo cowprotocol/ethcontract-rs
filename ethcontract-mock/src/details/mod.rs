@@ -993,6 +993,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> ExpectationApi
     }
 }
 
+#[allow(clippy::enum_variant_names)]
 enum Predicate<P: Tokenize + Send + 'static> {
     None,
     Predicate(Box<dyn predicates::Predicate<P> + Send>),
