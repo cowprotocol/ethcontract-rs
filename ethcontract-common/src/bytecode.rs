@@ -126,7 +126,7 @@ impl<'a> Iterator for CodeIter<'a> {
                     Some(Ok(block))
                 }
             }
-            None => Some(Ok(mem::replace(&mut self.0, ""))),
+            None => Some(Ok(mem::take(&mut self.0))),
         }
     }
 }
