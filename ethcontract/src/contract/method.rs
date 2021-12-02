@@ -203,8 +203,8 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
         self
     }
 
-    /// Specify the nonce for the transation, if not specified will use the
-    /// current transaction count for the signing account.
+    /// Specify the block height for the call, if not specified then latest
+    /// mined block will be used.
     pub fn block(mut self, value: BlockId) -> Self {
         self.block = Some(value);
         self
