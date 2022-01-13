@@ -6,22 +6,22 @@ async fn batch_ok() -> Result {
 
     let mut seq = mockall::Sequence::new();
 
-    contract
+    let _ = contract
         .expect(ERC20::signatures().name())
         .once()
         .in_sequence(&mut seq)
         .returns("WrappedEther".into());
-    contract
+    let _ = contract
         .expect(ERC20::signatures().symbol())
         .once()
         .in_sequence(&mut seq)
         .returns("WETH".into());
-    contract
+    let _ = contract
         .expect(ERC20::signatures().decimals())
         .once()
         .returns(18)
         .in_sequence(&mut seq);
-    contract
+    let _ = contract
         .expect(ERC20::signatures().total_supply())
         .once()
         .in_sequence(&mut seq)

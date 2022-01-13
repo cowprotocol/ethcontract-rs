@@ -590,6 +590,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// to the first expectation.
     ///
     /// [`once`]: Expectation::once
+    #[must_use]
     pub fn times(self, times: impl Into<TimesRange>) -> Self {
         self.transport.times::<P, R>(
             self.address,
@@ -606,6 +607,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// See [`times`] for more info.
     ///
     /// [`times`]: Expectation::times
+    #[must_use]
     pub fn never(self) -> Self {
         self.times(0)
     }
@@ -615,6 +617,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// See [`times`] for more info.
     ///
     /// [`times`]: Expectation::times
+    #[must_use]
     pub fn once(self) -> Self {
         self.times(1)
     }
@@ -635,6 +638,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// [mockall documentation]: https://docs.rs/mockall/#sequences
     /// [`times`]: Expectation::times
     /// [`once`]: Expectation::once
+    #[must_use]
     pub fn in_sequence(self, sequence: &mut mockall::Sequence) -> Self {
         self.transport.in_sequence::<P, R>(
             self.address,
@@ -649,6 +653,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// Sets number of blocks that should be mined on top of the transaction
     /// block. This method can be useful when there are custom transaction
     /// confirmation settings.
+    #[must_use]
     pub fn confirmations(self, confirmations: u64) -> Self {
         self.transport.confirmations::<P, R>(
             self.address,
@@ -709,6 +714,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// [call sequences]: Expectation::in_sequence
     /// [limiting number of expectation uses]: Expectation::times
     /// [`returns_fn`]: Expectation::returns_fn
+    #[must_use]
     pub fn predicate<T>(self, pred: T) -> Self
     where
         T: TuplePredicate<P> + Send + 'static,
@@ -731,6 +737,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// This method will overwrite any predicate that was set before.
     ///
     /// [`predicate`]: Expectation::predicate
+    #[must_use]
     pub fn predicate_fn(self, pred: impl Fn(&P) -> bool + Send + 'static) -> Self {
         self.transport.predicate_fn::<P, R>(
             self.address,
@@ -750,6 +757,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     ///
     /// [call context]: CallContext
     /// [`predicate`]: Expectation::predicate
+    #[must_use]
     pub fn predicate_fn_ctx(
         self,
         pred: impl Fn(&CallContext, &P) -> bool + Send + 'static,
@@ -772,6 +780,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// See also [`Contract::expect_call`].
     ///
     /// [`predicate`]: Expectation::predicate
+    #[must_use]
     pub fn allow_calls(self, allow_calls: bool) -> Self {
         self.transport.allow_calls::<P, R>(
             self.address,
@@ -791,6 +800,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// See also [`Contract::expect_transaction`].
     ///
     /// [`predicate`]: Expectation::predicate
+    #[must_use]
     pub fn allow_transactions(self, allow_transactions: bool) -> Self {
         self.transport.allow_transactions::<P, R>(
             self.address,
@@ -810,6 +820,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     ///
     /// This method will overwrite any return value or callback
     /// that was set before.
+    #[must_use]
     pub fn returns(self, returns: R) -> Self {
         self.transport.returns::<P, R>(
             self.address,
@@ -837,6 +848,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// See [`returns`] for more info.
     ///
     /// [`returns`]: Expectation::returns
+    #[must_use]
     pub fn returns_fn(self, returns: impl Fn(P) -> Result<R, String> + Send + 'static) -> Self {
         self.transport.returns_fn::<P, R>(
             self.address,
@@ -865,6 +877,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     ///
     /// [call context]: CallContext
     /// [`returns`]: Expectation::returns
+    #[must_use]
     pub fn returns_fn_ctx(
         self,
         returns: impl Fn(&CallContext, P) -> Result<R, String> + Send + 'static,
@@ -888,6 +901,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// See [`returns`] for more info.
     ///
     /// [`returns`]: Expectation::returns
+    #[must_use]
     pub fn returns_error(self, error: String) -> Self {
         self.transport.returns_error::<P, R>(
             self.address,
@@ -909,6 +923,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> Expectation<P, 
     /// it constructs default value according to solidity rules.
     ///
     /// [`returns`]: Expectation::returns
+    #[must_use]
     pub fn returns_default(self) -> Self {
         self.transport.returns_default::<P, R>(
             self.address,

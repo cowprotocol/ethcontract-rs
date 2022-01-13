@@ -83,6 +83,7 @@ impl ConfirmParams {
     ///
     /// [`confirmations`]: #structfield.confirmations
     #[inline]
+    #[must_use]
     pub fn confirmations(mut self, confirmations: usize) -> Self {
         self.confirmations = confirmations;
         self
@@ -90,6 +91,7 @@ impl ConfirmParams {
 
     /// Set new values for exponential backoff settings.
     #[inline]
+    #[must_use]
     pub fn poll_interval(mut self, min: Duration, max: Duration, factor: f32) -> Self {
         self.poll_interval_min = min;
         self.poll_interval_max = max;
@@ -101,6 +103,7 @@ impl ConfirmParams {
     ///
     /// [`poll_interval_min`]: #structfield.poll_interval_min
     #[inline]
+    #[must_use]
     pub fn poll_interval_min(mut self, poll_interval_min: Duration) -> Self {
         self.poll_interval_min = poll_interval_min;
         self
@@ -110,6 +113,7 @@ impl ConfirmParams {
     ///
     /// [`poll_interval_max`]: #structfield.poll_interval_max
     #[inline]
+    #[must_use]
     pub fn poll_interval_max(mut self, poll_interval_max: Duration) -> Self {
         self.poll_interval_max = poll_interval_max;
         self
@@ -119,6 +123,7 @@ impl ConfirmParams {
     ///
     /// [`poll_interval_factor`]: #structfield.poll_interval_factor
     #[inline]
+    #[must_use]
     pub fn poll_interval_factor(mut self, poll_interval_factor: f32) -> Self {
         self.poll_interval_factor = poll_interval_factor;
         self
@@ -128,6 +133,7 @@ impl ConfirmParams {
     ///
     /// [`block_timeout`]: #structfield.block_timeout
     #[inline]
+    #[must_use]
     pub fn block_timeout(mut self, block_timeout: Option<usize>) -> Self {
         self.block_timeout = block_timeout;
         self
