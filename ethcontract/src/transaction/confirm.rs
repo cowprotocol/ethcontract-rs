@@ -83,6 +83,7 @@ impl ConfirmParams {
     ///
     /// [`confirmations`]: #structfield.confirmations
     #[inline]
+    #[must_use]
     pub fn confirmations(mut self, confirmations: usize) -> Self {
         self.confirmations = confirmations;
         self
