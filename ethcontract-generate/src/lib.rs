@@ -135,6 +135,7 @@ impl ContractBuilder {
     ///
     /// This method panics if the specified address string is invalid. See
     /// [`parse_address`] for more information on the address string format.
+    #[must_use]
     pub fn add_network_str(self, chain_id: impl Into<String>, address: &str) -> Self {
         self.add_network(
             chain_id,
