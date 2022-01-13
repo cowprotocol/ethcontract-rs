@@ -102,14 +102,14 @@ async fn general_test() {
 
     let mut sequence = mockall::Sequence::new();
 
-    contract
+    let contract = contract
         .expect(ERC20::signatures().balance_of())
         .once()
         .predicate((predicate::eq(address_for("Bob")),))
         .returns(U256::from(0))
         .in_sequence(&mut sequence);
 
-    contract
+    let contract = contract
         .expect(ERC20::signatures().transfer())
         .once()
         .predicate_fn_ctx(|ctx, _| !ctx.is_view_call)
@@ -131,14 +131,14 @@ async fn general_test() {
         .confirmations(3)
         .in_sequence(&mut sequence);
 
-    contract
+    let contract = contract
         .expect(ERC20::signatures().balance_of())
         .once()
         .predicate((predicate::eq(address_for("Bob")),))
         .returns(U256::from(100))
         .in_sequence(&mut sequence);
 
-    contract
+    let contract = contract
         .expect(ERC20::signatures().balance_of())
         .predicate((predicate::eq(address_for("Alice")),))
         .returns(U256::from(100000));
