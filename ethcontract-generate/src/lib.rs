@@ -157,7 +157,7 @@ impl ContractBuilder {
     /// copy of `rustfmt`.
     ///
     /// Note that in case `rustfmt` does not exist or produces an error, the
-    /// unformatted code will be used.
+    /// un-formatted code will be used.
     pub fn rustfmt(mut self, rustfmt: bool) -> Self {
         self.rustfmt = rustfmt;
         self
@@ -212,7 +212,7 @@ impl ContractBindings {
     /// copy of `rustfmt`.
     ///
     /// Note that in case `rustfmt` does not exist or produces an error, the
-    /// unformatted code will be used.
+    /// un-formatted code will be used.
     #[must_use = "specifying rustfmt does nothing unless you write bindings"]
     pub fn rustfmt(mut self, rustfmt: bool) -> Self {
         self.rustfmt = rustfmt;
