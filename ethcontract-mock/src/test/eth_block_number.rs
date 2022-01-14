@@ -32,7 +32,7 @@ async fn block_number_advanced_after_tx() -> Result {
 async fn block_number_advanced_and_confirmed_after_tx() -> Result {
     let (_, web3, contract, instance) = setup();
 
-    contract
+    let _ = contract
         .expect(ERC20::signatures().transfer())
         .confirmations(5);
 

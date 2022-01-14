@@ -51,6 +51,7 @@ impl TruffleLoader {
     /// Sets new override for artifact's origin. See [`origin`] for more info.
     ///
     /// [`origin`]: #structfield.origin
+    #[must_use]
     pub fn origin(mut self, origin: impl Into<String>) -> Self {
         self.origin = Some(origin.into());
         self
@@ -59,6 +60,7 @@ impl TruffleLoader {
     /// Sets new override for artifact's name. See [`name`] for more info.
     ///
     /// [`name`]: #structfield.name
+    #[must_use]
     pub fn name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self

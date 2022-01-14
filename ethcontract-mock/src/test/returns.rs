@@ -38,20 +38,20 @@ async fn returns_default() -> Result {
 async fn returns_const() -> Result {
     let contract = Mock::new(1234).deploy(AbiTypes::raw_contract().abi.clone());
 
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().get_void())
         .returns(());
-    contract.expect(AbiTypes::signatures().get_u8()).returns(42);
-    contract
+    let _ = contract.expect(AbiTypes::signatures().get_u8()).returns(42);
+    let _ = contract
         .expect(AbiTypes::signatures().abiv_2_struct())
         .returns((1, 2));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().abiv_2_array_of_struct())
         .returns(vec![(1, 2), (3, 4)]);
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().multiple_results())
         .returns((1, 2, 3));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().multiple_results_struct())
         .returns(((1, 2), (3, 4)));
 
@@ -80,22 +80,22 @@ async fn returns_const() -> Result {
 async fn returns_fn() -> Result {
     let contract = Mock::new(1234).deploy(AbiTypes::raw_contract().abi.clone());
 
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().get_void())
         .returns_fn(|_| Ok(()));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().get_u8())
         .returns_fn(|_| Ok(42));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().abiv_2_struct())
         .returns_fn(|(x,)| Ok(x));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().abiv_2_array_of_struct())
         .returns_fn(|(x,)| Ok(x));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().multiple_results())
         .returns_fn(|_| Ok((1, 2, 3)));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().multiple_results_struct())
         .returns_fn(|_| Ok(((1, 2), (3, 4))));
 
@@ -124,22 +124,22 @@ async fn returns_fn() -> Result {
 async fn returns_fn_ctx() -> Result {
     let contract = Mock::new(1234).deploy(AbiTypes::raw_contract().abi.clone());
 
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().get_void())
         .returns_fn_ctx(|_, _| Ok(()));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().get_u8())
         .returns_fn_ctx(|_, _| Ok(42));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().abiv_2_struct())
         .returns_fn_ctx(|_, (x,)| Ok(x));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().abiv_2_array_of_struct())
         .returns_fn_ctx(|_, (x,)| Ok(x));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().multiple_results())
         .returns_fn_ctx(|_, _| Ok((1, 2, 3)));
-    contract
+    let _ = contract
         .expect(AbiTypes::signatures().multiple_results_struct())
         .returns_fn_ctx(|_, _| Ok(((1, 2), (3, 4))));
 
