@@ -2,8 +2,7 @@
 
 use crate::errors::InvalidPrivateKey;
 use ethcontract_common::hash;
-use secp256k1::key::ONE_KEY;
-use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ONE_KEY};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
@@ -85,7 +84,7 @@ impl Key for &'_ PrivateKey {
     fn sign(&self, message: &[u8], chain_id: Option<u64>) -> Result<Signature, SigningError> {
         let message = Message::from_slice(message).map_err(|_| SigningError::InvalidMessage)?;
         let (recovery_id, signature) = Secp256k1::signing_only()
-            .sign_recoverable(&message, self)
+            .sign_ecdsa_recoverable(&message, self)
             .serialize_compact();
 
         let standard_v = recovery_id.to_i32() as u64;
