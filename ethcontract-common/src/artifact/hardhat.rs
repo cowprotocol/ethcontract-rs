@@ -52,6 +52,7 @@ use std::path::Path;
 /// have to filter such networks. See [#545] for more info.
 ///
 /// [#545]: https://github.com/gnosis/ethcontract-rs/issues/545.
+#[must_use = "hardhat loaders do nothing unless you load them"]
 pub struct HardHatLoader {
     /// Override for artifact's origin. If `None`, origin
     /// will be derived automatically.
@@ -124,7 +125,6 @@ impl HardHatLoader {
     /// Sets new override for artifact's origin. See [`origin`] for more info.
     ///
     /// [`origin`]: #structfield.origin
-    #[must_use]
     pub fn origin(mut self, origin: impl Into<String>) -> Self {
         self.origin = Some(origin.into());
         self
@@ -133,7 +133,6 @@ impl HardHatLoader {
     /// Adds chain id to the list of [`allowed networks`].
     ///
     /// [`allowed networks`]: #structfield.networks_allow_list
-    #[must_use]
     pub fn allow_network_by_chain_id(mut self, network: impl Into<String>) -> Self {
         self.networks_allow_list
             .push(NetworkEntry::ByChainId(network.into()));
@@ -143,7 +142,6 @@ impl HardHatLoader {
     /// Adds network name to the list of [`allowed networks`].
     ///
     /// [`allowed networks`]: #structfield.networks_allow_list
-    #[must_use]
     pub fn allow_network_by_name(mut self, network: impl Into<String>) -> Self {
         self.networks_allow_list
             .push(NetworkEntry::ByName(network.into()));
@@ -153,7 +151,6 @@ impl HardHatLoader {
     /// Adds chain id to the list of [`denied networks`].
     ///
     /// [`denied networks`]: #structfield.networks_deny_list
-    #[must_use]
     pub fn deny_network_by_chain_id(mut self, network: impl Into<String>) -> Self {
         self.networks_deny_list
             .push(NetworkEntry::ByChainId(network.into()));
@@ -163,7 +160,6 @@ impl HardHatLoader {
     /// Adds network name to the list of [`denied networks`].
     ///
     /// [`denied networks`]: #structfield.networks_deny_list
-    #[must_use]
     pub fn deny_network_by_name(mut self, network: impl Into<String>) -> Self {
         self.networks_deny_list
             .push(NetworkEntry::ByName(network.into()));
@@ -173,7 +169,6 @@ impl HardHatLoader {
     /// Adds contract name to the list of [`allowed contracts`].
     ///
     /// [`allowed contracts`]: #structfield.contracts_allow_list
-    #[must_use]
     pub fn allow_contract(mut self, contract: impl Into<String>) -> Self {
         self.contracts_allow_list.push(contract.into());
         self
@@ -182,7 +177,6 @@ impl HardHatLoader {
     /// Adds contract name to the list of [`denied contracts`].
     ///
     /// [`denied contracts`]: #structfield.contracts_deny_list
-    #[must_use]
     pub fn deny_contract(mut self, contract: impl Into<String>) -> Self {
         self.contracts_deny_list.push(contract.into());
         self

@@ -41,6 +41,7 @@ use std::path::Path;
 
 /// Builder for generating contract code. Note that no code is generated until
 /// the builder is finalized with `generate` or `output`.
+#[must_use = "contract builders do nothing unless you generate bindings"]
 pub struct ContractBuilder {
     /// The runtime crate name to use.
     pub runtime_crate_name: String,
@@ -85,7 +86,6 @@ impl ContractBuilder {
 
     /// Sets the crate name for the runtime crate. This setting is usually only
     /// needed if the crate was renamed in the Cargo manifest.
-    #[must_use]
     pub fn runtime_crate_name(mut self, name: impl Into<String>) -> Self {
         self.runtime_crate_name = name.into();
         self
@@ -93,14 +93,12 @@ impl ContractBuilder {
 
     /// Sets an optional visibility modifier for the generated module and
     /// contract re-export.
-    #[must_use]
     pub fn visibility_modifier(mut self, vis: impl Into<String>) -> Self {
         self.visibility_modifier = Some(vis.into());
         self
     }
 
     /// Sets the optional contract module name override.
-    #[must_use]
     pub fn contract_mod_override(mut self, name: impl Into<String>) -> Self {
         self.contract_mod_override = Some(name.into());
         self
@@ -109,7 +107,6 @@ impl ContractBuilder {
     /// Sets the optional contract name override. This setting is needed when
     /// using an artifact JSON source that does not provide a contract name such
     /// as Etherscan.
-    #[must_use]
     pub fn contract_name_override(mut self, name: impl Into<String>) -> Self {
         self.contract_name_override = Some(name.into());
         self
@@ -122,7 +119,6 @@ impl ContractBuilder {
     /// This is useful for integration test scenarios where the address of a
     /// contract on the test node is deterministic, but the contract address
     /// is not in the artifact.
-    #[must_use]
     pub fn add_network(mut self, chain_id: impl Into<String>, network: Network) -> Self {
         self.networks.insert(chain_id.into(), network);
         self
@@ -135,7 +131,6 @@ impl ContractBuilder {
     ///
     /// This method panics if the specified address string is invalid. See
     /// [`parse_address`] for more information on the address string format.
-    #[must_use]
     pub fn add_network_str(self, chain_id: impl Into<String>, address: &str) -> Self {
         self.add_network(
             chain_id,
@@ -149,7 +144,6 @@ impl ContractBuilder {
     /// Adds a solidity method alias to specify what the method name
     /// will be in Rust. For solidity methods without an alias, the snake cased
     /// method name will be used.
-    #[must_use]
     pub fn add_method_alias(
         mut self,
         signature: impl Into<String>,
@@ -163,8 +157,7 @@ impl ContractBuilder {
     /// copy of `rustfmt`.
     ///
     /// Note that in case `rustfmt` does not exist or produces an error, the
-    /// un-formatted code will be used.
-    #[must_use]
+    /// unformatted code will be used.
     pub fn rustfmt(mut self, rustfmt: bool) -> Self {
         self.rustfmt = rustfmt;
         self
@@ -183,7 +176,6 @@ impl ContractBuilder {
     ///     .add_event_derive("serde::Serialize")
     ///     .add_event_derive("serde::Deserialize");
     /// ```
-    #[must_use]
     pub fn add_event_derive(mut self, derive: impl Into<String>) -> Self {
         self.event_derives.push(derive.into());
         self
@@ -220,8 +212,8 @@ impl ContractBindings {
     /// copy of `rustfmt`.
     ///
     /// Note that in case `rustfmt` does not exist or produces an error, the
-    /// un-formatted code will be used.
-    #[must_use]
+    /// unformatted code will be used.
+    #[must_use = "specifying rustfmt does nothing unless you write bindings"]
     pub fn rustfmt(mut self, rustfmt: bool) -> Self {
         self.rustfmt = rustfmt;
         self

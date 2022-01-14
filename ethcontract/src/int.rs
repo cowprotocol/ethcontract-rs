@@ -137,6 +137,7 @@ impl I256 {
     /// Coerces an unsigned integer into a signed one. If the unsigned integer
     /// is greater than the greater than or equal to `1 << 255`, then the result
     /// will overflow into a negative value.
+    #[must_use]
     pub fn from_raw(raw: U256) -> Self {
         I256(raw)
     }
@@ -144,46 +145,55 @@ impl I256 {
     /// Returns the signed integer as a unsigned integer. If the value of `self`
     /// negative, then the two's complement of its absolute value will be
     /// returned.
+    #[must_use]
     pub fn into_raw(self) -> U256 {
         self.0
     }
 
     /// Conversion to i32
+    #[must_use]
     pub fn low_i32(&self) -> i32 {
         self.0.low_u32() as _
     }
 
     /// Conversion to u32
+    #[must_use]
     pub fn low_u32(&self) -> u32 {
         self.0.low_u32()
     }
 
     /// Conversion to i64
+    #[must_use]
     pub fn low_i64(&self) -> i64 {
         self.0.low_u64() as _
     }
 
     /// Conversion to u64
+    #[must_use]
     pub fn low_u64(&self) -> u64 {
         self.0.low_u64() as _
     }
 
     /// Conversion to i128
+    #[must_use]
     pub fn low_i128(&self) -> i128 {
         self.0.low_u128() as _
     }
 
     /// Conversion to u128
+    #[must_use]
     pub fn low_u128(&self) -> u128 {
         self.0.low_u128() as _
     }
 
     /// Conversion to i128
+    #[must_use]
     pub fn low_isize(&self) -> isize {
         self.0.low_u64() as _
     }
 
     /// Conversion to usize
+    #[must_use]
     pub fn low_usize(&self) -> usize {
         self.0.low_u64() as _
     }
@@ -193,6 +203,7 @@ impl I256 {
     /// # Panics
     ///
     /// Panics if the number is outside the range [`i32::MIN`, `i32::MAX`].
+    #[must_use]
     pub fn as_i32(&self) -> i32 {
         (*self).try_into().unwrap()
     }
@@ -202,6 +213,7 @@ impl I256 {
     /// # Panics
     ///
     /// Panics if the number is outside the range [`0`, `u32::MAX`].
+    #[must_use]
     pub fn as_u32(&self) -> u32 {
         (*self).try_into().unwrap()
     }
@@ -211,6 +223,7 @@ impl I256 {
     /// # Panics
     ///
     /// Panics if the number is outside the range [`i64::MIN`, `i64::MAX`].
+    #[must_use]
     pub fn as_i64(&self) -> i64 {
         (*self).try_into().unwrap()
     }
@@ -220,6 +233,7 @@ impl I256 {
     /// # Panics
     ///
     /// Panics if the number is outside the range [`0`, `u64::MAX`].
+    #[must_use]
     pub fn as_u64(&self) -> u64 {
         (*self).try_into().unwrap()
     }
@@ -229,6 +243,7 @@ impl I256 {
     /// # Panics
     ///
     /// Panics if the number is outside the range [`i128::MIN`, `i128::MAX`].
+    #[must_use]
     pub fn as_i128(&self) -> i128 {
         (*self).try_into().unwrap()
     }
@@ -238,6 +253,7 @@ impl I256 {
     /// # Panics
     ///
     /// Panics if the number is outside the range [`0`, `u128::MAX`].
+    #[must_use]
     pub fn as_u128(&self) -> u128 {
         (*self).try_into().unwrap()
     }
@@ -247,6 +263,7 @@ impl I256 {
     /// # Panics
     ///
     /// Panics if the number is outside the range [`isize::MIN`, `isize::MAX`].
+    #[must_use]
     pub fn as_isize(&self) -> usize {
         (*self).try_into().unwrap()
     }
@@ -256,6 +273,7 @@ impl I256 {
     /// # Panics
     ///
     /// Panics if the number is outside the range [`0`, `usize::MAX`].
+    #[must_use]
     pub fn as_usize(&self) -> usize {
         (*self).try_into().unwrap()
     }
@@ -321,18 +339,21 @@ impl I256 {
 
     /// Returns `true` if `self` is positive and `false` if the number is zero
     /// or negative.
+    #[must_use]
     pub fn is_positive(self) -> bool {
         self.signum64().is_positive()
     }
 
     /// Returns `true` if `self` is negative and `false` if the number is zero
     /// or negative.
+    #[must_use]
     pub fn is_negative(self) -> bool {
         self.signum64().is_negative()
     }
 
     /// Returns `true` if `self` is negative and `false` if the number is zero
     /// or positive.
+    #[must_use]
     pub fn is_zero(self) -> bool {
         self.0.is_zero()
     }
@@ -354,6 +375,7 @@ impl I256 {
     /// (e.g., `I256::MIN` for values of type `I256`), then the minimum value
     /// will be returned again and true will be returned for an overflow
     /// happening.
+    #[must_use]
     pub fn overflowing_abs(self) -> (Self, bool) {
         if self == I256::MIN {
             (self, true)
@@ -364,6 +386,7 @@ impl I256 {
 
     /// Checked absolute value. Computes `self.abs()`, returning `None` if
     /// `self == MIN`.
+    #[must_use]
     pub fn checked_abs(self) -> Option<Self> {
         let (result, overflow) = self.overflowing_abs();
         if overflow {
@@ -400,6 +423,7 @@ impl I256 {
     /// indicating whether an overflow happened. If `self` is the minimum value,
     /// then the minimum value will be returned again and `true` will be
     /// returned for an overflow happening.
+    #[must_use]
     pub fn overflowing_neg(self) -> (Self, bool) {
         if self == I256::MIN {
             (self, true)
@@ -410,6 +434,7 @@ impl I256 {
 
     /// Checked negation. Computes `self.neg()`, returning `None` if
     /// `self == MIN`.
+    #[must_use]
     pub fn checked_neg(self) -> Option<Self> {
         let (result, overflow) = self.overflowing_neg();
         if overflow {
@@ -435,6 +460,7 @@ impl I256 {
     }
 
     /// Return the least number of bits needed to represent the number.
+    #[must_use]
     pub fn bits(&self) -> u32 {
         let unsigned = self.abs_unsigned();
         let unsigned_bits = unsigned.bits();
@@ -469,28 +495,33 @@ impl I256 {
     /// # Panics
     ///
     /// Panics if index exceeds the bit width of the number.
+    #[must_use]
     pub fn bit(&self, index: usize) -> bool {
         self.0.bit(index)
     }
 
     /// Returns the number of ones in the binary representation of `self`.
+    #[must_use]
     pub fn count_ones(&self) -> u32 {
         (self.0).0.iter().map(|word| word.count_ones()).sum()
     }
 
     /// Returns the number of zeros in the binary representation of `self`.
+    #[must_use]
     pub fn count_zeros(&self) -> u32 {
         (self.0).0.iter().map(|word| word.count_zeros()).sum()
     }
 
     /// Returns the number of leading zeros in the binary representation of
     /// `self`.
+    #[must_use]
     pub fn leading_zeros(&self) -> u32 {
         self.0.leading_zeros()
     }
 
     /// Returns the number of leading zeros in the binary representation of
     /// `self`.
+    #[must_use]
     pub fn trailing_zeros(&self) -> u32 {
         self.0.trailing_zeros()
     }
@@ -500,6 +531,7 @@ impl I256 {
     /// # Panics
     ///
     /// Panics if index exceeds the byte width of the number.
+    #[must_use]
     pub fn byte(&self, index: usize) -> u8 {
         self.0.byte(index)
     }
@@ -521,6 +553,7 @@ impl I256 {
     /// Returns a tuple of the addition along with a boolean indicating whether
     /// an arithmetic overflow would occur. If an overflow would have occurred
     /// then the wrapped value is returned.
+    #[must_use]
     pub fn overflowing_add(self, rhs: Self) -> (Self, bool) {
         let (unsigned, _) = self.0.overflowing_add(rhs.0);
         let result = I256(unsigned);
@@ -537,6 +570,7 @@ impl I256 {
     }
 
     /// Checked addition. Returns None if overflow occurred.
+    #[must_use]
     pub fn checked_add(self, other: Self) -> Option<Self> {
         let (result, overflow) = self.overflowing_add(other);
         if overflow {
@@ -572,6 +606,7 @@ impl I256 {
     /// Returns a tuple of the subtraction along with a boolean indicating
     /// whether an arithmetic overflow would occur. If an overflow would have
     /// occurred then the wrapped value is returned.
+    #[must_use]
     pub fn overflowing_sub(self, rhs: Self) -> (Self, bool) {
         // NOTE: We can't just compute the `self + (-rhs)` because `-rhs` does
         //   not always exist, specifically this would be a problem in case
@@ -592,6 +627,7 @@ impl I256 {
     }
 
     /// Checked subtraction. Returns None if overflow occurred.
+    #[must_use]
     pub fn checked_sub(self, other: Self) -> Option<Self> {
         let (result, overflow) = self.overflowing_sub(other);
         if overflow {
@@ -627,6 +663,7 @@ impl I256 {
     /// Returns a tuple of the multiplication along with a boolean indicating
     /// whether an arithmetic overflow would occur. If an overflow would have
     /// occurred then the wrapped value is returned.
+    #[must_use]
     pub fn overflowing_mul(self, rhs: Self) -> (Self, bool) {
         let sign = Sign::from_signum64(self.signum64() * rhs.signum64());
         let (unsigned, overflow_mul) = self.abs_unsigned().overflowing_mul(rhs.abs_unsigned());
@@ -636,6 +673,7 @@ impl I256 {
     }
 
     /// Checked multiplication. Returns None if overflow occurred.
+    #[must_use]
     pub fn checked_mul(self, other: Self) -> Option<Self> {
         let (result, overflow) = self.overflowing_mul(other);
         if overflow {
@@ -668,6 +706,7 @@ impl I256 {
     /// Returns a tuple of the division along with a boolean indicating
     /// whether an arithmetic overflow would occur. If an overflow would have
     /// occurred then the wrapped value is returned.
+    #[must_use]
     pub fn overflowing_div(self, rhs: Self) -> (Self, bool) {
         // Panic early when with division by zero while evaluating sign.
         let sign = Sign::from_signum64(self.signum64() / rhs.signum64());
@@ -679,6 +718,7 @@ impl I256 {
     }
 
     /// Checked division. Returns None if overflow occurred or if rhs == 0.
+    #[must_use]
     pub fn checked_div(self, rhs: Self) -> Option<Self> {
         if rhs == I256::zero() || (self == Self::min_value() && rhs == -I256::one()) {
             None
@@ -705,6 +745,7 @@ impl I256 {
     /// Returns a tuple of the remainder along with a boolean indicating
     /// whether an arithmetic overflow would occur. If an overflow would have
     /// occurred then the wrapped value is returned.
+    #[must_use]
     pub fn overflowing_rem(self, rhs: Self) -> (Self, bool) {
         if self == Self::MIN && rhs == Self::from(-1) {
             (Self::zero(), true)
@@ -715,6 +756,7 @@ impl I256 {
     }
 
     /// Checked remainder. Returns None if overflow occurred or rhs == 0
+    #[must_use]
     pub fn checked_rem(self, rhs: Self) -> Option<Self> {
         if rhs == I256::zero() || (self == Self::min_value() && rhs == -I256::one()) {
             None
@@ -770,6 +812,7 @@ impl I256 {
     /// Calculates the quotient of Euclidean division `self.div_euclid(rhs)`.
     /// Returns a tuple of the divisor along with a boolean indicating whether an arithmetic
     /// overflow would occur. If an overflow would occur then `self` is returned.
+    #[must_use]
     pub fn overflowing_div_euclid(self, rhs: Self) -> (Self, bool) {
         if self == Self::min_value() && rhs == -I256::one() {
             (self, true)
@@ -780,6 +823,7 @@ impl I256 {
 
     /// Checked Euclidean division. Computes `self.div_euclid(rhs)`,
     /// returning None if `rhs == 0` or the division results in overflow.
+    #[must_use]
     pub fn checked_div_euclid(self, rhs: Self) -> Option<Self> {
         if rhs == I256::zero() || (self == Self::min_value() && rhs == -I256::one()) {
             None
@@ -803,6 +847,7 @@ impl I256 {
     /// Returns a tuple of the remainder after dividing along with a boolean indicating whether
     /// an arithmetic overflow would occur. If an overflow would occur then `0` is returned.
     /// Panics if `rhs == 0`
+    #[must_use]
     pub fn overflowing_rem_euclid(self, rhs: Self) -> (Self, bool) {
         if self == Self::min_value() && rhs == -Self::one() {
             (Self::zero(), true)
@@ -824,6 +869,7 @@ impl I256 {
 
     /// Checked Euclidean remainder. Computes `self.rem_euclid(rhs)`,
     /// returning `None` if `rhs == 0` or the division results in overflow.
+    #[must_use]
     pub fn checked_rem_euclid(self, rhs: Self) -> Option<Self> {
         if rhs == I256::zero() || (self == Self::min_value() && rhs == -I256::one()) {
             None
@@ -853,6 +899,7 @@ impl I256 {
     /// # Panics
     ///
     /// Panics if the result overflows the type.
+    #[must_use]
     pub fn exp10(n: usize) -> Self {
         U256::exp10(n).try_into().expect("overflow")
     }
@@ -871,6 +918,7 @@ impl I256 {
     ///
     /// Returns a tuple of the exponentiation along with a bool indicating
     /// whether an overflow happened.
+    #[must_use]
     pub fn overflowing_pow(self, exp: u32) -> (Self, bool) {
         let sign = self.pow_sign(exp);
         let (unsigned, overflow_pow) = self.abs_unsigned().overflowing_pow(exp.into());
@@ -880,6 +928,7 @@ impl I256 {
     }
 
     /// Raises self to the power of `exp`. Returns None if overflow occurred.
+    #[must_use]
     pub fn checked_pow(self, exp: u32) -> Option<Self> {
         let (result, overflow) = self.overflowing_pow(exp);
         if overflow {

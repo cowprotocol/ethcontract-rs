@@ -102,14 +102,14 @@ async fn general_test() {
 
     let mut sequence = mockall::Sequence::new();
 
-    let _ = contract
+    contract
         .expect(ERC20::signatures().balance_of())
         .once()
         .predicate((predicate::eq(address_for("Bob")),))
-        .returns(U256::from(0u64))
+        .returns(U256::from(0))
         .in_sequence(&mut sequence);
 
-    let _ = contract
+    contract
         .expect(ERC20::signatures().transfer())
         .once()
         .predicate_fn_ctx(|ctx, _| !ctx.is_view_call)
@@ -131,17 +131,17 @@ async fn general_test() {
         .confirmations(3)
         .in_sequence(&mut sequence);
 
-    let _ = contract
+    contract
         .expect(ERC20::signatures().balance_of())
         .once()
         .predicate((predicate::eq(address_for("Bob")),))
-        .returns(U256::from(100u64))
+        .returns(U256::from(100))
         .in_sequence(&mut sequence);
 
-    let _ = contract
+    contract
         .expect(ERC20::signatures().balance_of())
         .predicate((predicate::eq(address_for("Alice")),))
-        .returns(U256::from(100000u64));
+        .returns(U256::from(100000));
 
     let actual_contract = ERC20::at(&mock.web3(), contract.address);
 
@@ -154,7 +154,7 @@ async fn general_test() {
 
     assert!(!called.load(std::sync::atomic::Ordering::Relaxed));
     actual_contract
-        .transfer(address_for("Bob"), U256::from(100u64))
+        .transfer(address_for("Bob"), U256::from(100))
         .from(account_for("Alice"))
         .confirmations(3)
         .send()
