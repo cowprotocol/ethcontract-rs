@@ -33,6 +33,7 @@ ipc-tokio = ["web3/ipc-tokio"]
 arrayvec = "0.7"
 ethcontract-common = { version = "0.15.4", path = "../ethcontract-common" }
 ethcontract-derive = { version = "0.15.4", path = "../ethcontract-derive", optional = true}
+gas-estimation = { git = "https://github.com/gnosis/gp-gas-estimation.git", tag = "v0.4.0"}
 futures = "0.3"
 futures-timer = "3.0"
 hex = "0.4"
