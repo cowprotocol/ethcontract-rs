@@ -1,8 +1,8 @@
 //! Implementation of gas price estimation.
 
+use gas_estimation::EstimatedGasPrice;
 use primitive_types::U256;
 use web3::types::U64;
-use gas_estimation::EstimatedGasPrice;
 
 #[derive(Debug, Default, PartialEq)]
 /// Data related to gas price, prepared for populating the transaction object.
