@@ -3,6 +3,7 @@
 
 mod build;
 pub mod confirm;
+#[cfg(feature = "gas_price")]
 pub mod gas_price;
 mod send;
 
