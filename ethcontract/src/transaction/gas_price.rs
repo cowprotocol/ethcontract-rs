@@ -1,8 +1,8 @@
 //! Implementation of gas price estimation.
 
-use gas_estimation::EstimatedGasPrice;
 use primitive_types::U256;
 use web3::types::U64;
+use gas_estimation::EstimatedGasPrice;
 
 #[derive(Debug, Default, PartialEq)]
 /// Data related to gas price, prepared for populating the transaction object.
@@ -79,16 +79,6 @@ impl From<(U256, U256)> for GasPrice {
 impl From<(f64, f64)> for GasPrice {
     fn from(value: (f64, f64)) -> Self {
         (U256::from_f64_lossy(value.0), U256::from_f64_lossy(value.1)).into()
-    }
-}
-
-impl From<EstimatedGasPrice> for GasPrice {
-    fn from(gas_price: EstimatedGasPrice) -> Self {
-        if let Some(eip1559) = gas_price.eip1559 {
-            (eip1559.max_fee_per_gas, eip1559.max_priority_fee_per_gas).into()
-        } else {
-            gas_price.legacy.into()
-        }
     }
 }
 
