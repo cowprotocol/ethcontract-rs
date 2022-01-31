@@ -1064,10 +1064,10 @@
     ethereumjs-util "^6.1.0"
     ethereumjs-wallet "^1.0.1"
 
-"@truffle/hdwallet-provider@^2.0.0":
-  version "2.0.0"
-  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-2.0.0.tgz#4301afbff082b2ddcccfe9c455821dd87e74dbdd"
-  integrity sha512-jquMJCMeHYhvPyZiIhLSWGzGkGK7Xswbw9kcti3USPIMP/AhVNVPe8E0fPurBLUb/Wvl6VW/6Z514JsmzC/IQA==
+"@truffle/hdwallet-provider@^2.0.2":
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/@truffle/hdwallet-provider/-/hdwallet-provider-2.0.2.tgz#c485999c8167dfa150adba6e47c5a396955a5d65"
+  integrity sha512-Xq6UuS6C0p9KCammCTyfJjycAXZy20KgZm48nyDMq6DBBCfjKhHhPvNuBtQiNauSFEn+YTRn6nbG7vNOg7Oweg==
   dependencies:
     "@ethereumjs/common" "^2.4.0"
     "@ethereumjs/tx" "^3.3.0"
