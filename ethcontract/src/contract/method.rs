@@ -245,6 +245,8 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
                 data: self.m.tx.data,
                 transaction_type: None,
                 access_list: None,
+                max_fee_per_gas: None,
+                max_priority_fee_per_gas: None,
             },
             self.block,
         )
@@ -290,6 +292,7 @@ mod tests {
             outputs: vec![Param {
                 name: "".to_owned(),
                 kind: ParamType::Uint(256),
+                internal_type: None,
             }],
             constant: false,
             state_mutability: Default::default(),

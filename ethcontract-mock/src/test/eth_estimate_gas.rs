@@ -47,6 +47,8 @@ async fn estimate_gas_is_supported_for_edge_block() -> Result {
             data: tx.data,
             transaction_type: None,
             access_list: None,
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
         }
     };
 
@@ -93,6 +95,8 @@ async fn estimate_gas_is_not_supported_for_custom_block() {
             data: tx.data,
             transaction_type: None,
             access_list: None,
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
         }
     };
 
@@ -123,6 +127,8 @@ async fn estimate_gas_is_not_supported_for_earliest_block() {
             data: tx.data,
             transaction_type: None,
             access_list: None,
+            max_fee_per_gas: None,
+            max_priority_fee_per_gas: None,
         }
     };
 

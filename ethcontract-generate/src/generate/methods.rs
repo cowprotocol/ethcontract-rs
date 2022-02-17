@@ -279,10 +279,12 @@ mod tests {
                     Param {
                         name: "a".to_string(),
                         kind: ParamType::Bool,
+                        internal_type: None,
                     },
                     Param {
                         name: "b".to_string(),
                         kind: ParamType::Address,
+                        internal_type: None,
                     },
                 ],
             )
@@ -302,6 +304,7 @@ mod tests {
             expand_outputs(&[Param {
                 name: "a".to_string(),
                 kind: ParamType::Bool,
+                internal_type: None,
             }])
             .unwrap(),
             { bool },
@@ -315,10 +318,12 @@ mod tests {
                 Param {
                     name: "a".to_string(),
                     kind: ParamType::Bool,
+                    internal_type: None,
                 },
                 Param {
                     name: "b".to_string(),
                     kind: ParamType::Address,
+                    internal_type: None,
                 },
             ],)
             .unwrap(),

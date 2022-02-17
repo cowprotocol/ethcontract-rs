@@ -8,7 +8,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - rust: 1.52.1
+          - rust: 1.56.1
             examples: false
             continue-on-error: false
           - rust: stable

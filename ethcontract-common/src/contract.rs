@@ -35,13 +35,7 @@ impl Contract {
     pub fn with_name(name: impl Into<String>) -> Self {
         Contract {
             name: name.into(),
-            abi: Abi {
-                constructor: None,
-                functions: HashMap::new(),
-                events: HashMap::new(),
-                fallback: false,
-                receive: false,
-            },
+            abi: Default::default(),
             bytecode: Default::default(),
             networks: HashMap::new(),
             devdoc: Default::default(),
