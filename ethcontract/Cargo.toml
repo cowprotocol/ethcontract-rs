@@ -17,8 +17,9 @@ to Ethereum smart contracts.
 name = "ethcontract"
 
 [features]
-default = ["derive", "http-tls", "ws-tls-tokio"]
+default = ["derive", "http-tls", "ws-tls-tokio", "derive-http"]
 derive = ["ethcontract-derive"]
+derive-http = ["ethcontract-derive/http"]
 http = ["web3/http"]
 http-tls = ["http", "web3/http-tls"]
 http-native-tls = ["http", "web3/http-native-tls"]

@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+#[cfg(http)]
 use curl::easy::Easy;
 use ethcontract_common::Address;
 use inflector::Inflector;
@@ -54,6 +55,7 @@ where
 }
 
 /// Performs an HTTP GET request and return the contents of the response.
+#[cfg(http)]
 pub fn http_get(url: &str) -> Result<String> {
     let mut buffer = Vec::new();
     let mut handle = Easy::new();
