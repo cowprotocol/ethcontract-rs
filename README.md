@@ -30,7 +30,7 @@ for interacting with contract functions in a type-safe way.
 
 ### Minimum Supported Rust Version
 
-The minimum supported Rust version is 1.52.
+The minimum supported Rust version is 1.56.1.
 
 ## Generator API
 

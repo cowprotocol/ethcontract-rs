@@ -3,7 +3,7 @@
 
 use futures::channel::oneshot::{channel, Sender};
 use web3::{
-    error::Error as Web3Error,
+    error::{Error as Web3Error, TransportError},
     helpers::{self},
     types::{BlockId, BlockNumber, Bytes, CallRequest},
     BatchTransport as Web3BatchTransport,
@@ -42,9 +42,9 @@ impl<T: Web3BatchTransport> CallBatch<T> {
         self.requests.push(((call, block), tx));
         async move {
             rx.await.unwrap_or_else(|_| {
-                Err(Web3Error::Transport(
+                Err(Web3Error::Transport(TransportError::Message(
                     "Batch has been dropped without executing".to_owned(),
-                ))
+                )))
             })
         }
     }
@@ -80,9 +80,8 @@ impl<T: Web3BatchTransport> CallBatch<T> {
                             .clone()
                             .and_then(helpers::decode),
                     ),
-                    Err(err) => sender.send(Err(Web3Error::Transport(format!(
-                        "Batch failed with: {}",
-                        err
+                    Err(err) => sender.send(Err(Web3Error::Transport(TransportError::Message(
+                        format!("Batch failed with: {}", err),
                     )))),
                 };
             }
@@ -140,7 +139,9 @@ mod tests {
 
         batch.execute_all(usize::MAX).immediate();
         match call.immediate().unwrap_err() {
-            Web3Error::Transport(reason) => assert!(reason.starts_with("Batch failed with:")),
+            Web3Error::Transport(TransportError::Message(reason)) => {
+                assert!(reason.starts_with("Batch failed with:"))
+            }
             _ => panic!("Wrong Error type"),
         };
     }
