@@ -11,9 +11,13 @@ description = """
 Code generation for type-safe bindings to Ethereum smart contracts.
 """
 
+[features]
+default = ["http"]
+http = ["curl"]
+
 [dependencies]
 anyhow = "1.0"
-curl = "0.4"
+curl = { version = "0.4", optional = true }
 ethcontract-common = { version = "0.16.0", path = "../ethcontract-common" }
 Inflector = "0.11"
 proc-macro2 = "1.0"

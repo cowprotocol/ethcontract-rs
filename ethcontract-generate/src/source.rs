@@ -23,8 +23,10 @@
 //!     .expect("failed to load an artifact");
 //! ```
 
+#[cfg(feature = "http")]
 use crate::util;
 use anyhow::{anyhow, Context, Error, Result};
+#[cfg(feature = "http")]
 use ethcontract_common::Address;
 use std::borrow::Cow;
 use std::env;
@@ -40,6 +42,7 @@ pub enum Source {
     Local(PathBuf),
 
     /// Resource in the internet, available via HTTP(S).
+    #[cfg(feature = "http")]
     Http(Url),
 
     /// An address of a mainnet contract, available via [Etherscan].
@@ -53,12 +56,14 @@ pub enum Source {
     ///
     /// [Etherscan]: etherscan.io
     /// [truffle loader]: ethcontract_common::artifact::truffle::TruffleLoader
+    #[cfg(feature = "http")]
     Etherscan(Address),
 
     /// The package identifier of an NPM package with a path to an artifact
     /// or ABI to be retrieved from [unpkg].
     ///
     /// [unpkg]: unpkg.io
+    #[cfg(feature = "http")]
     Npm(String),
 }
 
@@ -106,6 +111,7 @@ impl Source {
 
         match url.scheme() {
             "file" => Ok(Source::local(url.path())),
+            #[cfg(feature = "http")]
             "http" | "https" => match url.host_str() {
                 Some("etherscan.io") => Source::etherscan(
                     url.path()
@@ -115,7 +121,9 @@ impl Source {
                 ),
                 _ => Ok(Source::Http(url)),
             },
+            #[cfg(feature = "http")]
             "etherscan" => Source::etherscan(url.path()),
+            #[cfg(feature = "http")]
             "npm" => Ok(Source::npm(url.path())),
             _ => Err(anyhow!("unsupported URL '{}'", url)),
         }
@@ -127,6 +135,7 @@ impl Source {
     }
 
     /// Creates an HTTP source from a URL.
+    #[cfg(feature = "http")]
     pub fn http(url: &str) -> Result<Self> {
         Ok(Source::Http(Url::parse(url)?))
     }
@@ -134,6 +143,7 @@ impl Source {
     /// Creates an [Etherscan] source from contract address on mainnet.
     ///
     /// [Etherscan]: etherscan.io
+    #[cfg(feature = "http")]
     pub fn etherscan(address: &str) -> Result<Self> {
         util::parse_address(address)
             .context("failed to parse address for Etherscan source")
@@ -141,6 +151,7 @@ impl Source {
     }
 
     /// Creates an NPM source from a package path.
+    #[cfg(feature = "http")]
     pub fn npm(package_path: impl Into<String>) -> Self {
         Source::Npm(package_path.into())
     }
@@ -157,8 +168,11 @@ impl Source {
     pub fn artifact_json(&self) -> Result<String> {
         match self {
             Source::Local(path) => get_local_contract(path),
+            #[cfg(feature = "http")]
             Source::Http(url) => get_http_contract(url),
+            #[cfg(feature = "http")]
             Source::Etherscan(address) => get_etherscan_contract(*address),
+            #[cfg(feature = "http")]
             Source::Npm(package) => get_npm_contract(package),
         }
     }
@@ -192,12 +206,14 @@ fn get_local_contract(path: &Path) -> Result<String> {
     Ok(abi_or_artifact(json))
 }
 
+#[cfg(feature = "http")]
 fn get_http_contract(url: &Url) -> Result<String> {
     let json = util::http_get(url.as_str())
         .with_context(|| format!("failed to retrieve JSON from {}", url))?;
     Ok(abi_or_artifact(json))
 }
 
+#[cfg(feature = "http")]
 fn get_etherscan_contract(address: Address) -> Result<String> {
     // NOTE: We do not retrieve the bytecode since deploying contracts with the
     //   same bytecode is unreliable as the libraries have already linked and
@@ -225,6 +241,7 @@ fn get_etherscan_contract(address: Address) -> Result<String> {
     Ok(json)
 }
 
+#[cfg(feature = "http")]
 fn get_npm_contract(package: &str) -> Result<String> {
     let unpkg_url = format!("https://unpkg.com/{}", package);
     let json = util::http_get(&unpkg_url)
@@ -268,18 +285,22 @@ mod tests {
                 "/absolute/Contract.json",
                 Source::local("/absolute/Contract.json"),
             ),
+            #[cfg(feature = "http")]
             (
                 "https://my.domain.eth/path/to/Contract.json",
                 Source::http("https://my.domain.eth/path/to/Contract.json").unwrap(),
             ),
+            #[cfg(feature = "http")]
             (
                 "etherscan:0x0001020304050607080910111213141516171819",
                 Source::etherscan("0x0001020304050607080910111213141516171819").unwrap(),
             ),
+            #[cfg(feature = "http")]
             (
                 "https://etherscan.io/address/0x0001020304050607080910111213141516171819",
                 Source::etherscan("0x0001020304050607080910111213141516171819").unwrap(),
             ),
+            #[cfg(feature = "http")]
             (
                 "npm:@openzeppelin/contracts@2.5.0/build/contracts/IERC20.json",
                 Source::npm("@openzeppelin/contracts@2.5.0/build/contracts/IERC20.json"),
