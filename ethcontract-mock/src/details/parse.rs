@@ -91,7 +91,7 @@ impl Parser {
 impl Drop for Parser {
     fn drop(&mut self) {
         assert!(
-            !(!std::thread::panicking() && self.current < self.args.len()),
+            std::thread::panicking() || self.current >= self.args.len(),
             "too many arguments for rpc call {:?}",
             self.name
         );
