@@ -716,7 +716,7 @@ impl Contract {
         //
         // We could support receive/fallback functions if data is empty.
 
-        assert!(!(data.len() < 4), "transaction has invalid call data");
+        assert!(data.len() >= 4, "transaction has invalid call data");
 
         let signature = H32::try_from(&data[0..4]).unwrap();
         let method = self.method(signature);
