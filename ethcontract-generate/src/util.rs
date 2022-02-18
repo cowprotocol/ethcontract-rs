@@ -103,7 +103,7 @@ mod tests {
     #[test]
     fn parse_address_address_too_short() {
         assert!(
-            !parse_address("0x00000000000000").is_ok(),
+            parse_address("0x00000000000000").is_err(),
             "parsing address not starting with 0x should fail"
         );
     }
