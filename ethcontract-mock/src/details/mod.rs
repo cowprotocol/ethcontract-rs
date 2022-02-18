@@ -603,7 +603,7 @@ impl MockTransport {
 
         let nonce = state.nonce.entry(tx.from).or_insert(0);
         assert!(
-            !(*nonce != tx.nonce.as_u64()),
+            *nonce == tx.nonce.as_u64(),
             "nonce mismatch for account {:#x}: expected {}, actual {}",
             tx.from,
             tx.nonce.as_u64(),
