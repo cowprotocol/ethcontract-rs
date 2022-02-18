@@ -783,7 +783,7 @@ impl Method {
         generation: usize,
     ) -> &mut Expectation<P, R> {
         assert!(
-            !(generation != self.generation),
+            generation == self.generation,
             "old expectations are not valid after checkpoint"
         );
 
