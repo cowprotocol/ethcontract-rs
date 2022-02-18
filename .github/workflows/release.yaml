@@ -5,6 +5,8 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_TOKEN }}
     steps:
       - uses: actions/checkout@v2
-      - run: ci/deploy.sh --tag ${GITHUB_REF#refs/tags/} --token ${{ secrets.CARGO_TOKEN }}
+      - run: ci/deploy.sh --tag ${GITHUB_REF#refs/tags/}

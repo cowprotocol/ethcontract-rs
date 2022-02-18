@@ -7,7 +7,6 @@ tag=""
 options=""
 while [[ $# -gt 0 ]]; do
 	case $1 in
-		--token) token="$2"; shift;;
 		--tag) tag="$2"; shift;;
 		--dry-run) options+="$1 ";;
 		-v|-vv|--verbose) options+="$1 ";;
@@ -19,7 +18,6 @@ USAGE:
     $0 [OPTIONS]
 
 OPTIONS:
-        --token <TOKEN>     Token to use when uploading
         --tag <TAG>         The current tag being deployed
         --dry-run           Perform all checks without uploading
     -v, --verbose           Use verbose output (-vv very verbose output)
@@ -37,8 +35,8 @@ EOF
 	shift
 done
 
-if  [[ -z "$tag" || -z "$token" ]]; then
-	>&2 echo "ERROR: missing tag and/or token parameters"
+if  [[ -z "$tag" ]]; then
+	>&2 echo "ERROR: missing tag parameter"
 	exit 1
 fi
 
@@ -57,7 +55,7 @@ check_manifest_version ethcontract/Cargo.toml
 check_manifest_version ethcontract-mock/Cargo.toml
 
 function cargo_publish {
-	(cd $1; cargo publish --token $token $options)
+	(cd $1; cargo publish $options)
 
 	# NOTE(nlordell): For some reason, the next publish fails on not being able
 	#   to find the new version; maybe it takes a second for crates.io to update
