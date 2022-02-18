@@ -45,7 +45,7 @@ pub fn verify(raw_tx: &[u8], node_chain_id: u64) -> Transaction {
     };
 
     assert!(
-        !(chain_id != node_chain_id),
+        chain_id == node_chain_id,
         "invalid transaction signature, chain id mismatch"
     );
 
