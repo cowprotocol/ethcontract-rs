@@ -234,19 +234,25 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
     }
 
     fn decompose(self) -> (Function, CallRequest, Option<BlockId>) {
+        let resolved_gas_price = self
+            .m
+            .tx
+            .gas_price
+            .map(|gas_price| gas_price.resolve_for_transaction())
+            .unwrap_or_default();
         (
             self.m.function,
             CallRequest {
                 from: self.m.tx.from.map(|account| account.address()),
                 to: Some(self.m.tx.to.unwrap_or_default()),
                 gas: self.m.tx.gas,
-                gas_price: self.m.tx.gas_price.and_then(|gas_price| gas_price.value()),
+                gas_price: resolved_gas_price.gas_price,
                 value: self.m.tx.value,
                 data: self.m.tx.data,
-                transaction_type: None,
+                transaction_type: resolved_gas_price.transaction_type,
                 access_list: None,
-                max_fee_per_gas: None,
-                max_priority_fee_per_gas: None,
+                max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+                max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
             },
             self.block,
         )
@@ -315,7 +321,7 @@ mod tests {
         let tx = MethodBuilder::<_, U256>::new(web3, function, address, data.clone())
             .from(Account::Local(from, None))
             .gas(1.into())
-            .gas_price(2.into())
+            .gas_price(2.0.into())
             .value(28.into())
             .nonce(42.into())
             .into_inner();
@@ -323,7 +329,7 @@ mod tests {
         assert_eq!(tx.from.map(|a| a.address()), Some(from));
         assert_eq!(tx.to, Some(address));
         assert_eq!(tx.gas, Some(1.into()));
-        assert_eq!(tx.gas_price, Some(2.into()));
+        assert_eq!(tx.gas_price, Some(2.0.into()));
         assert_eq!(tx.value, Some(28.into()));
         assert_eq!(tx.data, Some(data));
         assert_eq!(tx.nonce, Some(42.into()));
@@ -346,7 +352,7 @@ mod tests {
         ))
         .from(from)
         .gas(1.into())
-        .gas_price(2.into())
+        .gas_price(2.0.into())
         .value(28.into())
         .block(BlockId::Number(100.into()));
 
@@ -415,13 +421,13 @@ mod tests {
             .with_defaults(&MethodDefaults {
                 from: Some(Account::Local(from, None)),
                 gas: Some(1.into()),
-                gas_price: Some(2.into()),
+                gas_price: Some(2.0.into()),
             })
             .into_inner();
 
         assert_eq!(tx.from.map(|a| a.address()), Some(from));
         assert_eq!(tx.gas, Some(1.into()));
-        assert_eq!(tx.gas_price, Some(2.into()));
+        assert_eq!(tx.gas_price, Some(2.0.into()));
         transport.assert_no_more_requests();
     }
 }
