@@ -13,7 +13,7 @@ pub use self::send::TransactionResult;
 use crate::errors::ExecutionError;
 use crate::secret::{Password, PrivateKey};
 use web3::api::Web3;
-use web3::types::{Address, Bytes, CallRequest, TransactionCondition, U256};
+use web3::types::{AccessList, Address, Bytes, CallRequest, TransactionCondition, U256};
 use web3::Transport;
 
 /// The account type used for signing the transaction.
@@ -88,6 +88,8 @@ pub struct TransactionBuilder<T: Transport> {
     /// Optional resolve conditions. Defaults to waiting the transaction to be
     /// mined without any extra confirmation blocks.
     pub resolve: Option<ResolveCondition>,
+    /// Access list
+    pub access_list: Option<AccessList>,
 }
 
 impl<T: Transport> TransactionBuilder<T> {
@@ -103,6 +105,7 @@ impl<T: Transport> TransactionBuilder<T> {
             data: None,
             nonce: None,
             resolve: None,
+            access_list: None,
         }
     }
 
@@ -162,6 +165,12 @@ impl<T: Transport> TransactionBuilder<T> {
         self
     }
 
+    /// Specify the access list for the transaction, if not specified no access list will be used.
+    pub fn access_list(mut self, value: AccessList) -> Self {
+        self.access_list = Some(value);
+        self
+    }
+
     /// Specify the number of confirmations to use for the confirmation options.
     /// This is a utility method for specifying the resolve condition.
     pub fn confirmations(mut self, value: usize) -> Self {
@@ -197,7 +206,7 @@ impl<T: Transport> TransactionBuilder<T> {
                     value: self.value,
                     data: self.data.clone(),
                     transaction_type: resolved_gas_price.transaction_type,
-                    access_list: None,
+                    access_list: self.access_list,
                     max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
                     max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
                 },
@@ -214,7 +223,7 @@ mod tests {
     use crate::errors::ExecutionError;
     use crate::test::prelude::*;
     use hex_literal::hex;
-    use web3::types::{H2048, H256};
+    use web3::types::{H2048, H256, AccessListItem};
 
     #[test]
     fn tx_builder_estimate_gas() {
@@ -260,6 +269,7 @@ mod tests {
             .value(28.into())
             .data(Bytes(vec![0x13, 0x37]))
             .nonce(42.into())
+            .access_list(vec![AccessListItem::default()])
             .resolve(ResolveCondition::Pending)
             .send()
             .immediate()
@@ -277,6 +287,10 @@ mod tests {
                 "value": "0x1c",
                 "data": "0x1337",
                 "nonce": "0x2a",
+                "accessList": [{
+                    "address": "0x0000000000000000000000000000000000000000",
+                    "storageKeys": [],
+                }],
                 "condition": { "block": 100 },
             })],
         );

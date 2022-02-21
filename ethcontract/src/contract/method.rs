@@ -6,7 +6,7 @@ use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResul
 use crate::{batch::CallBatch, errors::MethodError, tokens::Tokenize};
 use ethcontract_common::abi::{Function, Token};
 use std::marker::PhantomData;
-use web3::types::{Address, BlockId, Bytes, CallRequest, U256};
+use web3::types::{Address, BlockId, Bytes, CallRequest, U256, AccessList};
 use web3::Transport;
 use web3::{api::Web3, BatchTransport};
 
@@ -114,6 +114,12 @@ impl<T: Transport, R: Tokenize> MethodBuilder<T, R> {
         self
     }
 
+    /// Specify the access list for the transaction, if not specified no access list will be used.
+    pub fn access_list(mut self, value: AccessList) -> Self {
+        self.tx = self.tx.access_list(value);
+        self
+    }
+
     /// Extract inner `TransactionBuilder` from this `SendBuilder`. This exposes
     /// `TransactionBuilder` only APIs.
     pub fn into_inner(self) -> TransactionBuilder<T> {
@@ -203,6 +209,12 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
         self
     }
 
+    /// Specify the access list for the transaction, if not specified no access list will be used.
+    pub fn access_list(mut self, value: AccessList) -> Self {
+        self.m = self.m.access_list(value);
+        self
+    }
+
     /// Specify the block height for the call, if not specified then latest
     /// mined block will be used.
     pub fn block(mut self, value: BlockId) -> Self {
@@ -250,7 +262,7 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
                 value: self.m.tx.value,
                 data: self.m.tx.data,
                 transaction_type: resolved_gas_price.transaction_type,
-                access_list: None,
+                access_list: self.m.tx.access_list,
                 max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
                 max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
             },
@@ -289,6 +301,7 @@ mod tests {
     use super::*;
     use crate::test::prelude::*;
     use ethcontract_common::abi::{Param, ParamType};
+    use web3::types::AccessListItem;
 
     fn test_abi_function() -> (Function, Bytes) {
         #[allow(deprecated)]
@@ -324,6 +337,7 @@ mod tests {
             .gas_price(2.0.into())
             .value(28.into())
             .nonce(42.into())
+            .access_list(vec![AccessListItem::default()])
             .into_inner();
 
         assert_eq!(tx.from.map(|a| a.address()), Some(from));
@@ -333,6 +347,7 @@ mod tests {
         assert_eq!(tx.value, Some(28.into()));
         assert_eq!(tx.data, Some(data));
         assert_eq!(tx.nonce, Some(42.into()));
+        assert_eq!(tx.access_list, Some(vec![AccessListItem::default()]));
         transport.assert_no_more_requests();
     }
 
