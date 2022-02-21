@@ -6,7 +6,7 @@ use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResul
 use crate::{batch::CallBatch, errors::MethodError, tokens::Tokenize};
 use ethcontract_common::abi::{Function, Token};
 use std::marker::PhantomData;
-use web3::types::{Address, BlockId, Bytes, CallRequest, U256, AccessList};
+use web3::types::{AccessList, Address, BlockId, Bytes, CallRequest, U256};
 use web3::Transport;
 use web3::{api::Web3, BatchTransport};
 

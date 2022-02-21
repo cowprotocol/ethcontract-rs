@@ -223,7 +223,7 @@ mod tests {
     use crate::errors::ExecutionError;
     use crate::test::prelude::*;
     use hex_literal::hex;
-    use web3::types::{H2048, H256, AccessListItem};
+    use web3::types::{AccessListItem, H2048, H256};
 
     #[test]
     fn tx_builder_estimate_gas() {
