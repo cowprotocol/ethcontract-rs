@@ -10,8 +10,8 @@ use crate::transaction::gas_price::GasPrice;
 use crate::transaction::{Account, TransactionBuilder};
 use web3::api::Web3;
 use web3::types::{
-    Address, Bytes, CallRequest, RawTransaction, SignedTransaction, TransactionCondition,
-    TransactionParameters, TransactionRequest, H256, U256,
+    AccessList, Address, Bytes, CallRequest, RawTransaction, SignedTransaction,
+    TransactionCondition, TransactionParameters, TransactionRequest, H256, U256,
 };
 use web3::Transport;
 
@@ -29,6 +29,7 @@ impl<T: Transport> TransactionBuilder<T> {
             value: self.value,
             data: self.data,
             nonce: self.nonce,
+            access_list: self.access_list,
         };
 
         let tx = match self.from {
@@ -127,6 +128,8 @@ struct TransactionOptions {
     pub data: Option<Bytes>,
     /// The transaction nonce.
     pub nonce: Option<U256>,
+    /// The access list
+    pub access_list: Option<AccessList>,
 }
 
 /// Transaction options specific to `TransactionRequests` since they may also
@@ -154,7 +157,7 @@ impl TransactionRequestOptions {
             nonce: self.0.nonce,
             condition: self.1,
             transaction_type: resolved_gas_price.transaction_type,
-            access_list: None,
+            access_list: self.0.access_list,
             max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
             max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
         }
@@ -224,7 +227,7 @@ async fn build_offline_signed_transaction<T: Transport>(
                 data: options.data.unwrap_or_default(),
                 chain_id,
                 transaction_type: resolved_gas_price.transaction_type,
-                access_list: None,
+                access_list: options.access_list,
                 max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
                 max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
             },
@@ -257,7 +260,7 @@ async fn resolve_gas_limit<T: Transport>(
                     value: options.value,
                     data: options.data.clone(),
                     transaction_type: resolved_gas_price.transaction_type,
-                    access_list: None,
+                    access_list: options.access_list.clone(),
                     max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
                     max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
                 },
