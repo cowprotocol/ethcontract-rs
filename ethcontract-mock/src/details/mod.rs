@@ -93,6 +93,13 @@ impl MockTransport {
         address
     }
 
+    /// Deploys a new contract with the given ABI and address
+    pub fn deploy_with_address(&self, abi: &Abi, address: Address) {
+        let mut state = self.state.lock().unwrap();
+
+        state.contracts.insert(address, Contract::new(address, abi));
+    }
+
     pub fn update_gas_price(&self, gas_price: u64) {
         let mut state = self.state.lock().unwrap();
         state.gas_price = gas_price;
