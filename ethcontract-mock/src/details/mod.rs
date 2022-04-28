@@ -102,7 +102,8 @@ impl MockTransport {
                 .contracts
                 .insert(address, Contract::new(address, abi))
                 .is_none(),
-            "replacing contract at address {address:?}",
+            "replacing contract at address {:?}",
+            address
         );
     }
 
