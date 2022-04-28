@@ -289,6 +289,17 @@ impl Mock {
         }
     }
 
+    /// Deploys a new mocked contract with specified address and returns an object that allows
+    /// configuring expectations for contract methods.
+    pub fn deploy_with_address(&self, abi: Abi, address: Address) -> Contract {
+        self.transport.deploy_with_address(&abi, address);
+        Contract {
+            transport: self.transport.clone(),
+            address,
+            abi,
+        }
+    }
+
     /// Updates gas price that is returned by RPC call `eth_gasPrice`.
     ///
     /// Mock node does not simulate gas consumption, so this value does not
