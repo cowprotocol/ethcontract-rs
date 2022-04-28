@@ -97,7 +97,13 @@ impl MockTransport {
     pub fn deploy_with_address(&self, abi: &Abi, address: Address) {
         let mut state = self.state.lock().unwrap();
 
-        state.contracts.insert(address, Contract::new(address, abi));
+        assert!(
+            state
+                .contracts
+                .insert(address, Contract::new(address, abi))
+                .is_none(),
+            "replacing contract at address {address:?}",
+        );
     }
 
     pub fn update_gas_price(&self, gas_price: u64) {
