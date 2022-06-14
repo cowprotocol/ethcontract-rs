@@ -15,7 +15,7 @@ async fn returns_default() -> Result {
 
     let instance = AbiTypes::at(&contract.web3(), contract.address);
 
-    let _: () = instance.get_void().call().await?;
+    instance.get_void().call().await?;
     assert_eq!(instance.get_u8().call().await?, 0);
     assert_eq!(instance.abiv_2_struct((1, 2)).call().await?, (0, 0));
     assert_eq!(
@@ -57,7 +57,7 @@ async fn returns_const() -> Result {
 
     let instance = AbiTypes::at(&contract.web3(), contract.address);
 
-    let _: () = instance.get_void().call().await?;
+    instance.get_void().call().await?;
     assert_eq!(instance.get_u8().call().await?, 42);
     assert_eq!(instance.abiv_2_struct((1, 2)).call().await?, (1, 2));
     assert_eq!(
@@ -101,7 +101,7 @@ async fn returns_fn() -> Result {
 
     let instance = AbiTypes::at(&contract.web3(), contract.address);
 
-    let _: () = instance.get_void().call().await?;
+    instance.get_void().call().await?;
     assert_eq!(instance.get_u8().call().await?, 42);
     assert_eq!(instance.abiv_2_struct((1, 2)).call().await?, (1, 2));
     assert_eq!(
@@ -145,7 +145,7 @@ async fn returns_fn_ctx() -> Result {
 
     let instance = AbiTypes::at(&contract.web3(), contract.address);
 
-    let _: () = instance.get_void().call().await?;
+    instance.get_void().call().await?;
     assert_eq!(instance.get_u8().call().await?, 42);
     assert_eq!(instance.abiv_2_struct((1, 2)).call().await?, (1, 2));
     assert_eq!(

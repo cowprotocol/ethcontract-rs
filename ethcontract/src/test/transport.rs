@@ -36,8 +36,8 @@ impl Transport for TestTransport {
     }
 
     fn send(&self, id: RequestId, request: Call) -> Self::Out {
-        let mut inner = self.inner.lock().unwrap();
-        match inner.responses.pop_front() {
+        let response = self.inner.lock().unwrap().responses.pop_front();
+        match response {
             Some(response) => future::ok(response),
             None => {
                 println!("Unexpected request (id: {:?}): {:?}", id, request);

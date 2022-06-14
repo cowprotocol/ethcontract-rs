@@ -231,7 +231,7 @@ fn expand_deployment_information(deployment: Option<DeploymentInformation>) -> T
                 Some(ethcontract::common::DeploymentInformation::TransactionHash([#( #bytes ),*].into()))
             }
         }
-        None => return quote! { None },
+        None => quote! { None },
     }
 }
 

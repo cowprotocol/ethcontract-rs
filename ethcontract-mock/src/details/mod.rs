@@ -114,7 +114,8 @@ impl MockTransport {
 
     pub fn checkpoint(&self) {
         let mut state = self.state.lock().unwrap();
-        for contract in state.contracts.values_mut() {
+        let contracts = state.contracts.values_mut();
+        for contract in contracts {
             contract.checkpoint();
         }
     }

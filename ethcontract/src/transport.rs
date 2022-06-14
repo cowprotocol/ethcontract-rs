@@ -169,8 +169,7 @@ mod tests {
         dyn_transport
             .execute("test", vec![json!(42)])
             .immediate()
-            .err()
-            .expect("failed");
+            .expect_err("failed");
         transport.assert_request("test", &[json!(42)]);
         transport.assert_no_more_requests();
     }
