@@ -19,7 +19,7 @@ pub use web3::types::Address;
 pub use web3::types::H256 as TransactionHash;
 
 /// Information about when a contract instance was deployed
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeploymentInformation {
     /// The block at which the contract was deployed

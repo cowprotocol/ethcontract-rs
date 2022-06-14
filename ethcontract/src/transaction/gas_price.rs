@@ -3,7 +3,7 @@
 use primitive_types::U256;
 use web3::types::U64;
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq)]
 /// Data related to gas price, prepared for populating the transaction object.
 pub struct ResolvedTransactionGasPrice {
     /// Legacy gas price, populated if transaction type is legacy
@@ -18,7 +18,7 @@ pub struct ResolvedTransactionGasPrice {
 }
 
 /// The gas price setting to use.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GasPrice {
     /// Legacy type of transactions, using single gas price value. Equivalent to sending
     /// eip1559 transaction with max_fee_per_gas = max_priority_fee_per_gas = gas_price
