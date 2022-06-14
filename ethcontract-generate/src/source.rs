@@ -110,7 +110,7 @@ impl Source {
         let url = base.join(source.as_ref())?;
 
         match url.scheme() {
-            "file" => Ok(Source::local(url.path())),
+            "file" => Ok(Source::local(root.join(source))),
             #[cfg(feature = "http")]
             "http" | "https" => match url.host_str() {
                 Some("etherscan.io") => Source::etherscan(
