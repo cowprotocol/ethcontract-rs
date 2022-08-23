@@ -1,7 +1,7 @@
 //! Module contains code for parsing and manipulating event data.
 use crate::{errors::ExecutionError, tokens::Tokenize};
 use ethcontract_common::abi::{Event as AbiEvent, RawLog as AbiRawLog, Token};
-use web3::types::{Log, H256};
+use web3::types::{Log, H160, H256};
 
 /// A contract event
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -125,6 +125,8 @@ impl<T> Event<EventStatus<T>> {
 /// Additional metadata from the log for the event.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EventMetadata {
+    /// From which this event originated from
+    pub address: H160,
     /// The hash of the block where the log was produced.
     pub block_hash: H256,
     /// The number of the block where the log was produced.
@@ -146,6 +148,7 @@ pub struct EventMetadata {
 impl EventMetadata {
     fn from_log(log: &Log) -> Option<Self> {
         Some(EventMetadata {
+            address: log.address,
             block_hash: log.block_hash?,
             block_number: log.block_number?.as_u64(),
             transaction_hash: log.transaction_hash?,
