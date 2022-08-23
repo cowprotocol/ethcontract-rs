@@ -64,6 +64,7 @@ struct MockTransportState {
     receipts: HashMap<H256, TransactionReceipt>,
 }
 
+#[allow(clippy::type_complexity)]
 impl MockTransport {
     /// Creates a new transport.
     pub fn new(chain_id: u64) -> Self {
@@ -1007,7 +1008,7 @@ impl<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> ExpectationApi
     }
 }
 
-#[allow(clippy::enum_variant_names)]
+#[allow(clippy::enum_variant_names, clippy::type_complexity)]
 enum Predicate<P: Tokenize + Send + 'static> {
     None,
     Predicate(Box<dyn predicates::Predicate<P> + Send>),
@@ -1026,6 +1027,7 @@ impl<P: Tokenize + Send + 'static> Predicate<P> {
     }
 }
 
+#[allow(clippy::type_complexity)]
 enum Returns<P: Tokenize + Send + 'static, R: Tokenize + Send + 'static> {
     Default,
     Error(String),
