@@ -17,6 +17,9 @@ pub struct Contract {
     pub abi: Abi,
     /// The contract deployment bytecode.
     pub bytecode: Bytecode,
+    /// The contract's expected deployed bytecode.
+    #[serde(rename = "deployedBytecode")]
+    pub deployed_bytecode: Bytecode,
     /// The configured networks by network ID for the contract.
     pub networks: HashMap<String, Network>,
     /// The developer documentation.
@@ -37,6 +40,7 @@ impl Contract {
             name: name.into(),
             abi: Default::default(),
             bytecode: Default::default(),
+            deployed_bytecode: Default::default(),
             networks: HashMap::new(),
             devdoc: Default::default(),
             userdoc: Default::default(),
