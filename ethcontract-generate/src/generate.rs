@@ -130,8 +130,7 @@ fn expand_contract(cx: &Context) -> Result<TokenStream> {
     let events = events::expand(cx)?;
 
     Ok(quote! {
-        #[allow(dead_code)]
-        #[allow(clippy::type_complexity)]
+        #[allow(dead_code, clippy::type_complexity)]
         #vis mod #contract_mod {
             #[rustfmt::skip]
             use #runtime_crate as ethcontract;
