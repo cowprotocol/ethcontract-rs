@@ -120,6 +120,15 @@ makes a method call.
 cargo run --example linked
 ```
 
+#### Deployed Bytecode
+
+The `bytecode` example deploys a contract and verifies its bytecode matches the
+expected value from the contract artifact.
+
+```sh
+cargo run --example bytecode
+```
+
 ### Rinkeby Example
 
 There is a provided example that runs with Rinkeby and Infura. Running this
