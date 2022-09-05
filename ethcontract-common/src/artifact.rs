@@ -159,6 +159,11 @@ impl<'a> ContractMut<'a> {
         &mut self.0.bytecode
     }
 
+    /// Returns mutable reference to contract's bytecode.
+    pub fn deployed_bytecode_mut(&mut self) -> &mut Bytecode {
+        &mut self.0.deployed_bytecode
+    }
+
     /// Returns mutable reference to contract's networks.
     pub fn networks_mut(&mut self) -> &mut HashMap<String, Network> {
         &mut self.0.networks
