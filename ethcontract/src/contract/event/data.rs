@@ -123,7 +123,7 @@ impl<T> Event<EventStatus<T>> {
 }
 
 /// Additional metadata from the log for the event.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct EventMetadata {
     /// From which this event originated from
     pub address: H160,
