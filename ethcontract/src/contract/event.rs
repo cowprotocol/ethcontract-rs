@@ -213,6 +213,13 @@ impl<T: Transport, E: ParseLog> AllEventsBuilder<T, E> {
         self
     }
 
+    /// Sets `block_hash`. The field `block_hash` and the pair `from_block` and
+    /// `to_block` are mutually exclusive.
+    pub fn block_hash(mut self, hash: H256) -> Self {
+        self.filter = self.filter.block_hash(hash);
+        self
+    }
+
     /// Adds a filter for the first indexed topic.
     ///
     /// For regular events, this corresponds to the event signature. For
