@@ -1,6 +1,6 @@
 [package]
 name = "ethcontract"
-version = "0.19.0"
+version = "0.20.0"
 authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -32,8 +32,8 @@ ipc-tokio = ["web3/ipc-tokio"]
 
 [dependencies]
 arrayvec = "0.7"
-ethcontract-common = { version = "0.19.0", path = "../ethcontract-common" }
-ethcontract-derive = { version = "0.19.0", path = "../ethcontract-derive", optional = true, default-features = false }
+ethcontract-common = { version = "0.20.0", path = "../ethcontract-common" }
+ethcontract-derive = { version = "0.20.0", path = "../ethcontract-derive", optional = true, default-features = false }
 futures = "0.3"
 futures-timer = "3.0"
 hex = "0.4"
