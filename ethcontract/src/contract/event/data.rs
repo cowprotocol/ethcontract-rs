@@ -202,7 +202,7 @@ impl From<Log> for RawLog {
 
 /// Trait for parsing a transaction log into an some event data when the
 /// expected event type is not known.
-pub trait ParseLog: Sized {
+pub trait ParseLog: Sized + Send + Sync {
     /// Create a new instance by parsing raw log data.
     fn parse_log(log: RawLog) -> Result<Self, ExecutionError>;
 }
