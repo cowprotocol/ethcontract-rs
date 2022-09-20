@@ -21,7 +21,7 @@ pub struct PrivateKey(Zeroizing<ZeroizeableSecretKey>);
 impl PrivateKey {
     /// Creates a new private key from raw bytes.
     pub fn from_raw(raw: [u8; 32]) -> Result<Self, InvalidPrivateKey> {
-        PrivateKey::from_slice(&raw)
+        PrivateKey::from_slice(raw)
     }
 
     /// Creates a new private key from a slice of bytes.

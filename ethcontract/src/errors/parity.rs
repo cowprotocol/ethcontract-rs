@@ -17,7 +17,7 @@ pub fn get_encoded_error(err: &JsonrpcError) -> Option<ExecutionError> {
         if hex.is_empty() {
             return Some(ExecutionError::Revert(None));
         } else {
-            let bytes = hex::decode(&hex).ok()?;
+            let bytes = hex::decode(hex).ok()?;
             let reason = revert::decode_reason(&bytes)?;
             return Some(ExecutionError::Revert(Some(reason)));
         }

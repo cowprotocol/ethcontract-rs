@@ -271,7 +271,7 @@ impl<T: Transport> Instance<T> {
             .events
             .get(&signature)
             .map(|(name, index)| &self.abi.events[name][*index])
-            .ok_or_else(|| AbiError::InvalidName(hex::encode(&signature)))?;
+            .ok_or_else(|| AbiError::InvalidName(hex::encode(signature)))?;
 
         Ok(EventBuilder::new(
             self.web3(),
