@@ -35,6 +35,8 @@ pub struct LogFilterBuilder<T: Transport> {
     ///
     /// See [`web3::types::BlockNumber`] for more details on possible values.
     pub to_block: Option<BlockNumber>,
+    /// Block hash, mutually exclusive with pair `from_block` / `to_block`.
+    pub block_hash: Option<H256>,
     /// The contract addresses to filter logs for.
     pub address: Vec<Address>,
     /// Topic filters used for filtering logs based on indexed topics.
@@ -64,6 +66,7 @@ impl<T: Transport> LogFilterBuilder<T> {
             limit: None,
             block_page_size: None,
             poll_interval: None,
+            block_hash: None,
         }
     }
 
@@ -82,6 +85,13 @@ impl<T: Transport> LogFilterBuilder<T> {
     #[allow(clippy::wrong_self_convention)]
     pub fn to_block(mut self, block: BlockNumber) -> Self {
         self.to_block = Some(block);
+        self
+    }
+
+    /// Sets `block_hash`. The field `block_hash` and the pair `from_block` and
+    /// `to_block` are mutually exclusive.
+    pub fn block_hash(mut self, hash: H256) -> Self {
+        self.block_hash = Some(hash);
         self
     }
 
@@ -153,6 +163,9 @@ impl<T: Transport> LogFilterBuilder<T> {
         }
         if let Some(to_block) = self.to_block {
             filter = filter.to_block(to_block);
+        }
+        if let Some(hash) = self.block_hash {
+            filter = filter.block_hash(hash);
         }
         if !self.address.is_empty() {
             filter = filter.address(self.address);

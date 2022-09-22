@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 /// Formats the raw input source string and return formatted output.
 pub fn format(source: &str) -> Result<String> {
     let mut rustfmt = Command::new("rustfmt")
-        .args(&["--edition", "2018"])
+        .args(["--edition", "2018"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
