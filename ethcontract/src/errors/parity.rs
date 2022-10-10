@@ -17,9 +17,13 @@ pub fn get_encoded_error(err: &JsonrpcError) -> Option<ExecutionError> {
         if hex.is_empty() {
             return Some(ExecutionError::Revert(None));
         } else {
-            let bytes = hex::decode(hex).ok()?;
-            let reason = revert::decode_reason(&bytes)?;
-            return Some(ExecutionError::Revert(Some(reason)));
+            match hex::decode(hex)
+                .ok()
+                .and_then(|bytes| revert::decode_reason(&bytes))
+            {
+                Some(reason) => return Some(ExecutionError::Revert(Some(reason))),
+                None => return Some(ExecutionError::Revert(None)),
+            }
         }
     } else if message.starts_with(INVALID) {
         return Some(ExecutionError::InvalidOpcode);
