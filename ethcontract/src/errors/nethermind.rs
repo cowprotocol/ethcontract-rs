@@ -1,5 +1,5 @@
-//! This module implements Parity specific error decoding in order to try and
-//! provide more accurate errors from Parity nodes.
+//! This module implements Nethermind specific error decoding in order to try and
+//! provide more accurate errors from Nethermind nodes.
 
 use crate::errors::{revert, ExecutionError};
 use jsonrpc_core::Error as JsonrpcError;
@@ -9,7 +9,7 @@ const REVERTED: &str = "Reverted 0x";
 /// Invalid op-code error discriminant.
 const INVALID: &str = "Bad instruction";
 
-/// Tries to get a more accurate error from a generic Parity JSON RPC error.
+/// Tries to get a more accurate error from a generic Nethermind JSON RPC error.
 /// Returns `None` when a more accurate error cannot be determined.
 pub fn get_encoded_error(err: &JsonrpcError) -> Option<ExecutionError> {
     let message = get_error_message(err)?;
@@ -17,9 +17,13 @@ pub fn get_encoded_error(err: &JsonrpcError) -> Option<ExecutionError> {
         if hex.is_empty() {
             return Some(ExecutionError::Revert(None));
         } else {
-            let bytes = hex::decode(hex).ok()?;
-            let reason = revert::decode_reason(&bytes)?;
-            return Some(ExecutionError::Revert(Some(reason)));
+            match hex::decode(hex)
+                .ok()
+                .and_then(|bytes| revert::decode_reason(&bytes))
+            {
+                Some(reason) => return Some(ExecutionError::Revert(Some(reason))),
+                None => return Some(ExecutionError::Revert(None)),
+            }
         }
     } else if message.starts_with(INVALID) {
         return Some(ExecutionError::InvalidOpcode);
@@ -71,6 +75,18 @@ mod tests {
     #[test]
     fn execution_error_from_revert() {
         let jsonrpc_err = rpc_error("Reverted 0x");
+        let err = get_encoded_error(&jsonrpc_err);
+
+        assert!(
+            matches!(err, Some(ExecutionError::Revert(None))),
+            "bad error conversion {:?}",
+            err
+        );
+    }
+
+    #[test]
+    fn execution_error_from_revert_failed_decode() {
+        let jsonrpc_err = rpc_error("Reverted 0x01020304");
         let err = get_encoded_error(&jsonrpc_err);
 
         assert!(
