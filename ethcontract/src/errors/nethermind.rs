@@ -29,6 +29,10 @@ pub fn get_encoded_error(err: &JsonrpcError) -> Option<ExecutionError> {
         return Some(ExecutionError::InvalidOpcode);
     }
 
+    if err.message == "VM execution error" {
+        return Some(ExecutionError::Revert(None));
+    }
+
     None
 }
 
