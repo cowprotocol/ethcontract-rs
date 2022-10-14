@@ -65,6 +65,6 @@ jobs:
               # cargo run --package examples-generate
               # cargo run --package examples --example rinkeby
               # cargo run --package examples --example sources
-            fi
+            # fi
             kill %1
           fi
