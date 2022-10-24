@@ -571,10 +571,10 @@
   resolved "https://registry.yarnpkg.com/@nodefactory/filsnap-types/-/filsnap-types-0.2.2.tgz#f95cbf93ce5815d8d151c60663940086b015cb8f"
   integrity sha512-XT1tE2vrYF2D0tSNNekgjqKRpqPQn4W72eKul9dDCul/8ykouhqnVTyjFHYvBhlBWE0PK3nmG7i83QvhgGSiMw==
 
-"@openzeppelin/contracts@^4.4.2":
-  version "4.4.2"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.4.2.tgz#4e889c9c66e736f7de189a53f8ba5b8d789425c2"
-  integrity sha512-NyJV7sJgoGYqbtNUWgzzOGW4T6rR19FmX1IJgXGdapGPWsuMelGJn9h03nos0iqfforCbCB0iYIR0MtIuIFLLw==
+"@openzeppelin/contracts@^4.7.3":
+  version "4.7.3"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.7.3.tgz#939534757a81f8d69cc854c7692805684ff3111e"
+  integrity sha512-dGRS0agJzu8ybo44pCIf3xBaPQN/65AIXNgK8+4gzKd5kbvlqyxryUYVLJv7fK98Seyd2hDZzVEHSWAh0Bt1Yw==
 
 "@protobufjs/aspromise@^1.1.1", "@protobufjs/aspromise@^1.1.2":
   version "1.1.2"
