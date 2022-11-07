@@ -14,7 +14,7 @@ Tools for mocking ethereum contracts.
 [dependencies]
 ethcontract = { version = "0.22.0", path = "../ethcontract", default-features = false, features = ["derive"] }
 hex = "0.4"
-mockall = "0.11"
+mockall = "0.11.2"
 rlp = "0.5"
 predicates = "2.0"
 
