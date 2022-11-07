@@ -489,7 +489,7 @@ impl Parse for Deployment {
         input.parse::<Token![=>]>()?;
         let address = {
             let literal = input.parse::<LitStr>()?;
-            parse_address(&literal.value()).map_err(|err| ParseError::new(literal.span(), err))?
+            parse_address(literal.value()).map_err(|err| ParseError::new(literal.span(), err))?
         };
 
         Ok(Deployment {
