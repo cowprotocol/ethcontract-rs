@@ -239,11 +239,11 @@ mod tests {
         bytecode.link(name, address).unwrap();
         let bytes = bytecode.to_bytes().unwrap();
         let mut expected = Vec::<u8>::new();
-        expected.extend(&[0x61]);
-        expected.extend(&address_encoded);
-        expected.extend(&address_encoded);
-        expected.extend(&[0x61]);
-        expected.extend(&address_encoded);
+        expected.extend([0x61]);
+        expected.extend(address_encoded);
+        expected.extend(address_encoded);
+        expected.extend([0x61]);
+        expected.extend(address_encoded);
         assert_eq!(bytes.0, expected);
     }
 

@@ -463,14 +463,14 @@ impl MockTransport {
         args.done();
 
         let state = self.state.lock().unwrap();
-        Self::ok(&U64::from(state.block))
+        Self::ok(U64::from(state.block))
     }
 
     fn eth_chain_id(&self, args: Parser) -> Result<Value, Error> {
         args.done();
 
         let state = self.state.lock().unwrap();
-        Self::ok(&U256::from(state.chain_id))
+        Self::ok(U256::from(state.chain_id))
     }
 
     fn eth_transaction_count(&self, mut args: Parser) -> Result<Value, Error> {
@@ -488,14 +488,14 @@ impl MockTransport {
             }
             _ => state.nonce.get(&address).copied().unwrap_or(0),
         };
-        Self::ok(&U256::from(transaction_count))
+        Self::ok(U256::from(transaction_count))
     }
 
     fn eth_gas_price(&self, args: Parser) -> Result<Value, Error> {
         args.done();
 
         let state = self.state.lock().unwrap();
-        Self::ok(&U256::from(state.gas_price))
+        Self::ok(U256::from(state.gas_price))
     }
 
     fn eth_estimate_gas(&self, mut args: Parser) -> Result<Value, Error> {
@@ -541,7 +541,7 @@ impl MockTransport {
         // When estimating gas, we'll check all expectation as if we're
         // executing a method, but we won't mark any expectation as fulfilled.
 
-        Self::ok(&U256::from(1))
+        Self::ok(U256::from(1))
     }
 
     fn eth_call(&self, mut args: Parser) -> Result<Value, Error> {
