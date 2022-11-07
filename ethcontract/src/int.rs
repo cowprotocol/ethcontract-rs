@@ -324,13 +324,7 @@ impl I256 {
     /// Returns an `i64` representing the sign of the number.
     fn signum64(self) -> i64 {
         match self.sign() {
-            Sign::Positive => {
-                if self.is_zero() {
-                    0
-                } else {
-                    1
-                }
-            }
+            Sign::Positive => (!self.is_zero()).into(),
             Sign::Negative => -1,
         }
     }
