@@ -24,7 +24,7 @@ impl Bytecode {
             return Ok(Bytecode::default());
         }
 
-        let s = if s.chars().next().unwrap() == '{' {
+        let s = if s.starts_with('{') {
             #[derive(Deserialize)]
             struct Map {
                 object: String,
