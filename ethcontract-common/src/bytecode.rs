@@ -217,11 +217,9 @@ mod tests {
 
     #[test]
     fn unprefixed_map_hex_bytecode_is_not_empty() {
-        assert!(!Bytecode::from_hex_str(
-            r#"{"object": "0x60e060"} "#
-        )
-        .unwrap()
-        .is_empty());
+        assert!(!Bytecode::from_hex_str(r#"{"object": "0x60e060"} "#)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
