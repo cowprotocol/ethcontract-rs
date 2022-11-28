@@ -8,6 +8,8 @@ use jsonrpc_core::Error as JsonrpcError;
 const REVERTED: &str = "Reverted 0x";
 /// Invalid op-code error discriminant.
 const INVALID: &str = "Bad instruction";
+/// Error messages for VM execution errors.
+const MESSAGES: &[&str] = &["VM execution error", "VM execution error."];
 
 /// Tries to get a more accurate error from a generic Nethermind JSON RPC error.
 /// Returns `None` when a more accurate error cannot be determined.
@@ -29,7 +31,7 @@ pub fn get_encoded_error(err: &JsonrpcError) -> Option<ExecutionError> {
         return Some(ExecutionError::InvalidOpcode);
     }
 
-    if err.message == "VM execution error" {
+    if MESSAGES.contains(&&*err.message) {
         return Some(ExecutionError::Revert(None));
     }
 
@@ -53,7 +55,7 @@ mod tests {
     pub fn rpc_error(data: &str) -> JsonrpcError {
         JsonrpcError {
             code: ErrorCode::from(-32015),
-            message: "vm execution error".to_owned(),
+            message: "VM execution error".to_owned(),
             data: Some(json!(data)),
         }
     }
@@ -107,6 +109,22 @@ mod tests {
 
         assert!(
             matches!(err, Some(ExecutionError::InvalidOpcode)),
+            "bad error conversion {:?}",
+            err
+        );
+    }
+
+    #[test]
+    fn execution_error_from_message() {
+        let jsonrpc_err = JsonrpcError {
+            code: ErrorCode::from(-32015),
+            message: "VM execution error.".to_owned(),
+            data: Some(json!("revert")),
+        };
+        let err = get_encoded_error(&jsonrpc_err);
+
+        assert!(
+            matches!(err, Some(ExecutionError::Revert(None))),
             "bad error conversion {:?}",
             err
         );
