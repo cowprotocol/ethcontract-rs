@@ -14,7 +14,7 @@ const MESSAGES: &[&str] = &["VM execution error", "VM execution error."];
 /// Tries to get a more accurate error from a generic Nethermind JSON RPC error.
 /// Returns `None` when a more accurate error cannot be determined.
 pub fn get_encoded_error(err: &JsonrpcError) -> Option<ExecutionError> {
-    let message = get_error_message(err)?;
+    let message = get_error_message(err);
     if let Some(hex) = message.strip_prefix(REVERTED) {
         if hex.is_empty() {
             return Some(ExecutionError::Revert(None));
@@ -39,8 +39,11 @@ pub fn get_encoded_error(err: &JsonrpcError) -> Option<ExecutionError> {
 }
 
 /// Returns the error message from the JSON RPC error data.
-fn get_error_message(err: &JsonrpcError) -> Option<&'_ str> {
-    err.data.as_ref().and_then(|data| data.as_str())
+fn get_error_message(err: &JsonrpcError) -> &str {
+    err.data
+        .as_ref()
+        .and_then(|data| data.as_str())
+        .unwrap_or(&err.message)
 }
 
 #[cfg(test)]
@@ -52,66 +55,82 @@ mod tests {
     use crate::test::prelude::*;
     use jsonrpc_core::ErrorCode;
 
-    pub fn rpc_error(data: &str) -> JsonrpcError {
-        JsonrpcError {
-            code: ErrorCode::from(-32015),
-            message: "VM execution error".to_owned(),
-            data: Some(json!(data)),
-        }
+    pub fn rpc_errors(data: &str) -> Vec<JsonrpcError> {
+        // Nethermind has two flavours of revert errors:
+        // ```
+        // {"jsonrpc":"2.0","error":{"code":-32015,"message":"VM execution error.","data":"Reverted 0x..."},"id":0}
+        // {"jsonrpc":"2.0","error":{"code":-32015,"message":"Reverted 0x..."},"id":1}
+        // ```
+        vec![
+            JsonrpcError {
+                code: ErrorCode::from(-32015),
+                message: "VM execution error".to_owned(),
+                data: Some(json!(data)),
+            },
+            JsonrpcError {
+                code: ErrorCode::from(-32015),
+                message: data.to_owned(),
+                data: None,
+            },
+        ]
     }
 
     #[test]
     fn execution_error_from_revert_with_message() {
-        let jsonrpc_err = rpc_error(&format!(
+        for jsonrpc_err in rpc_errors(&format!(
             "Reverted {}",
             revert::encode_reason_hex("message")
-        ));
-        let err = get_encoded_error(&jsonrpc_err);
+        )) {
+            let err = get_encoded_error(&jsonrpc_err);
 
-        assert!(
-            matches!(
-                &err,
-                Some(ExecutionError::Revert(Some(reason))) if reason == "message"
-            ),
-            "bad error conversion {:?}",
-            err
-        );
+            assert!(
+                matches!(
+                    &err,
+                    Some(ExecutionError::Revert(Some(reason))) if reason == "message"
+                ),
+                "bad error conversion {:?}",
+                err
+            );
+        }
     }
 
     #[test]
     fn execution_error_from_revert() {
-        let jsonrpc_err = rpc_error("Reverted 0x");
-        let err = get_encoded_error(&jsonrpc_err);
+        for jsonrpc_err in rpc_errors("Reverted 0x") {
+            let err = get_encoded_error(&jsonrpc_err);
 
-        assert!(
-            matches!(err, Some(ExecutionError::Revert(None))),
-            "bad error conversion {:?}",
-            err
-        );
+            assert!(
+                matches!(err, Some(ExecutionError::Revert(None))),
+                "bad error conversion {:?}",
+                err
+            );
+        }
     }
 
     #[test]
     fn execution_error_from_revert_failed_decode() {
-        let jsonrpc_err = rpc_error("Reverted 0x01020304");
-        let err = get_encoded_error(&jsonrpc_err);
+        for jsonrpc_err in rpc_errors("Reverted 0x01020304") {
+            let err = get_encoded_error(&jsonrpc_err);
 
-        assert!(
-            matches!(err, Some(ExecutionError::Revert(None))),
-            "bad error conversion {:?}",
-            err
-        );
+            assert!(
+                matches!(err, Some(ExecutionError::Revert(None))),
+                "bad error conversion {:?}",
+                err
+            );
+        }
     }
 
     #[test]
     fn execution_error_from_invalid_opcode() {
-        let jsonrpc_err = rpc_error("Bad instruction fd");
-        let err = get_encoded_error(&jsonrpc_err);
+        for jsonrpc_err in rpc_errors("Bad instruction fd") {
+            let err = get_encoded_error(&jsonrpc_err);
 
-        assert!(
-            matches!(err, Some(ExecutionError::InvalidOpcode)),
-            "bad error conversion {:?}",
-            err
-        );
+            assert!(
+                matches!(err, Some(ExecutionError::InvalidOpcode)),
+                "bad error conversion {:?}",
+                err
+            );
+        }
     }
 
     #[test]
