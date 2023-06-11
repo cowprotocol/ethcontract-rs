@@ -5,6 +5,8 @@ mod build;
 pub mod confirm;
 pub mod gas_price;
 mod send;
+#[cfg(feature = "aws-kms")]
+mod kms;
 
 pub use self::build::Transaction;
 use self::confirm::ConfirmParams;
@@ -26,6 +28,9 @@ pub enum Account {
     /// Do offline signing with private key and optionally specify chain ID. If
     /// no chain ID is specified, then it will default to the network ID.
     Offline(PrivateKey, Option<u64>),
+    /// Sign using AWS KMS account and optionally specified chain ID.
+    #[cfg(feature = "aws-kms")]
+    Kms(kms::Account, Option<u64>),
 }
 
 impl Account {
@@ -35,6 +40,8 @@ impl Account {
             Account::Local(address, _) => *address,
             Account::Locked(address, _, _) => *address,
             Account::Offline(key, _) => key.public_address(),
+            #[cfg(feature = "aws-kms")]
+            Account::Kms(kms, _) => kms.public_address(),
         }
     }
 }

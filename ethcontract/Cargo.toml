@@ -17,20 +17,22 @@ to Ethereum smart contracts.
 name = "ethcontract"
 
 [features]
-default = ["derive", "http-tls", "ws-tls-tokio", "derive-http"]
+aws-kms = ["aws-sdk-kms"]
+default = ["derive", "http-tls", "ws-tls-tokio", "derive-http", "aws-kms"]
 derive = ["ethcontract-derive"]
 derive-http = ["ethcontract-derive/http"]
 http = ["web3/http"]
-http-tls = ["http", "web3/http-tls"]
 http-native-tls = ["http", "web3/http-native-tls"]
 http-rustls-tls = ["http", "web3/http-rustls-tls"]
-ws-tokio = ["web3/ws-tokio"]
-ws-async-std = ["web3/ws-async-std"]
-ws-tls-tokio = ["web3/ws-tls-tokio"]
-ws-tls-async-std = ["web3/ws-tls-async-std"]
+http-tls = ["http", "web3/http-tls"]
 ipc-tokio = ["web3/ipc-tokio"]
+ws-async-std = ["web3/ws-async-std"]
+ws-tls-async-std = ["web3/ws-tls-async-std"]
+ws-tls-tokio = ["web3/ws-tls-tokio"]
+ws-tokio = ["web3/ws-tokio"]
 
 [dependencies]
+aws-sdk-kms = { version = "0.28", optional = true }
 arrayvec = "0.7"
 ethcontract-common = { version = "0.23.0", path = "../ethcontract-common" }
 ethcontract-derive = { version = "0.23.0", path = "../ethcontract-derive", optional = true, default-features = false }
@@ -40,6 +42,7 @@ hex = "0.4"
 jsonrpc-core = "18.0"
 lazy_static = "1.4"
 primitive-types = { version = "0.10", features = ["fp-conversion"] }
+rlp = { version = "0.5", default-features = false }
 secp256k1 = { version = "0.21", features = ["recovery"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -49,5 +52,6 @@ web3 = { version = "0.18", default-features = false, features = ["signing"] }
 zeroize = "1.1"
 
 [dev-dependencies]
+aws-config = "0.55"
 hex-literal = "0.3"
 tokio = { version = "1.6", features = ["macros"] }
