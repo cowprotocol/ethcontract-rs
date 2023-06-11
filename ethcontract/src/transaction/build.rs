@@ -258,14 +258,31 @@ async fn build_kms_signed_transaction<T: Transport>(
     chain_id: Option<u64>,
     options: TransactionOptions,
 ) -> Result<SignedTransaction, ExecutionError> {
-    /*
-    let gas = resolve_gas_limit(&web3, key.public_address(), &options).await?;
+    let gas = resolve_gas_limit(&web3, account.public_address(), &options).await?;
     let resolved_gas_price = options
         .gas_price
         .map(|gas_price| gas_price.resolve_for_transaction())
         .unwrap_or_default();
-    */
-    todo!()
+    let signed = account
+        .sign_transaction(
+            web3,
+            TransactionParameters {
+                nonce: options.nonce,
+                gas_price: resolved_gas_price.gas_price,
+                gas,
+                to: options.to,
+                value: options.value.unwrap_or_default(),
+                data: options.data.unwrap_or_default(),
+                chain_id,
+                transaction_type: resolved_gas_price.transaction_type,
+                access_list: options.access_list,
+                max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+                max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
+            },
+        )
+        .await?;
+
+    Ok(signed)
 }
 
 async fn resolve_gas_limit<T: Transport>(

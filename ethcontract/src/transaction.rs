@@ -4,9 +4,9 @@
 mod build;
 pub mod confirm;
 pub mod gas_price;
-mod send;
 #[cfg(feature = "aws-kms")]
 mod kms;
+mod send;
 
 pub use self::build::Transaction;
 use self::confirm::ConfirmParams;
