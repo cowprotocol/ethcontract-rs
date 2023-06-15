@@ -345,7 +345,7 @@ fn expand_builder_topic_filter(topic_index: usize, param: &EventParam) -> Result
     ));
     let topic = util::ident(&format!("topic{}", topic_index));
     let name = if param.name.is_empty() {
-        topic.clone()
+        topic
     } else {
         util::safe_ident(&param.name.to_snake_case())
     };
