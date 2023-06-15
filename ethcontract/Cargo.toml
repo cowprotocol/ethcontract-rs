@@ -32,6 +32,7 @@ ws-tls-tokio = ["web3/ws-tls-tokio"]
 ws-tokio = ["web3/ws-tokio"]
 
 [dependencies]
+asn1 = "0.15"
 aws-sdk-kms = { version = "0.28", optional = true }
 arrayvec = "0.7"
 ethcontract-common = { version = "0.23.0", path = "../ethcontract-common" }

@@ -1,15 +1,20 @@
 //! AWS KMS account implementation.
 //!
-//! This implementation is very hacky... However, the hackiness does not leak
-//! outside this module, so it is OK :).
+//! The implementation was heavily guided by this guide for doing the same in javascript:
+//! https://luhenning.medium.com/the-dark-side-of-the-elliptic-curve-signing-ethereum-transactions-with-aws-kms-in-javascript-83610d9a6f81
+//!
+//! It's quite hacky, however the hackiness does not leak outside this module.
 
+use asn1::{OwnedBitString, Tlv};
 use aws_sdk_kms::{
     primitives::Blob,
     types::{KeySpec, KeyUsageType, MessageType, SigningAlgorithmSpec},
     Client, Config,
 };
 use ethcontract_common::hash::keccak256;
+use primitive_types::U256;
 use rlp::{Rlp, RlpStream};
+use secp256k1::constants::CURVE_ORDER;
 use web3::{
     signing::{self, Signature},
     types::{Address, Bytes, SignedTransaction, TransactionParameters, H256},
@@ -24,6 +29,20 @@ pub struct Account {
     client: Client,
     key_id: String,
     address: Address,
+}
+
+#[allow(dead_code)]
+#[derive(asn1::Asn1Read)]
+struct AlgorithmIdentifier<'a> {
+    algorithm: asn1::ObjectIdentifier,
+    parameters: Tlv<'a>,
+}
+
+#[allow(dead_code)]
+#[derive(asn1::Asn1Read)]
+struct DerEncodedPublicKey<'a> {
+    algorithm: AlgorithmIdentifier<'a>,
+    subject_public_key: OwnedBitString,
 }
 
 impl Account {
@@ -48,14 +67,16 @@ impl Account {
             return Err(Error::InvalidKey);
         }
 
-        // The private key block is an DER-encoded X.509 public key (also known
-        // as `SubjectPublicKeyInfo`, as defined in RFC 5280). Luckily, the
-        // uncompressed key is just the last 64 bytes :).
-        let info = key.public_key().unwrap().as_ref();
-        let uncompressed = &info[info.len().checked_sub(64).ok_or(Error::InvalidKey)?..];
+        // The private key block is an DER-encoded X.509 public key (also known as `SubjectPublicKeyInfo`, as defined in RFC 5280).
+        // Its first byte indicates that this is an uncompressed key. We need to remove this byte for the public key to be correct.
+        // Once we delete the first byte, we get the raw public key that can be used to calculate our Ethereum address, which is equal to
+        // the last 20 bytes of the keccak256 hash of the raw public key.
+        let result = asn1::parse_single::<DerEncodedPublicKey>(key.public_key().unwrap().as_ref())
+            .or(Err(Error::InvalidKey))?;
+        let uncompressed = Vec::from(result.subject_public_key.as_bitstring().as_bytes());
         let address = {
             let mut buffer = Address::default();
-            let hash = keccak256(uncompressed);
+            let hash = keccak256(&uncompressed[1..]);
             buffer.0.copy_from_slice(&hash[12..]);
             buffer
         };
@@ -93,12 +114,24 @@ impl Account {
         let compact = signature.serialize_compact();
         let mut r = H256::default();
         r.0.copy_from_slice(&compact[..32]);
-        let mut s = H256::default();
-        s.0.copy_from_slice(&compact[32..]);
 
-        let v = if signing::recover(&message, &compact, 0).ok() == Some(self.address) {
+        // If `s` happens to be "on the dark side of the curve", we need to invert it (EIP-2)
+        let mut s_tentative: U256 = U256::from(&compact[32..]);
+        let secp256k1_n = U256::from(CURVE_ORDER);
+        if s_tentative > secp256k1_n / 2 {
+            s_tentative = secp256k1_n - s_tentative;
+        }
+        let mut s = H256::default();
+        s_tentative.to_big_endian(&mut s.0);
+
+        // Recover correct v by trying which of the two options recovers to our public key
+        let v = if signing::recover(&message, &[r.as_bytes(), s.as_bytes()].concat(), 0).ok()
+            == Some(self.address)
+        {
             0
-        } else if signing::recover(&message, &compact, 1).ok() == Some(self.address) {
+        } else if signing::recover(&message, &&[r.as_bytes(), s.as_bytes()].concat(), 1).ok()
+            == Some(self.address)
+        {
             1
         } else {
             return Err(Error::InvalidSignature);
@@ -121,6 +154,8 @@ impl Account {
         // actually generate a signature using AWS KMS.
         let transaction = web3.accounts().sign_transaction(params, Key(self)).await?;
         let signature = self.sign(transaction.message_hash.0).await?;
+
+        // transaction.v has the EIP155 value w/ 0 parity, signature.v has the parity bit, together they from the correct v
         let v = transaction.v + signature.v;
 
         // Split the transaction into its ID and its raw RLP encoded form.
@@ -182,6 +217,7 @@ impl web3::signing::Key for Key<'_> {
         chain_id: Option<u64>,
     ) -> Result<Signature, web3::signing::SigningError> {
         let signature = self.sign_message(message)?;
+        // apply EIP155
         Ok(Signature {
             v: if let Some(chain_id) = chain_id {
                 signature.v + 35 + chain_id * 2
@@ -246,8 +282,12 @@ mod tests {
             let http = transports::Http::new(&url).expect("transport failed");
             Web3::new(http)
         };
+        let chain_id = web3.eth().chain_id().await.expect("Failed to get chainID");
         TransactionBuilder::new(web3)
-            .from(transaction::Account::Kms(account.clone(), Some(1)))
+            .from(transaction::Account::Kms(
+                account.clone(),
+                Some(chain_id.as_u64()),
+            ))
             .to(account.public_address())
             .send()
             .await
