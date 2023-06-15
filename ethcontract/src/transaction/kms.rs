@@ -129,7 +129,7 @@ impl Account {
             == Some(self.address)
         {
             0
-        } else if signing::recover(&message, &&[r.as_bytes(), s.as_bytes()].concat(), 1).ok()
+        } else if signing::recover(&message, &[r.as_bytes(), s.as_bytes()].concat(), 1).ok()
             == Some(self.address)
         {
             1
