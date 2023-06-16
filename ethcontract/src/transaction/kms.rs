@@ -241,16 +241,22 @@ impl web3::signing::Key for Key<'_> {
     }
 }
 
+/// Error type for when KMS Signing fails
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// Error related to the KMS interactions
     #[error(transparent)]
     Kms(#[from] aws_sdk_kms::Error),
+    /// Error related to the Key stored in KMS being incorrect
     #[error("invalid key")]
     InvalidKey,
+    /// Error related to the signing algorithm used
     #[error("invalid signature")]
     InvalidSignature,
+    /// Error related to the Web3 interactions needed for signing
     #[error(transparent)]
     Web3(#[from] web3::error::Error),
+    /// Error related to decoding the transaction object
     #[error(transparent)]
     Rlp(#[from] rlp::DecoderError),
 }

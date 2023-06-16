@@ -33,6 +33,7 @@ ws-tokio = ["web3/ws-tokio"]
 
 [dependencies]
 asn1 = "0.15"
+aws-config = "0.55"
 aws-sdk-kms = { version = "0.28", optional = true }
 arrayvec = "0.7"
 ethcontract-common = { version = "0.23.0", path = "../ethcontract-common" }
@@ -53,6 +54,5 @@ web3 = { version = "0.18", default-features = false, features = ["signing"] }
 zeroize = "1.1"
 
 [dev-dependencies]
-aws-config = "0.55"
 hex-literal = "0.3"
 tokio = { version = "1.6", features = ["macros"] }
