@@ -7,9 +7,9 @@
 use crate::errors::ExecutionError;
 use crate::secret::{Password, PrivateKey};
 use crate::transaction::gas_price::GasPrice;
-use crate::transaction::{Account, TransactionBuilder};
 #[cfg(feature = "aws-kms")]
 use crate::transaction::kms;
+use crate::transaction::{Account, TransactionBuilder};
 use web3::api::Web3;
 use web3::types::{
     AccessList, Address, Bytes, CallRequest, RawTransaction, SignedTransaction,
