@@ -5,7 +5,6 @@
 //!
 //! It's quite hacky, however the hackiness does not leak outside this module.
 
-use asn1::{OwnedBitString, Tlv};
 use aws_sdk_kms::{
     primitives::Blob,
     types::{KeySpec, KeyUsageType, MessageType, SigningAlgorithmSpec},
@@ -31,20 +30,6 @@ pub struct Account {
     address: Address,
 }
 
-#[allow(dead_code)]
-#[derive(asn1::Asn1Read)]
-struct AlgorithmIdentifier<'a> {
-    algorithm: asn1::ObjectIdentifier,
-    parameters: Tlv<'a>,
-}
-
-#[allow(dead_code)]
-#[derive(asn1::Asn1Read)]
-struct DerEncodedPublicKey<'a> {
-    algorithm: AlgorithmIdentifier<'a>,
-    subject_public_key: OwnedBitString,
-}
-
 impl Account {
     /// Creates a new KMS account.
     pub async fn new(config: Config, key_id: &str) -> Result<Self, Error> {
@@ -67,16 +52,13 @@ impl Account {
             return Err(Error::InvalidKey);
         }
 
-        // The private key block is an DER-encoded X.509 public key (also known as `SubjectPublicKeyInfo`, as defined in RFC 5280).
-        // Its first byte indicates that this is an uncompressed key. We need to remove this byte for the public key to be correct.
-        // Once we delete the first byte, we get the raw public key that can be used to calculate our Ethereum address, which is equal to
-        // the last 20 bytes of the keccak256 hash of the raw public key.
-        let result = asn1::parse_single::<DerEncodedPublicKey>(key.public_key().unwrap().as_ref())
-            .or(Err(Error::InvalidKey))?;
-        let uncompressed = Vec::from(result.subject_public_key.as_bitstring().as_bytes());
+        // The private key block is a DER-encoded X.509 public key (also known as `SubjectPublicKeyInfo`, as defined in RFC 5280).
+        // Luckily, the uncompressed key is just the last 64 bytes :).
+        let info = key.public_key().unwrap().as_ref();
+        let uncompressed = &info[info.len().checked_sub(64).ok_or(Error::InvalidKey)?..];
         let address = {
             let mut buffer = Address::default();
-            let hash = keccak256(&uncompressed[1..]);
+            let hash = keccak256(uncompressed);
             buffer.0.copy_from_slice(&hash[12..]);
             buffer
         };
@@ -264,41 +246,5 @@ pub enum Error {
 impl From<Error> for ExecutionError {
     fn from(_: Error) -> Self {
         web3::error::Error::Internal.into()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::transaction::{self, TransactionBuilder};
-    use std::env;
-    use web3::transports;
-
-    #[tokio::test]
-    async fn example() {
-        let config = aws_config::load_from_env().await;
-        let account = Account::new((&config).into(), &env::var("KMS_KEY_ID").unwrap())
-            .await
-            .unwrap();
-
-        println!("{:?}", account.public_address());
-
-        let web3 = {
-            let url = env::var("NODE_URL").unwrap();
-            let http = transports::Http::new(&url).expect("transport failed");
-            Web3::new(http)
-        };
-        let chain_id = web3.eth().chain_id().await.expect("Failed to get chainID");
-        TransactionBuilder::new(web3)
-            .from(transaction::Account::Kms(
-                account.clone(),
-                Some(chain_id.as_u64()),
-            ))
-            .to(account.public_address())
-            .send()
-            .await
-            .unwrap();
-
-        panic!("{:?}", account.public_address());
     }
 }
