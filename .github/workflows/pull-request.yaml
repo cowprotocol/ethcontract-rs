@@ -35,6 +35,7 @@ jobs:
           components: rustfmt, clippy
           default: true
       - uses: Swatinem/rust-cache@v1
+      - uses: foundry-rs/foundry-toolchain@v1
       - run: cargo fmt -- --check
       - run: cd examples/truffle && yarn --frozen-lockfile && yarn build
       # Can't use --all-features here because web3 has mutually exclusive features.
@@ -48,9 +49,9 @@ jobs:
           (cd ethcontract-generate && cargo test)
       - run: |
           if ${{ matrix.examples }}; then
-            (cd examples/truffle && yarn -s run start) &
-            # wait for truffle to start
-            while ! curl --silent http://127.0.0.1:9545; do
+            anvil -p 9545 &
+            # wait for anvil to start
+            while ! curl --silent http://127.0.0.1:9545 -o /dev/null; do
               sleep 1
             done
             cargo run --package examples --example abi

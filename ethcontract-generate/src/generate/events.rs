@@ -345,7 +345,7 @@ fn expand_builder_topic_filter(topic_index: usize, param: &EventParam) -> Result
     ));
     let topic = util::ident(&format!("topic{}", topic_index));
     let name = if param.name.is_empty() {
-        // Clippy is failing on github complaining that this clone isn't needed (despite topic clearly being used later)
+        // Clippy (v1.70) is complaining that this clone isn't needed (despite `topic` clearly being used later)
         #[allow(clippy::redundant_clone)]
         topic.clone()
     } else {
