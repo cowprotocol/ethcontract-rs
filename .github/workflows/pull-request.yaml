@@ -48,9 +48,9 @@ jobs:
           (cd ethcontract-generate && cargo test)
       - run: |
           if ${{ matrix.examples }}; then
-            (cd examples/truffle && yarn -s run start > /dev/null) &
+            (cd examples/truffle && yarn -s run start) &
             # wait for truffle to start
-            while ! curl --silent http://127.0.0.1:9545 -o /dev/null; do
+            while ! curl --silent http://127.0.0.1:9545; do
               sleep 1
             done
             cargo run --package examples --example abi
