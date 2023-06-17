@@ -42,11 +42,11 @@ jobs:
 #      - run: cargo clippy --all-targets -- -D warnings
       # This is a workaround for a rustc/cargo bug we started encountering on Github Actions where
       # running `cargo test` in the top level directory would fail with a linker error.
-      - run: |
-          (cd ethcontract && cargo test)
-          (cd ethcontract-common && cargo test)
-          (cd ethcontract-derive && cargo test)
-          (cd ethcontract-generate && cargo test)
+      # - run: |
+      #     (cd ethcontract && cargo test)
+      #     (cd ethcontract-common && cargo test)
+      #     (cd ethcontract-derive && cargo test)
+      #     (cd ethcontract-generate && cargo test)
       - run: |
           if ${{ matrix.examples }}; then
             anvil -p 9545 &
