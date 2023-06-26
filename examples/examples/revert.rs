@@ -36,5 +36,5 @@ async fn main() {
     assert!(matches!(error, ExecutionError::Revert(None)));
 
     let error = result_2.unwrap_err().inner;
-    assert!(matches!(error, ExecutionError::InvalidOpcode));
+    assert!(matches!(error, ExecutionError::Web3(_)));
 }

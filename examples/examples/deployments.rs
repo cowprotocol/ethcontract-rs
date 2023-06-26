@@ -3,7 +3,7 @@ use ethcontract::prelude::*;
 ethcontract::contract!(
     "examples/truffle/build/contracts/RustCoin.json",
     deployments {
-        5777 => "0x0123456789012345678901234567890123456789",
+        31337 => "0x0123456789012345678901234567890123456789",
     },
 );
 
