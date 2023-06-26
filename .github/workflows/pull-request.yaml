@@ -51,7 +51,7 @@ jobs:
           if ${{ matrix.examples }}; then
             anvil -p 9545 &
             # wait for anvil to start
-            while ! curl --silent http://127.0.0.1:9545 -o /dev/null; do
+            while ! curl --silent http://127.0.0.1:9545; do
               sleep 1
             done
             cargo run --package examples --example abi
