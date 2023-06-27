@@ -105,6 +105,8 @@ pub mod transport;
 
 pub use crate::contract::Instance;
 pub use crate::prelude::*;
+#[cfg(feature = "aws-kms")]
+pub use aws_config;
 pub use ethcontract_common as common;
 pub use ethcontract_common::contract::Contract;
 #[cfg(feature = "derive")]

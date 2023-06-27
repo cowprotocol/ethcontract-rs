@@ -7,6 +7,8 @@
 use crate::errors::ExecutionError;
 use crate::secret::{Password, PrivateKey};
 use crate::transaction::gas_price::GasPrice;
+#[cfg(feature = "aws-kms")]
+use crate::transaction::kms;
 use crate::transaction::{Account, TransactionBuilder};
 use web3::api::Web3;
 use web3::types::{
@@ -64,6 +66,15 @@ impl<T: Transport> TransactionBuilder<T> {
             }
             Some(Account::Offline(key, chain_id)) => {
                 build_offline_signed_transaction(self.web3, key, chain_id, options)
+                    .await
+                    .map(|signed| Transaction::Raw {
+                        bytes: signed.raw_transaction,
+                        hash: signed.transaction_hash,
+                    })?
+            }
+            #[cfg(feature = "aws-kms")]
+            Some(Account::Kms(account, chain_id)) => {
+                build_kms_signed_transaction(self.web3, account, chain_id, options)
                     .await
                     .map(|signed| Transaction::Raw {
                         bytes: signed.raw_transaction,
@@ -232,6 +243,45 @@ async fn build_offline_signed_transaction<T: Transport>(
                 max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
             },
             &key,
+        )
+        .await?;
+
+    Ok(signed)
+}
+
+/// Build a KMS signed transaction.
+///
+/// Note that all transaction parameters must be finalized before signing. This
+/// means that things like account nonce, gas and gas price estimates, as well
+/// as chain ID must be queried from the node if not provided before signing.
+#[cfg(feature = "aws-kms")]
+async fn build_kms_signed_transaction<T: Transport>(
+    web3: Web3<T>,
+    account: kms::Account,
+    chain_id: Option<u64>,
+    options: TransactionOptions,
+) -> Result<SignedTransaction, ExecutionError> {
+    let gas = resolve_gas_limit(&web3, account.public_address(), &options).await?;
+    let resolved_gas_price = options
+        .gas_price
+        .map(|gas_price| gas_price.resolve_for_transaction())
+        .unwrap_or_default();
+    let signed = account
+        .sign_transaction(
+            web3,
+            TransactionParameters {
+                nonce: options.nonce,
+                gas_price: resolved_gas_price.gas_price,
+                gas,
+                to: options.to,
+                value: options.value.unwrap_or_default(),
+                data: options.data.unwrap_or_default(),
+                chain_id,
+                transaction_type: resolved_gas_price.transaction_type,
+                access_list: options.access_list,
+                max_fee_per_gas: resolved_gas_price.max_fee_per_gas,
+                max_priority_fee_per_gas: resolved_gas_price.max_priority_fee_per_gas,
+            },
         )
         .await?;
 
