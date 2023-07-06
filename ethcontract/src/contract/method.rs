@@ -45,7 +45,7 @@ impl<T: Transport> MethodBuilder<T, ()> {
             name: "fallback".into(),
             inputs: vec![],
             outputs: vec![],
-            constant: false,
+            constant: None,
             state_mutability: Default::default(),
         };
         MethodBuilder::new(web3, function, address, data)
@@ -313,7 +313,7 @@ mod tests {
                 kind: ParamType::Uint(256),
                 internal_type: None,
             }],
-            constant: false,
+            constant: None,
             state_mutability: Default::default(),
         };
         let data = function

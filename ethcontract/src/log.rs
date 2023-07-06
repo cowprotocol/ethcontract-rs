@@ -8,7 +8,8 @@ use futures::stream::{self, Stream, TryStreamExt};
 use std::num::NonZeroU64;
 use std::time::Duration;
 use web3::api::Web3;
-use web3::types::{Address, BlockNumber, Filter, FilterBuilder, Log, H256};
+use web3::error::Error as Web3Error;
+use web3::types::{Address, BlockId, BlockNumber, Filter, FilterBuilder, Log, H256};
 use web3::Transport;
 
 /// The default poll interval to use for polling logs from the block chain.
@@ -246,6 +247,20 @@ enum PastLogsStream<T: Transport> {
     Querying(Web3<T>, Filter),
 }
 
+async fn block_number(
+    web3: &Web3<impl Transport>,
+    block: BlockNumber,
+) -> Result<Option<u64>, Web3Error> {
+    if let BlockNumber::Number(number) = block {
+        return Ok(Some(number.as_u64()));
+    }
+    let block_ = web3.eth().block(BlockId::Number(block)).await?;
+    let Some(block_) = block_ else {
+        return  Err(Web3Error::InvalidResponse(format!("block {block:?} does not exist")));
+    };
+    Ok(block_.number.map(|n| n.as_u64()))
+}
+
 impl<T: Transport> PastLogsStream<T> {
     async fn next(mut self) -> Result<Option<(Vec<Log>, Self)>, ExecutionError> {
         loop {
@@ -282,19 +297,8 @@ impl<T: Transport> PastLogsStream<T> {
             .unwrap_or(DEFAULT_BLOCK_PAGE_SIZE);
         let filter = builder.into_filter();
 
-        let start_block = match from_block {
-            BlockNumber::Earliest => Some(0),
-            BlockNumber::Number(value) => Some(value.as_u64()),
-            BlockNumber::Latest | BlockNumber::Pending => None,
-        };
-        let end_block = match to_block {
-            BlockNumber::Earliest => None,
-            BlockNumber::Number(value) => Some(value.as_u64()),
-            BlockNumber::Latest | BlockNumber::Pending => {
-                let latest_block = web3.eth().block_number().await?;
-                Some(latest_block.as_u64())
-            }
-        };
+        let start_block = block_number(&web3, from_block).await?;
+        let end_block = block_number(&web3, to_block).await?;
 
         let next = match (start_block, end_block) {
             (Some(page_block), Some(end_block)) => PastLogsStream::Paging(PastLogsPager {
@@ -456,7 +460,11 @@ mod tests {
         let log = generate_log("awesome");
 
         // get latest block
-        transport.add_response(json!(U64::from(20)));
+        let block = web3::types::Block::<()> {
+            number: Some(20.into()),
+            ..Default::default()
+        };
+        transport.add_response(json!(block));
         // get logs pages
         transport.add_response(json!([log]));
         transport.add_response(json!([]));
@@ -493,7 +501,7 @@ mod tests {
             next,
         );
 
-        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getBlockByNumber", &["pending".into(), false.into()]);
         transport.assert_request(
             "eth_getLogs",
             &[json!({

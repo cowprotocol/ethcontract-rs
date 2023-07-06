@@ -324,7 +324,7 @@ impl ParseInner for ContractArgs {
             input.parse::<Token![,]>()?;
         }
         let parameters = input
-            .parse_terminated::<_, Token![,]>(Parameter::parse)?
+            .parse_terminated(Parameter::parse, Token![,])?
             .into_iter()
             .collect();
 
@@ -404,7 +404,7 @@ impl Parse for Parameter {
                 braced!(content in input);
                 let deployments = {
                     let parsed =
-                        content.parse_terminated::<_, Token![,]>(Spanned::<Deployment>::parse)?;
+                        content.parse_terminated(Spanned::<Deployment>::parse, Token![,])?;
 
                     let mut deployments = Vec::with_capacity(parsed.len());
                     let mut networks = HashSet::new();
@@ -427,8 +427,7 @@ impl Parse for Parameter {
                 let content;
                 braced!(content in input);
                 let methods = {
-                    let parsed =
-                        content.parse_terminated::<_, Token![;]>(Spanned::<Method>::parse)?;
+                    let parsed = content.parse_terminated(Spanned::<Method>::parse, Token![;])?;
 
                     let mut methods = Vec::with_capacity(parsed.len());
                     let mut signatures = HashSet::new();
@@ -458,7 +457,7 @@ impl Parse for Parameter {
                 let content;
                 parenthesized!(content in input);
                 let derives = content
-                    .parse_terminated::<_, Token![,]>(Path::parse)?
+                    .parse_terminated(Path::parse, Token![,])?
                     .into_iter()
                     .map(|path| path.to_token_stream().to_string())
                     .collect();
@@ -514,7 +513,7 @@ impl Parse for Method {
             let content;
             parenthesized!(content in input);
             let inputs = content
-                .parse_terminated::<_, Token![,]>(Ident::parse)?
+                .parse_terminated(Ident::parse, Token![,])?
                 .iter()
                 .map(|ident| {
                     let kind = ParamType::from_str(&ident.to_string())
@@ -535,7 +534,7 @@ impl Parse for Method {
                 // NOTE: The output types and const-ness of the function do not
                 //   affect its signature.
                 outputs: vec![],
-                constant: false,
+                constant: None,
                 state_mutability: Default::default(),
             }
         };
@@ -728,7 +727,7 @@ mod tests {
         contract_args_err!(
             "artifact.json",
             methods {
-                myMethod(invalid) as my_method;
+                myMethod(invalid invalid) as my_method;
             }
         );
     }

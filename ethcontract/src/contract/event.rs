@@ -558,7 +558,11 @@ mod tests {
             "effectiveGasPrice": "0x0",
         }));
         // get latest block
-        transport.add_response(json!(U64::from(20)));
+        let block = web3::types::Block::<()> {
+            number: Some(20.into()),
+            ..Default::default()
+        };
+        transport.add_response(json!(block));
         // get logs pages
         transport.add_response(json!([log]));
         transport.add_response(json!([]));
@@ -578,7 +582,7 @@ mod tests {
 
         assert_eq!(raw_events.len(), 3);
         transport.assert_request("eth_getTransactionReceipt", &[json!(deployment)]);
-        transport.assert_request("eth_blockNumber", &[]);
+        transport.assert_request("eth_getBlockByNumber", &["pending".into(), false.into()]);
         transport.assert_request(
             "eth_getLogs",
             &[json!({

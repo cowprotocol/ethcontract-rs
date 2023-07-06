@@ -2,7 +2,7 @@
 
 use crate::errors::InvalidPrivateKey;
 use ethcontract_common::hash;
-use secp256k1::{Message, PublicKey, Secp256k1, SecretKey, ONE_KEY};
+use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use std::fmt::{self, Debug, Formatter};
 use std::ops::Deref;
 use std::str::FromStr;
@@ -131,7 +131,9 @@ impl From<SecretKey> for ZeroizeableSecretKey {
 
 impl Default for ZeroizeableSecretKey {
     fn default() -> Self {
-        ONE_KEY.into()
+        SecretKey::from_str("0000000000000000000000000000000000000000000000000000000000000001")
+            .unwrap()
+            .into()
     }
 }
 
@@ -199,7 +201,10 @@ mod tests {
     fn drop_private_key() {
         let mut key = key!("0x0102030405060708091011121314151617181920212223242526272829303132");
         key.0.zeroize();
-        assert_eq!(*key, ONE_KEY);
+        let one_key =
+            SecretKey::from_str("0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap();
+        assert_eq!(*key, one_key);
     }
 
     #[test]
