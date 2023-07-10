@@ -49,7 +49,7 @@ mod tests {
                 internal_type: None,
             }],
             outputs: Vec::new(),
-            constant: true,
+            constant: None,
             state_mutability: Default::default(),
         };
         revert
