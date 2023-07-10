@@ -297,8 +297,21 @@ impl<T: Transport> PastLogsStream<T> {
             .unwrap_or(DEFAULT_BLOCK_PAGE_SIZE);
         let filter = builder.into_filter();
 
-        let start_block = block_number(&web3, from_block).await?;
-        let end_block = block_number(&web3, to_block).await?;
+        let start_block = match from_block {
+            BlockNumber::Earliest => Some(0),
+            BlockNumber::Number(value) => Some(value.as_u64()),
+            BlockNumber::Latest | BlockNumber::Pending => None,
+            BlockNumber::Safe | BlockNumber::Finalized => block_number(&web3, from_block).await?,
+        };
+        let end_block = match to_block {
+            BlockNumber::Earliest => None,
+            BlockNumber::Number(value) => Some(value.as_u64()),
+            BlockNumber::Latest | BlockNumber::Pending => {
+                let latest_block = web3.eth().block_number().await?;
+                Some(latest_block.as_u64())
+            }
+            BlockNumber::Safe | BlockNumber::Finalized => block_number(&web3, to_block).await?,
+        };
 
         let next = match (start_block, end_block) {
             (Some(page_block), Some(end_block)) => PastLogsStream::Paging(PastLogsPager {
@@ -460,11 +473,7 @@ mod tests {
         let log = generate_log("awesome");
 
         // get latest block
-        let block = web3::types::Block::<()> {
-            number: Some(20.into()),
-            ..Default::default()
-        };
-        transport.add_response(json!(block));
+        transport.add_response(json!(U64::from(20)));
         // get logs pages
         transport.add_response(json!([log]));
         transport.add_response(json!([]));
@@ -501,7 +510,7 @@ mod tests {
             next,
         );
 
-        transport.assert_request("eth_getBlockByNumber", &["pending".into(), false.into()]);
+        transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request(
             "eth_getLogs",
             &[json!({
