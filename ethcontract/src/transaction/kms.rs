@@ -160,8 +160,10 @@ impl Account {
             encoder.append_raw(item.as_raw(), 1);
         }
         encoder.append(&v);
-        encoder.append(&signature.r);
-        encoder.append(&signature.s);
+        // RLP encoding doesn't allow leading zeros for s & r, yet default H256 RLP encoding preserves leading 0s
+        // By converting and encoding U256, we get rid of the leading zeros.
+        encoder.append(&U256::from(signature.r.as_bytes()));
+        encoder.append(&U256::from(signature.s.as_bytes()));
 
         let raw_transaction = Bytes(match id {
             Some(id) => [&[id], encoder.as_raw()].concat(),
