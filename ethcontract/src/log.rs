@@ -256,7 +256,9 @@ async fn block_number(
     }
     let block_ = web3.eth().block(BlockId::Number(block)).await?;
     let Some(block_) = block_ else {
-        return  Err(Web3Error::InvalidResponse(format!("block {block:?} does not exist")));
+        return Err(Web3Error::InvalidResponse(format!(
+            "block {block:?} does not exist"
+        )));
     };
     Ok(block_.number.map(|n| n.as_u64()))
 }
