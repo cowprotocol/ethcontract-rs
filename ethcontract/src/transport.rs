@@ -64,7 +64,7 @@ where
 
     #[inline(always)]
     fn send_batch_boxed(&self, requests: Vec<(RequestId, Call)>) -> BoxedBatch {
-        self.send_batch(requests.into_iter()).boxed()
+        self.send_batch(requests).boxed()
     }
 
     #[inline(always)]
