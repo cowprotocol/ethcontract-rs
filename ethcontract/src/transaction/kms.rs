@@ -98,8 +98,8 @@ impl Account {
         r.0.copy_from_slice(&compact[..32]);
 
         // If `s` happens to be "on the dark side of the curve", we need to invert it (EIP-2)
-        let mut s_tentative: U256 = U256::from(&compact[32..]);
-        let secp256k1_n = U256::from(CURVE_ORDER);
+        let mut s_tentative: U256 = U256::from_big_endian(&compact[32..]);
+        let secp256k1_n = U256::from_big_endian(&CURVE_ORDER);
         if s_tentative > secp256k1_n / 2 {
             s_tentative = secp256k1_n - s_tentative;
         }
@@ -162,8 +162,8 @@ impl Account {
         encoder.append(&v);
         // RLP encoding doesn't allow leading zeros for s & r, yet default H256 RLP encoding preserves leading 0s
         // By converting and encoding U256, we get rid of the leading zeros.
-        encoder.append(&U256::from(signature.r.as_bytes()));
-        encoder.append(&U256::from(signature.s.as_bytes()));
+        encoder.append(&U256::from_big_endian(signature.r.as_bytes()));
+        encoder.append(&U256::from_big_endian(signature.s.as_bytes()));
 
         let raw_transaction = Bytes(match id {
             Some(id) => [&[id], encoder.as_raw()].concat(),
