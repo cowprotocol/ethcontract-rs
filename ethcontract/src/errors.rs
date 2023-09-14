@@ -2,6 +2,7 @@
 
 mod ganache;
 mod geth;
+mod hardhat;
 mod nethermind;
 mod parity;
 pub(crate) mod revert;
@@ -128,6 +129,9 @@ impl From<Web3Error> for ExecutionError {
                 return err;
             }
             if let Some(err) = nethermind::get_encoded_error(jsonrpc_err) {
+                return err;
+            }
+            if let Some(err) = hardhat::get_encoded_error(jsonrpc_err) {
                 return err;
             }
         }
