@@ -16,7 +16,9 @@ pub fn get_encoded_error(err: &JsonrpcError) -> Option<ExecutionError> {
 
     if let Some(reason) = err
         .message
-        .strip_prefix("VM Exception while processing transaction: reverted with reason string '")
+        .strip_prefix(
+            "Error: VM Exception while processing transaction: reverted with reason string '",
+        )
         .and_then(|rest| rest.strip_suffix('\''))
     {
         return Some(ExecutionError::Revert(Some(reason.to_owned())));
@@ -58,7 +60,7 @@ mod tests {
         assert!(
             matches!(
                 &err,
-                Some(ExecutionError::Revert(Some(reason))) if reason == "message"
+                Some(ExecutionError::Revert(Some(reason))) if reason == "GS020"
             ),
             "bad error conversion {err:?}",
         );
