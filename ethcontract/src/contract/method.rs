@@ -71,6 +71,11 @@ impl<T: Transport, R: Tokenize> MethodBuilder<T, R> {
         self
     }
 
+    /// Returns a reference to the underling ABI function for this call.
+    pub fn function(&self) -> &Function {
+        &self.function
+    }
+
     /// Specify the signing method to use for the transaction, if not specified
     /// the the transaction will be locally signed with the default user.
     pub fn from(mut self, value: Account) -> Self {
@@ -175,6 +180,11 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
         self
     }
 
+    /// Returns a reference to the underling ABI function for this call.
+    pub fn function(&self) -> &Function {
+        &self.m.function
+    }
+
     /// Specify the account the transaction is being sent from.
     pub fn from(mut self, value: Address) -> Self {
         self.m = self.m.from(Account::Local(value, None));
@@ -256,7 +266,7 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
             self.m.function,
             CallRequest {
                 from: self.m.tx.from.map(|account| account.address()),
-                to: Some(self.m.tx.to.unwrap_or_default()),
+                to: self.m.tx.to,
                 gas: self.m.tx.gas,
                 gas_price: resolved_gas_price.gas_price,
                 value: self.m.tx.value,
