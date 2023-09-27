@@ -266,7 +266,7 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
             self.m.function,
             CallRequest {
                 from: self.m.tx.from.map(|account| account.address()),
-                to: self.m.tx.to.unwrap_or_default(),
+                to: self.m.tx.to,
                 gas: self.m.tx.gas,
                 gas_price: resolved_gas_price.gas_price,
                 value: self.m.tx.value,
