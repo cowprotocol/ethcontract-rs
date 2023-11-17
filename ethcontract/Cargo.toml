@@ -1,6 +1,6 @@
 [package]
 name = "ethcontract"
-version = "0.25.2"
+version = "0.25.3"
 authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -35,8 +35,8 @@ ws-tokio = ["web3/ws-tokio"]
 aws-config = { version = "0.55", optional = true }
 aws-sdk-kms = { version = "0.28", optional = true }
 arrayvec = "0.7"
-ethcontract-common = { version = "0.25.2", path = "../ethcontract-common" }
-ethcontract-derive = { version = "0.25.2", path = "../ethcontract-derive", optional = true, default-features = false }
+ethcontract-common = { version = "0.25.3", path = "../ethcontract-common" }
+ethcontract-derive = { version = "0.25.3", path = "../ethcontract-derive", optional = true, default-features = false }
 futures = "0.3"
 futures-timer = "3.0"
 hex = "0.4"
