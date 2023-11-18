@@ -10,7 +10,7 @@ use crate::{
     errors::{DeployError, LinkError},
     tokens::Tokenize,
 };
-use ethcontract_common::abi::{Error as AbiError, Result as AbiResult};
+use ethcontract_common::abi::{encode, Error as AbiError, Result as AbiResult};
 use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::hash::H32;
 use ethcontract_common::{Abi, Bytecode, Contract, DeploymentInformation};
@@ -202,17 +202,17 @@ impl<T: Transport> Instance<T> {
         R: Tokenize,
     {
         let signature = signature.into().into_inner();
-        let signature = signature.as_ref();
         let function = self
             .methods
-            .get(signature)
+            .get(&signature)
             .map(|(name, index)| &self.abi.functions[name][*index])
             .ok_or_else(|| AbiError::InvalidName(hex::encode(signature)))?;
         let tokens = match params.into_token() {
             ethcontract_common::abi::Token::Tuple(tokens) => tokens,
             _ => unreachable!("function arguments are always tuples"),
         };
-        let data = function.encode_input(&tokens)?;
+
+        let data = signature.iter().copied().chain(encode(&tokens)).collect();
 
         // take ownership here as it greatly simplifies dealing with futures
         // lifetime as it would require the contract Instance to live until
