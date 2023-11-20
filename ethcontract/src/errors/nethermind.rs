@@ -46,6 +46,7 @@ fn get_error_message(err: &JsonrpcError) -> &str {
         .unwrap_or(&err.message)
 }
 
+#[allow(unused)]
 #[cfg(test)]
 pub use tests::*;
 

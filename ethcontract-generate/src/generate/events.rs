@@ -500,7 +500,7 @@ fn expand_event_parse_log(cx: &Context) -> TokenStream {
                 log: self::ethcontract::RawLog,
             ) -> Result<Self, self::ethcontract::errors::ExecutionError> {
                 let standard_event = log.topics
-                    .get(0)
+                    .first()
                     .copied()
                     .map(|topic| match topic {
                         #( #standard_event_match_arms )*
@@ -793,7 +793,7 @@ mod tests {
                     log: self::ethcontract::RawLog,
                 ) -> Result<Self, self::ethcontract::errors::ExecutionError> {
                     let standard_event = log.topics
-                        .get(0)
+                        .first()
                         .copied()
                         .map(|topic| match topic {
                             #foo_signature => Ok(Event::Foo(

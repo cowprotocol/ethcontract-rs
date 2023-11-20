@@ -36,10 +36,7 @@ impl Bytecode {
         for block in CodeIter(s) {
             let block = block?;
 
-            if let Some(pos) = block
-                .bytes()
-                .position(|b| !matches!(b, b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F'))
-            {
+            if let Some(pos) = block.bytes().position(|b| !b.is_ascii_hexdigit()) {
                 return Err(BytecodeError::InvalidHexDigit(
                     block.chars().nth(pos).expect("valid pos"),
                 ));

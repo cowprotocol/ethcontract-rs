@@ -4,6 +4,7 @@ pub use crate::test::transport::TestTransport;
 use futures::future::FutureExt;
 pub use serde_json::json;
 use std::future::Future;
+#[allow(unused)]
 pub use web3::api::Web3;
 
 /// An extension future to wait for a future.
