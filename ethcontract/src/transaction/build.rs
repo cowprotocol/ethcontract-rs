@@ -187,7 +187,7 @@ async fn build_transaction_request_for_local_signing<T: Transport>(
             .eth()
             .accounts()
             .await?
-            .get(0)
+            .first()
             .ok_or(ExecutionError::NoLocalAccounts)?,
     };
     let gas = resolve_gas_limit(&web3, from, &options.0).await?;
