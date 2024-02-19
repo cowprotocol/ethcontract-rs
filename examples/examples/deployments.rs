@@ -13,8 +13,8 @@ async fn main() {
     let web3 = Web3::new(http);
 
     let network_id = web3
-        .net()
-        .version()
+        .eth()
+        .chain_id()
         .await
         .expect("failed to get network ID");
     let instance = RustCoin::deployed(&web3)
