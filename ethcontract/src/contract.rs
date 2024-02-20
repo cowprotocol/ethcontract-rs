@@ -411,7 +411,7 @@ mod tests {
             contract
         };
 
-        transport.add_response(network_id); // get network ID response
+        transport.add_response(json!(network_id)); // get network ID response
         let instance = Instance::deployed(web3, contract)
             .immediate()
             .expect("successful deployment");
