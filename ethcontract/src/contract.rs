@@ -397,7 +397,7 @@ mod tests {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
-        let network_id = "42";
+        let network_id = 42;
         let address = addr!("0x0102030405060708091011121314151617181920");
         let contract = {
             let mut contract = Contract::empty();
@@ -411,7 +411,7 @@ mod tests {
             contract
         };
 
-        transport.add_response(json!(network_id)); // get network ID response
+        transport.add_response(network_id); // get network ID response
         let instance = Instance::deployed(web3, contract)
             .immediate()
             .expect("successful deployment");
@@ -433,7 +433,7 @@ mod tests {
         let mut transport = TestTransport::new();
         let web3 = Web3::new(transport.clone());
 
-        let network_id = "42";
+        let network_id = 42;
 
         transport.add_response(json!(network_id)); // get network ID response
         let err = Instance::deployed(web3, Contract::empty())
@@ -445,7 +445,7 @@ mod tests {
 
         assert!(
             match &err {
-                DeployError::NotFound(id) => id == network_id,
+                DeployError::NotFound(id) => id == network_id.to_string(),
                 _ => false,
             },
             "expected network {} not found error but got '{:?}'",
