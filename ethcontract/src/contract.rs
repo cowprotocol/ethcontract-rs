@@ -445,7 +445,7 @@ mod tests {
 
         assert!(
             match &err {
-                DeployError::NotFound(id) => id == network_id.to_string(),
+                DeployError::NotFound(id) => id == &network_id.to_string(),
                 _ => false,
             },
             "expected network {} not found error but got '{:?}'",
