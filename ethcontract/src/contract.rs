@@ -120,10 +120,10 @@ impl<T: Transport> Instance<T> {
     /// Note that this does not verify that a contract with a matching `Abi` is
     /// actually deployed at the given address.
     pub async fn deployed(web3: Web3<T>, contract: Contract) -> Result<Self, DeployError> {
-        let network_id = web3.eth().chain_id().await?;
+        let network_id = web3.eth().chain_id().await?.to_string();
         let network = contract
             .networks
-            .get(&format!("{network_id}"))
+            .get(&network_id)
             .ok_or(DeployError::NotFound(network_id))?;
 
         Ok(Instance::with_deployment_info(
