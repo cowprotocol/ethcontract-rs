@@ -16,7 +16,6 @@ use crate::I256;
 use arrayvec::ArrayVec;
 use ethcontract_common::{abi::Token, TransactionHash};
 use serde::{Deserialize, Serialize};
-use std::convert::TryInto;
 use web3::types::{Address, U256};
 
 /// A tokenization related error.
