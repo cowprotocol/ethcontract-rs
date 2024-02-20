@@ -25,6 +25,7 @@ async fn main() {
         "Sending transaction to self: {:?}",
         account.public_address()
     );
+    // test commit to trigger ci
 
     let chain_id = web3.eth().chain_id().await.expect("Failed to get chainID");
     let receipt = TransactionBuilder::new(web3)
