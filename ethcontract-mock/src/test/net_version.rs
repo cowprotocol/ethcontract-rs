@@ -1,5 +1,4 @@
 use super::*;
-use crate::Mock;
 
 #[tokio::test]
 async fn chain_id() -> Result {

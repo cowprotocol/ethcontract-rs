@@ -1,5 +1,4 @@
 use super::*;
-use crate::Mock;
 
 #[tokio::test]
 async fn block_number_initially_zero() -> Result {

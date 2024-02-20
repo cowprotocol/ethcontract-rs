@@ -389,8 +389,6 @@ mod tests {
     use super::*;
     use crate::test::prelude::*;
     use ethcontract_common::contract::Network;
-    use ethcontract_common::Contract;
-    use web3::types::H256;
 
     #[test]
     fn deployed() {

@@ -1,6 +1,4 @@
 use super::*;
-use crate::Mock;
-use ethcontract::BlockNumber;
 
 #[tokio::test]
 async fn transaction_count_initially_zero() -> Result {
