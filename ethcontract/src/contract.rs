@@ -411,7 +411,7 @@ mod tests {
             contract
         };
 
-        transport.add_response(json!(network_id)); // get network ID response
+        transport.add_response(json!(network_id.to_string())); // get network ID response
         let instance = Instance::deployed(web3, contract)
             .immediate()
             .expect("successful deployment");
@@ -435,7 +435,7 @@ mod tests {
 
         let network_id = 42;
 
-        transport.add_response(json!(network_id)); // get network ID response
+        transport.add_response(json!(network_id.to_string())); // get network ID response
         let err = Instance::deployed(web3, Contract::empty())
             .immediate()
             .expect_err("unexpected success getting deployed contract");
