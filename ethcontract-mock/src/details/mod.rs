@@ -1,7 +1,6 @@
 //! Implementation details of mock node.
 
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::future::ready;
 use std::sync::{Arc, Mutex};
 
@@ -449,10 +448,6 @@ impl MockTransport {
                 let name = "eth_getTransactionReceipt";
                 self.eth_get_transaction_receipt(Parser::new(name, params))
             }
-            "net_version" => {
-                let name = "net_version";
-                self.net_version(Parser::new(name, params))
-            }
             unsupported => panic!("mock node does not support rpc method {:?}", unsupported),
         };
 
@@ -677,13 +672,6 @@ impl MockTransport {
         Self::ok(state.receipts.get(&transaction).unwrap_or_else(|| {
             panic!("there is no transaction with hash {:#x}", transaction);
         }))
-    }
-
-    fn net_version(&self, args: Parser) -> Result<Value, Error> {
-        args.done();
-
-        let state = self.state.lock().unwrap();
-        Self::ok(state.chain_id.to_string())
     }
 
     fn ok<T: Serialize>(t: T) -> Result<Value, Error> {

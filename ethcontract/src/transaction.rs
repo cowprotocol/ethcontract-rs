@@ -227,7 +227,6 @@ impl<T: Transport> TransactionBuilder<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::ExecutionError;
     use crate::test::prelude::*;
     use hex_literal::hex;
     use web3::types::{AccessListItem, H2048, H256};

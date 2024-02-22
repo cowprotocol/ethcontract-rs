@@ -348,7 +348,7 @@ mod tests {
     use ethcontract_common::abi::{EventParam, ParamType};
     use futures::stream::StreamExt;
     use serde_json::Value;
-    use web3::types::{Address, H2048, H256, U256, U64};
+    use web3::types::{H2048, U256, U64};
 
     fn test_abi_event() -> (AbiEvent, Value) {
         let event = AbiEvent {

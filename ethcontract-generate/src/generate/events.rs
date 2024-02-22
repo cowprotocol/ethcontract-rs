@@ -560,7 +560,6 @@ fn expand_invalid_data() -> TokenStream {
 mod tests {
     use super::*;
     use crate::ContractBuilder;
-    use ethcontract_common::abi::{EventParam, ParamType};
     use ethcontract_common::Contract;
 
     #[test]

@@ -1,7 +1,7 @@
 use ethcontract::{
     aws_config,
     prelude::*,
-    transaction::{kms, Account, TransactionBuilder},
+    transaction::{kms, TransactionBuilder},
 };
 use std::env;
 
