@@ -4,7 +4,7 @@ ethcontract::contract!("examples/truffle/build/contracts/AbiTypes.json");
 
 #[tokio::test]
 async fn returns_default() -> Result {
-    let contract = Mock::new(1234).deploy(AbiTypes::raw_contract().abi.clone());
+    let contract = Mock::new(1234).deploy(AbiTypes::raw_contract().abi.abi.clone());
 
     contract.expect(AbiTypes::signatures().get_void());
     contract.expect(AbiTypes::signatures().get_u8());
@@ -36,7 +36,7 @@ async fn returns_default() -> Result {
 
 #[tokio::test]
 async fn returns_const() -> Result {
-    let contract = Mock::new(1234).deploy(AbiTypes::raw_contract().abi.clone());
+    let contract = Mock::new(1234).deploy(AbiTypes::raw_contract().abi.abi.clone());
 
     contract
         .expect(AbiTypes::signatures().get_void())
@@ -78,7 +78,7 @@ async fn returns_const() -> Result {
 
 #[tokio::test]
 async fn returns_fn() -> Result {
-    let contract = Mock::new(1234).deploy(AbiTypes::raw_contract().abi.clone());
+    let contract = Mock::new(1234).deploy(AbiTypes::raw_contract().abi.abi.clone());
 
     contract
         .expect(AbiTypes::signatures().get_void())
@@ -122,7 +122,7 @@ async fn returns_fn() -> Result {
 
 #[tokio::test]
 async fn returns_fn_ctx() -> Result {
-    let contract = Mock::new(1234).deploy(AbiTypes::raw_contract().abi.clone());
+    let contract = Mock::new(1234).deploy(AbiTypes::raw_contract().abi.abi.clone());
 
     contract
         .expect(AbiTypes::signatures().get_void())

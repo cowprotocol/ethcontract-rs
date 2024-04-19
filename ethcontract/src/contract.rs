@@ -10,12 +10,14 @@ use crate::{
     errors::{DeployError, LinkError},
     tokens::Tokenize,
 };
-use ethcontract_common::abi::{encode, Error as AbiError, Result as AbiResult};
-use ethcontract_common::abiext::FunctionExt;
 use ethcontract_common::hash::H32;
+use ethcontract_common::{
+    abi::{encode, Error as AbiError, Result as AbiResult},
+    contract::Interface,
+};
 use ethcontract_common::{Abi, Bytecode, Contract, DeploymentInformation};
-use std::collections::{BTreeMap, HashMap};
 use std::hash::Hash;
+use std::sync::Arc;
 use web3::api::Web3;
 use web3::types::{Address, Bytes, H256};
 use web3::Transport;
@@ -61,19 +63,12 @@ impl<P, R> From<H32> for Signature<P, R> {
 #[derive(Debug, Clone)]
 pub struct Instance<T: Transport> {
     web3: Web3<T>,
-    abi: Abi,
     address: Address,
     deployment_information: Option<DeploymentInformation>,
     /// Default method parameters to use when sending method transactions or
     /// querying method calls.
     pub defaults: MethodDefaults,
-    /// A mapping from method signature to a name-index pair for accessing
-    /// functions in the contract ABI. This is used to avoid allocation when
-    /// searching for matching functions by signature.
-    methods: HashMap<H32, (String, usize)>,
-    /// A mapping from event signature to a name-index pair for resolving
-    /// events in the contract ABI.
-    events: HashMap<H256, (String, usize)>,
+    interface: Arc<Interface>,
 }
 
 impl<T: Transport> Instance<T> {
@@ -82,8 +77,8 @@ impl<T: Transport> Instance<T> {
     ///
     /// Note that this does not verify that a contract with a matching `Abi` is
     /// actually deployed at the given address.
-    pub fn at(web3: Web3<T>, abi: Abi, address: Address) -> Self {
-        Instance::with_deployment_info(web3, abi, address, None)
+    pub fn at(web3: Web3<T>, interface: Arc<Interface>, address: Address) -> Self {
+        Instance::with_deployment_info(web3, interface, address, None)
     }
 
     /// Creates a new contract instance with the specified `web3` provider with
@@ -96,21 +91,16 @@ impl<T: Transport> Instance<T> {
     /// when provided, is actually for this contract deployment.
     pub fn with_deployment_info(
         web3: Web3<T>,
-        abi: Abi,
+        interface: Arc<Interface>,
         address: Address,
         deployment_information: Option<DeploymentInformation>,
     ) -> Self {
-        let methods = create_mapping(&abi.functions, |function| function.selector());
-        let events = create_mapping(&abi.events, |event| event.signature());
-
         Instance {
             web3,
-            abi,
+            interface,
             address,
             deployment_information,
-            defaults: MethodDefaults::default(),
-            methods,
-            events,
+            defaults: Default::default(),
         }
     }
 
@@ -175,7 +165,7 @@ impl<T: Transport> Instance<T> {
 
     /// Retrieves the contract ABI for this instance.
     pub fn abi(&self) -> &Abi {
-        &self.abi
+        &self.interface.abi
     }
 
     /// Returns the contract address being used by this instance.
@@ -203,9 +193,10 @@ impl<T: Transport> Instance<T> {
     {
         let signature = signature.into().into_inner();
         let function = self
+            .interface
             .methods
             .get(&signature)
-            .map(|(name, index)| &self.abi.functions[name][*index])
+            .map(|(name, index)| &self.interface.abi.functions[name][*index])
             .ok_or_else(|| AbiError::InvalidName(hex::encode(signature)))?;
         let tokens = match params.into_token() {
             ethcontract_common::abi::Token::Tuple(tokens) => tokens,
@@ -250,7 +241,7 @@ impl<T: Transport> Instance<T> {
     where
         D: Into<Vec<u8>>,
     {
-        if !self.abi.fallback && !self.abi.receive {
+        if !self.interface.abi.fallback && !self.interface.abi.receive {
             return Err(AbiError::InvalidName("fallback".into()));
         }
 
@@ -268,9 +259,10 @@ impl<T: Transport> Instance<T> {
         E: Tokenize,
     {
         let event = self
+            .interface
             .events
             .get(&signature)
-            .map(|(name, index)| &self.abi.events[name][*index])
+            .map(|(name, index)| &self.interface.abi.events[name][*index])
             .ok_or_else(|| AbiError::InvalidName(hex::encode(signature)))?;
 
         Ok(EventBuilder::new(
@@ -291,7 +283,7 @@ impl<T: Transport> Instance<T> {
 #[derive(Debug, Clone)]
 pub struct Linker {
     /// The contract ABI.
-    abi: Abi,
+    abi: Arc<Interface>,
     /// The deployment code for the contract.
     bytecode: Bytecode,
 }
@@ -340,7 +332,7 @@ impl<T: Transport> Deploy<T> for Instance<T> {
     type Context = Linker;
 
     fn abi(cx: &Self::Context) -> &Abi {
-        &cx.abi
+        &cx.abi.abi
     }
 
     fn bytecode(cx: &Self::Context) -> &Bytecode {
@@ -360,28 +352,6 @@ impl<T: Transport> Deploy<T> for Instance<T> {
             Some(DeploymentInformation::TransactionHash(transaction_hash)),
         )
     }
-}
-
-/// Utility function for creating a mapping between a unique signature and a
-/// name-index pair for accessing contract ABI items.
-fn create_mapping<T, S, F>(
-    elements: &BTreeMap<String, Vec<T>>,
-    signature: F,
-) -> HashMap<S, (String, usize)>
-where
-    S: Hash + Eq + Ord,
-    F: Fn(&T) -> S,
-{
-    let signature = &signature;
-    elements
-        .iter()
-        .flat_map(|(name, sub_elements)| {
-            sub_elements
-                .iter()
-                .enumerate()
-                .map(move |(index, element)| (signature(element), (name.to_owned(), index)))
-        })
-        .collect()
 }
 
 #[cfg(test)]

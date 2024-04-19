@@ -52,7 +52,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
                 lazy_static! {
                     pub static ref CONTRACT: Contract = {
                         #[allow(unused_mut)]
-                        let mut contract = TruffleLoader::new()
+                        let mut contract: Contract = TruffleLoader::new()
                             .load_contract_from_str(#contract_json)
                             .expect("valid contract JSON");
                         #( #deployments )*

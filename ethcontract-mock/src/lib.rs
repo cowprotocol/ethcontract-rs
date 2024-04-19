@@ -225,6 +225,7 @@ use ethcontract::dyns::{DynInstance, DynTransport, DynWeb3};
 use ethcontract::tokens::Tokenize;
 use ethcontract::{Address, U256};
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 #[doc(no_inline)]
 pub use ethcontract::contract::Signature;
@@ -356,13 +357,13 @@ impl Contract {
     /// Creates a contract `Instance` that can be used to interact with
     /// this contract.
     pub fn instance(&self) -> DynInstance {
-        DynInstance::at(self.web3(), self.abi.clone(), self.address)
+        DynInstance::at(self.web3(), Arc::new(self.abi.clone().into()), self.address)
     }
 
     /// Consumes this object and transforms it into a contract `Instance`
     /// that can be used to interact with this contract.
     pub fn into_instance(self) -> DynInstance {
-        DynInstance::at(self.web3(), self.abi, self.address)
+        DynInstance::at(self.web3(), Arc::new(self.abi.into()), self.address)
     }
 
     /// Returns a reference to the contract's ABI.

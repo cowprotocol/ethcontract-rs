@@ -1,9 +1,16 @@
 //! Module for reading and examining data produced by truffle.
 
+use crate::abiext::FunctionExt;
+use crate::hash::H32;
 use crate::Abi;
 use crate::{bytecode::Bytecode, DeploymentInformation};
+use ethabi::ethereum_types::H256;
+use serde::Deserializer;
+use serde::Serializer;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::hash::Hash;
+use std::sync::Arc;
 use web3::types::Address;
 
 /// Represents a contract data.
@@ -13,8 +20,8 @@ pub struct Contract {
     /// The contract name. Unnamed contracts have an empty string as their name.
     #[serde(rename = "contractName")]
     pub name: String,
-    /// The contract ABI
-    pub abi: Abi,
+    /// The contract interface.
+    pub abi: Arc<Interface>,
     /// The contract deployment bytecode.
     pub bytecode: Bytecode,
     /// The contract's expected deployed bytecode.
@@ -26,6 +33,71 @@ pub struct Contract {
     pub devdoc: Documentation,
     /// The user documentation.
     pub userdoc: Documentation,
+}
+
+/// Struct representing publicly accessible interface of a smart contract.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Interface {
+    /// The contract ABI
+    pub abi: Abi,
+    /// A mapping from method signature to a name-index pair for accessing
+    /// functions in the contract ABI. This is used to avoid allocation when
+    /// searching for matching functions by signature.
+    pub methods: HashMap<H32, (String, usize)>,
+    /// A mapping from event signature to a name-index pair for resolving
+    /// events in the contract ABI.
+    pub events: HashMap<H256, (String, usize)>,
+}
+
+impl<'de> Deserialize<'de> for Interface {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let abi = Abi::deserialize(deserializer)?;
+        Ok(abi.into())
+    }
+}
+
+impl Serialize for Interface {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.abi.serialize(serializer)
+    }
+}
+
+impl From<Abi> for Interface {
+    fn from(abi: Abi) -> Self {
+        Self {
+            methods: create_mapping(&abi.functions, |function| function.selector()),
+            events: create_mapping(&abi.events, |event| event.signature()),
+            abi,
+        }
+    }
+}
+
+/// Utility function for creating a mapping between a unique signature and a
+/// name-index pair for accessing contract ABI items.
+fn create_mapping<T, S, F>(
+    elements: &BTreeMap<String, Vec<T>>,
+    signature: F,
+) -> HashMap<S, (String, usize)>
+where
+    S: Hash + Eq + Ord,
+    F: Fn(&T) -> S,
+{
+    let signature = &signature;
+    elements
+        .iter()
+        .flat_map(|(name, sub_elements)| {
+            sub_elements
+                .iter()
+                .enumerate()
+                .map(move |(index, element)| (signature(element), (name.to_owned(), index)))
+        })
+        .collect()
 }
 
 impl Contract {
