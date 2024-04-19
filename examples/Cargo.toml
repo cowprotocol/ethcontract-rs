@@ -8,5 +8,5 @@ autobins = false
 
 [dev-dependencies]
 ethcontract = { path = "../ethcontract", features = ["aws-kms"] }
-futures = "0.3"
-tokio = { version = "1.6", features = ["macros"] }
+futures = "0.3.30"
+tokio = { version = "1.37.0", features = ["macros"] }

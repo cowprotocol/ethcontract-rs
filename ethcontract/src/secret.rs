@@ -96,7 +96,8 @@ impl Key for &'_ PrivateKey {
     }
 
     fn sign_message(&self, message: &[u8]) -> Result<Signature, SigningError> {
-        let message = Message::from_slice(message).map_err(|_| SigningError::InvalidMessage)?;
+        let message =
+            Message::from_digest_slice(message).map_err(|_| SigningError::InvalidMessage)?;
         let (recovery_id, signature) = Secp256k1::signing_only()
             .sign_ecdsa_recoverable(&message, self)
             .serialize_compact();

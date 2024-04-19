@@ -1290,11 +1290,11 @@ mod tests {
         assert_eq!(I256::one().to_string(), "1");
         assert_eq!(I256::minus_one().to_string(), "-1");
         assert_eq!(
-            I256::max_value().to_string(),
+            I256::MAX.to_string(),
             "57896044618658097711785492504343953926634992332820282019728792003956564819967"
         );
         assert_eq!(
-            I256::min_value().to_string(),
+            I256::MIN.to_string(),
             "-57896044618658097711785492504343953926634992332820282019728792003956564819968"
         );
     }
