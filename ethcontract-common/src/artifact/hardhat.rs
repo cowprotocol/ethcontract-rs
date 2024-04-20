@@ -428,7 +428,7 @@ impl HardHatLoader {
     ) -> Result<(), ArtifactError> {
         let contract_guard = artifact.get_mut(&contract.name);
         let mut contract = if let Some(existing_contract) = contract_guard {
-            if existing_contract.abi != contract.abi {
+            if existing_contract.interface != contract.interface {
                 return Err(ArtifactError::AbiMismatch(contract.name));
             }
 

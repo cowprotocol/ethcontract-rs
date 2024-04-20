@@ -21,7 +21,8 @@ pub struct Contract {
     #[serde(rename = "contractName")]
     pub name: String,
     /// The contract interface.
-    pub abi: Arc<Interface>,
+    #[serde(rename = "abi")]
+    pub interface: Arc<Interface>,
     /// The contract deployment bytecode.
     pub bytecode: Bytecode,
     /// The contract's expected deployed bytecode.
@@ -110,7 +111,7 @@ impl Contract {
     pub fn with_name(name: impl Into<String>) -> Self {
         Contract {
             name: name.into(),
-            abi: Default::default(),
+            interface: Default::default(),
             bytecode: Default::default(),
             deployed_bytecode: Default::default(),
             networks: HashMap::new(),

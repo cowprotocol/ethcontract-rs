@@ -118,7 +118,7 @@ impl<T: Transport> Instance<T> {
 
         Ok(Instance::with_deployment_info(
             web3,
-            contract.abi,
+            contract.interface,
             network.address,
             network.deployment_information,
         ))
@@ -282,8 +282,8 @@ impl<T: Transport> Instance<T> {
 /// Builder for specifying linking options for a contract.
 #[derive(Debug, Clone)]
 pub struct Linker {
-    /// The contract ABI.
-    abi: Arc<Interface>,
+    /// The contract interface.
+    interface: Arc<Interface>,
     /// The deployment code for the contract.
     bytecode: Bytecode,
 }
@@ -292,7 +292,7 @@ impl Linker {
     /// Create a new linker for a contract.
     pub fn new(contract: Contract) -> Linker {
         Linker {
-            abi: contract.abi,
+            interface: contract.interface,
             bytecode: contract.bytecode,
         }
     }
@@ -332,7 +332,7 @@ impl<T: Transport> Deploy<T> for Instance<T> {
     type Context = Linker;
 
     fn abi(cx: &Self::Context) -> &Abi {
-        &cx.abi.abi
+        &cx.interface.abi
     }
 
     fn bytecode(cx: &Self::Context) -> &Bytecode {
@@ -347,7 +347,7 @@ impl<T: Transport> Deploy<T> for Instance<T> {
     ) -> Self {
         Instance::with_deployment_info(
             web3,
-            cx.abi,
+            cx.interface,
             address,
             Some(DeploymentInformation::TransactionHash(transaction_hash)),
         )

@@ -86,7 +86,7 @@ ethcontract::contract!("examples/truffle/build/contracts/ERC20.json");
 fn setup() -> (Mock, DynWeb3, Contract, ERC20) {
     let mock = Mock::new(1234);
     let web3 = mock.web3();
-    let contract = mock.deploy(ERC20::raw_contract().abi.abi.clone());
+    let contract = mock.deploy(ERC20::raw_contract().interface.abi.clone());
     let mut instance = ERC20::at(&web3, contract.address);
     instance.defaults_mut().from = Some(account_for("Alice"));
 
@@ -96,7 +96,7 @@ fn setup() -> (Mock, DynWeb3, Contract, ERC20) {
 #[tokio::test]
 async fn general_test() {
     let mock = crate::Mock::new(1234);
-    let contract = mock.deploy(ERC20::raw_contract().abi.abi.clone());
+    let contract = mock.deploy(ERC20::raw_contract().interface.abi.clone());
 
     let called = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
 

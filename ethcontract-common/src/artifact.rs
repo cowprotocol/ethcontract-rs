@@ -152,7 +152,7 @@ pub struct ContractMut<'a>(&'a mut Contract);
 impl<'a> ContractMut<'a> {
     /// Returns mutable reference to contract's abi.
     pub fn abi_mut(&mut self) -> &mut Abi {
-        &mut Arc::make_mut(&mut self.0.abi).abi
+        &mut Arc::make_mut(&mut self.0.interface).abi
     }
 
     /// Returns mutable reference to contract's bytecode.
@@ -194,9 +194,9 @@ impl Drop for ContractMut<'_> {
         // The ABI might have gotten mutated while this guard was alive.
         // Because we compute a bunch of data from the ABI we need to recompute
         // it in case the recomputed data would also have changed due to the update.
-        let abi = self.0.abi.abi.clone();
+        let abi = self.0.interface.abi.clone();
         let interface = Interface::from(abi);
-        *Arc::make_mut(&mut self.0.abi) = interface;
+        *Arc::make_mut(&mut self.0.interface) = interface;
     }
 }
 

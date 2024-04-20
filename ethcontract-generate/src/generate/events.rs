@@ -24,7 +24,7 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
 fn expand_structs_mod(cx: &Context) -> Result<TokenStream> {
     let data_types = cx
         .contract
-        .abi
+        .interface
         .abi
         .events()
         .map(|event| expand_data_type(event, &cx.event_derives))
@@ -182,7 +182,7 @@ fn expand_data_tuple(
 fn expand_filters(cx: &Context) -> Result<TokenStream> {
     let standard_events = cx
         .contract
-        .abi
+        .interface
         .abi
         .events()
         .filter(|event| !event.anonymous)
@@ -373,7 +373,7 @@ fn expand_builder_name(event: &Event) -> TokenStream {
 /// Expands into the `all_events` method on the root contract type if it
 /// contains events. Expands to nothing otherwise.
 fn expand_all_events(cx: &Context) -> TokenStream {
-    if cx.contract.abi.events.is_empty() {
+    if cx.contract.interface.events.is_empty() {
         return quote! {};
     }
 
@@ -401,7 +401,7 @@ fn expand_all_events(cx: &Context) -> TokenStream {
 /// including anonymous types.
 fn expand_event_enum(cx: &Context) -> TokenStream {
     let variants = {
-        let mut events = cx.contract.abi.abi.events().collect::<Vec<_>>();
+        let mut events = cx.contract.interface.abi.events().collect::<Vec<_>>();
 
         // NOTE: We sort the events by name so that the generated enum is
         //   consistent. This also facilitates testing as so that the same ABI
@@ -435,7 +435,7 @@ fn expand_event_parse_log(cx: &Context) -> TokenStream {
     let all_events = {
         let mut all_events = cx
             .contract
-            .abi
+            .interface
             .abi
             .events()
             .map(|event| {
@@ -445,7 +445,7 @@ fn expand_event_parse_log(cx: &Context) -> TokenStream {
                 let decode_event = quote! {
                     log.clone().decode(
                         Contract::raw_contract()
-                            .abi
+                            .interface
                             .abi
                             .event(#name)
                             .expect("generated event decode")
@@ -799,7 +799,7 @@ mod tests {
         contract.abi = Arc::new(abi.into());
         let context = Context::from_builder(&contract, ContractBuilder::new()).unwrap();
 
-        let foo_signature = expand_hash(context.contract.abi.abi.event("Foo").unwrap().signature());
+        let foo_signature = expand_hash(context.contract.interface.abi.event("Foo").unwrap().signature());
         let invalid_data = expand_invalid_data();
 
         assert_quote!(expand_event_parse_log(&context), {
@@ -814,7 +814,7 @@ mod tests {
                             #foo_signature => Ok(Event::Foo(
                                 log.clone().decode(
                                     Contract::raw_contract()
-                                        .abi
+                                        .interface
                                         .abi
                                         .event("Foo")
                                         .expect("generated event decode")
@@ -829,7 +829,7 @@ mod tests {
 
                     if let Ok(data) = log.clone().decode(
                         Contract::raw_contract()
-                            .abi
+                            .interface
                             .abi
                             .event("Bar")
                             .expect("generated event decode")
