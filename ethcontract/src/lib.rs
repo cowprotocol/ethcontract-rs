@@ -167,9 +167,9 @@ pub mod dyns {
 
 #[doc(hidden)]
 pub mod private {
-    //! Private definitions that are needed by the generated contract code or
-    //! but do not appear in public interfaces. No documentation is generated
-    //! for these definitions.
+    // Private definitions that are needed by the generated contract code or
+    // but do not appear in public interfaces. No documentation is generated
+    // for these definitions.
 
     pub use lazy_static::lazy_static;
 }
