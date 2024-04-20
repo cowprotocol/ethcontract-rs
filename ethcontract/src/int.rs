@@ -1327,7 +1327,7 @@ mod tests {
                 assert_eq!(I256::from(42 as $unsigned).to_string(), "42");
                 assert_eq!(
                     I256::from(<$unsigned>::MIN).to_string(),
-                    <$unsigned>::MAX.to_string(),
+                    <$unsigned>::MIN.to_string(),
                 );
 
                 assert!(matches!(<$signed>::try_from(small_positive), Ok(42)));
