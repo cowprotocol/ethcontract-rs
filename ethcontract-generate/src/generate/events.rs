@@ -743,7 +743,7 @@ mod tests {
             ..Default::default()
         };
         let mut contract = Contract::with_name("Contract");
-        contract.abi = Arc::new(abi.into());
+        contract.interface = Arc::new(abi.into());
 
         let mut context = Context::from_builder(&contract, ContractBuilder::new()).unwrap();
 
@@ -796,7 +796,7 @@ mod tests {
             ..Default::default()
         };
         let mut contract = Contract::with_name("Contract");
-        contract.abi = Arc::new(abi.into());
+        contract.interface = Arc::new(abi.into());
         let context = Context::from_builder(&contract, ContractBuilder::new()).unwrap();
 
         let foo_signature = expand_hash(context.contract.interface.abi.event("Foo").unwrap().signature());
