@@ -1316,12 +1316,12 @@ mod tests {
                 assert_eq!(I256::from(-42 as $signed).to_string(), "-42");
                 assert_eq!(I256::from(42 as $signed).to_string(), "42");
                 assert_eq!(
-                    I256::from(<$signed>::max_value()).to_string(),
-                    <$signed>::max_value().to_string(),
+                    I256::from(<$signed>::MAX).to_string(),
+                    <$signed>::MAX.to_string(),
                 );
                 assert_eq!(
-                    I256::from(<$signed>::min_value()).to_string(),
-                    <$signed>::min_value().to_string(),
+                    I256::from(<$signed>::MIN).to_string(),
+                    <$signed>::MIN.to_string(),
                 );
 
                 assert_eq!(I256::from(42 as $unsigned).to_string(), "42");
