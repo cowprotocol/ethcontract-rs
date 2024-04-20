@@ -18,10 +18,6 @@ pub(crate) fn expand(cx: &Context) -> Result<TokenStream> {
 
 fn expand_deployed(cx: &Context) -> TokenStream {
     if cx.contract.networks.is_empty() && cx.networks.is_empty() {
-        if cx.contract.name == "DeployedContract" {
-            println!("{:?}", cx.contract);
-            println!("{:?}", cx.networks);
-        }
         return quote! {};
     }
 
