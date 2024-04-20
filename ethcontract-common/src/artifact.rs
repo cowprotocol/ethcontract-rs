@@ -192,8 +192,9 @@ impl Deref for ContractMut<'_> {
 impl Drop for ContractMut<'_> {
     fn drop(&mut self) {
         // The ABI might have gotten mutated while this guard was alive.
-        // Because we compute a bunch of data from the ABI we need to recompute
-        // it in case the recomputed data would also have changed due to the update.
+        // Since we compute pre-compute and cache a few values based on the ABI
+        // as a performance optimization we need to recompute those cached values
+        // with the new ABI once the user is done updating the mutable contract.
         let abi = self.0.interface.abi.clone();
         let interface = Interface::from(abi);
         *Arc::make_mut(&mut self.0.interface) = interface;
@@ -210,35 +211,41 @@ mod test {
         contract
     }
 
-    // #[test]
-    // fn insert() {
-    //     let mut artifact = Artifact::new();
+    #[test]
+    fn insert() {
+        let mut artifact = Artifact::new();
 
-    //     assert_eq!(artifact.len(), 0);
+        assert_eq!(artifact.len(), 0);
 
-    //     let insert_res = artifact.insert(make_contract("C1"));
+        {
+            let insert_res = artifact.insert(make_contract("C1"));
 
-    //     assert_eq!(insert_res.inserted_contract.name, "C1");
-    //     assert!(insert_res.old_contract.is_none());
+            assert_eq!(insert_res.inserted_contract.name, "C1");
+            assert!(insert_res.old_contract.is_none());
+        }
 
-    //     assert_eq!(artifact.len(), 1);
-    //     assert!(artifact.contains("C1"));
+        assert_eq!(artifact.len(), 1);
+        assert!(artifact.contains("C1"));
 
-    //     let insert_res = artifact.insert(make_contract("C2"));
+        {
+            let insert_res = artifact.insert(make_contract("C2"));
 
-    //     assert_eq!(insert_res.inserted_contract.name, "C2");
-    //     assert!(insert_res.old_contract.is_none());
+            assert_eq!(insert_res.inserted_contract.name, "C2");
+            assert!(insert_res.old_contract.is_none());
+        }
 
-    //     assert_eq!(artifact.len(), 2);
-    //     assert!(artifact.contains("C2"));
+        assert_eq!(artifact.len(), 2);
+        assert!(artifact.contains("C2"));
 
-    //     let insert_res = artifact.insert(make_contract("C1"));
+        {
+            let insert_res = artifact.insert(make_contract("C1"));
 
-    //     assert_eq!(insert_res.inserted_contract.name, "C1");
-    //     assert!(insert_res.old_contract.is_some());
+            assert_eq!(insert_res.inserted_contract.name, "C1");
+            assert!(insert_res.old_contract.is_some());
+        }
 
-    //     assert_eq!(artifact.len(), 2);
-    // }
+        assert_eq!(artifact.len(), 2);
+    }
 
     #[test]
     fn remove() {

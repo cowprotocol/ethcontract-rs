@@ -799,7 +799,15 @@ mod tests {
         contract.interface = Arc::new(abi.into());
         let context = Context::from_builder(&contract, ContractBuilder::new()).unwrap();
 
-        let foo_signature = expand_hash(context.contract.interface.abi.event("Foo").unwrap().signature());
+        let foo_signature = expand_hash(
+            context
+                .contract
+                .interface
+                .abi
+                .event("Foo")
+                .unwrap()
+                .signature(),
+        );
         let invalid_data = expand_invalid_data();
 
         assert_quote!(expand_event_parse_log(&context), {
