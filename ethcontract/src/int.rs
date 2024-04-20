@@ -7,7 +7,6 @@ use std::fmt;
 use std::iter;
 use std::ops;
 use std::str;
-use std::{i128, i64, u64};
 use web3::types::U256;
 
 /// Compute the two's complement of a U256.
@@ -972,8 +971,8 @@ macro_rules! impl_from {
                 type Error = TryFromBigIntError;
 
                 fn try_from(value: I256) -> Result<Self, Self::Error> {
-                    if value < I256::from(Self::min_value()) ||
-                        value > I256::from(Self::max_value()) {
+                    if value < I256::from(Self::MIN) ||
+                        value > I256::from(Self::MAX) {
                         return Err(TryFromBigIntError);
                     }
 
