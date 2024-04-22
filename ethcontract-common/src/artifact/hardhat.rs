@@ -434,6 +434,8 @@ impl HardHatLoader {
 
             existing_contract
         } else {
+            // `Drop` of the contract guard can update the underlying contract which can lead
+            // to borrowing issues. To work around those we manually drop the guard here.
             drop(contract_guard);
             artifact.insert(contract).inserted_contract
         };
