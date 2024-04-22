@@ -52,7 +52,7 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
                 lazy_static! {
                     pub static ref CONTRACT: Contract = {
                         #[allow(unused_mut)]
-                        let mut contract = TruffleLoader::new()
+                        let mut contract: Contract = TruffleLoader::new()
                             .load_contract_from_str(#contract_json)
                             .expect("valid contract JSON");
                         #( #deployments )*
@@ -146,8 +146,8 @@ pub(crate) fn expand(cx: &Context) -> TokenStream {
 
                 let transport = DynTransport::new(web3.transport().clone());
                 let web3 = Web3::new(transport);
-                let abi = Self::raw_contract().abi.clone();
-                let instance = Instance::with_deployment_info(web3, abi, address, deployment_information);
+                let interface = Self::raw_contract().interface.clone();
+                let instance = Instance::with_deployment_info(web3, interface, address, deployment_information);
 
                 Contract::from_raw(instance)
             }

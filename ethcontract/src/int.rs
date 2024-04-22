@@ -7,7 +7,6 @@ use std::fmt;
 use std::iter;
 use std::ops;
 use std::str;
-use std::{i128, i64, u64};
 use web3::types::U256;
 
 /// Compute the two's complement of a U256.
@@ -972,8 +971,8 @@ macro_rules! impl_from {
                 type Error = TryFromBigIntError;
 
                 fn try_from(value: I256) -> Result<Self, Self::Error> {
-                    if value < I256::from(Self::min_value()) ||
-                        value > I256::from(Self::max_value()) {
+                    if value < I256::from(Self::MIN) ||
+                        value > I256::from(Self::MAX) {
                         return Err(TryFromBigIntError);
                     }
 
@@ -1317,18 +1316,18 @@ mod tests {
                 assert_eq!(I256::from(-42 as $signed).to_string(), "-42");
                 assert_eq!(I256::from(42 as $signed).to_string(), "42");
                 assert_eq!(
-                    I256::from(<$signed>::max_value()).to_string(),
-                    <$signed>::max_value().to_string(),
+                    I256::from(<$signed>::MAX).to_string(),
+                    <$signed>::MAX.to_string(),
                 );
                 assert_eq!(
-                    I256::from(<$signed>::min_value()).to_string(),
-                    <$signed>::min_value().to_string(),
+                    I256::from(<$signed>::MIN).to_string(),
+                    <$signed>::MIN.to_string(),
                 );
 
                 assert_eq!(I256::from(42 as $unsigned).to_string(), "42");
                 assert_eq!(
-                    I256::from(<$unsigned>::max_value()).to_string(),
-                    <$unsigned>::max_value().to_string(),
+                    I256::from(<$unsigned>::MIN).to_string(),
+                    <$unsigned>::MIN.to_string(),
                 );
 
                 assert!(matches!(<$signed>::try_from(small_positive), Ok(42)));

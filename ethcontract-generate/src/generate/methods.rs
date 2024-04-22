@@ -25,6 +25,7 @@ fn expand_functions(cx: &Context) -> Result<TokenStream> {
     let mut aliases = cx.method_aliases.clone();
     let functions = cx
         .contract
+        .interface
         .abi
         .functions()
         .map(|function| {
@@ -241,7 +242,7 @@ fn expand_selector(selector: H32) -> TokenStream {
 /// Expands a context into fallback method when the contract implements one,
 /// and an empty token stream otherwise.
 fn expand_fallback(cx: &Context) -> TokenStream {
-    if cx.contract.abi.fallback || cx.contract.abi.receive {
+    if cx.contract.interface.abi.fallback || cx.contract.interface.abi.receive {
         quote! {
             impl Contract {
                 /// Returns a method builder to setup a call to a smart

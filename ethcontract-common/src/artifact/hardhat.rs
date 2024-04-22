@@ -426,15 +426,18 @@ impl HardHatLoader {
         address: Address,
         transaction_hash: Option<TransactionHash>,
     ) -> Result<(), ArtifactError> {
-        let mut contract = match artifact.get_mut(&contract.name) {
-            Some(existing_contract) => {
-                if existing_contract.abi != contract.abi {
-                    return Err(ArtifactError::AbiMismatch(contract.name));
-                }
-
-                existing_contract
+        let contract_guard = artifact.get_mut(&contract.name);
+        let mut contract = if let Some(existing_contract) = contract_guard {
+            if existing_contract.interface != contract.interface {
+                return Err(ArtifactError::AbiMismatch(contract.name));
             }
-            None => artifact.insert(contract).inserted_contract,
+
+            existing_contract
+        } else {
+            // `Drop` of the contract guard can update the underlying contract which can lead
+            // to borrowing issues. To work around those we manually drop the guard here.
+            drop(contract_guard);
+            artifact.insert(contract).inserted_contract
         };
 
         let deployment_information = transaction_hash.map(DeploymentInformation::TransactionHash);

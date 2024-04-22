@@ -141,7 +141,7 @@ impl TruffleLoader {
         let mut contract: Contract = loader(source)?;
 
         if let Some(name) = &self.name {
-            contract.name = name.clone();
+            contract.name.clone_from(name);
         }
 
         Ok(contract)

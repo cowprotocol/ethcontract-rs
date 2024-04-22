@@ -85,8 +85,5 @@ pub fn verify(raw_tx: &[u8], node_chain_id: u64) -> Transaction {
         value,
         data,
         hash: signing::keccak256(raw_tx).into(),
-        transaction_type: 0,
-        max_fee_per_gas: Default::default(),
-        max_priority_fee_per_gas: Default::default(),
     }
 }
