@@ -8,7 +8,7 @@ use std::env;
 #[tokio::main]
 async fn main() {
     // Run `aws configure export-credentials --profile cow-staging --format env` to get required env variable locally
-    let config = aws_config::load_from_env().await;
+    let config = aws_config::from_env().load().await;
     let account = kms::Account::new(
         (&config).into(),
         &env::var("KMS_KEY_ID").expect("KMS_KEY_ID not set"),
