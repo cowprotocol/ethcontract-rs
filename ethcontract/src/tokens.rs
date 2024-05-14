@@ -320,6 +320,11 @@ impl_single_tokenize_for_tuple!(13, A:0, B:1, C:2, D:3, E:4, F:5, G:6, H:7, I:8,
 impl_single_tokenize_for_tuple!(14, A:0, B:1, C:2, D:3, E:4, F:5, G:6, H:7, I:8, J:9, K:10, L:11, M:12, N:13, );
 impl_single_tokenize_for_tuple!(15, A:0, B:1, C:2, D:3, E:4, F:5, G:6, H:7, I:8, J:9, K:10, L:11, M:12, N:13, O:14, );
 impl_single_tokenize_for_tuple!(16, A:0, B:1, C:2, D:3, E:4, F:5, G:6, H:7, I:8, J:9, K:10, L:11, M:12, N:13, O:14, P:15, );
+impl_single_tokenize_for_tuple!(17, A:0, B:1, C:2, D:3, E:4, F:5, G:6, H:7, I:8, J:9, K:10, L:11, M:12, N:13, O:14, P:15, Q: 16, );
+impl_single_tokenize_for_tuple!(18, A:0, B:1, C:2, D:3, E:4, F:5, G:6, H:7, I:8, J:9, K:10, L:11, M:12, N:13, O:14, P:15, Q: 16, R: 17, );
+impl_single_tokenize_for_tuple!(19, A:0, B:1, C:2, D:3, E:4, F:5, G:6, H:7, I:8, J:9, K:10, L:11, M:12, N:13, O:14, P:15, Q: 16, R: 17, S:18, );
+impl_single_tokenize_for_tuple!(20, A:0, B:1, C:2, D:3, E:4, F:5, G:6, H:7, I:8, J:9, K:10, L:11, M:12, N:13, O:14, P:15, Q: 16, R: 17, S:18, T: 19, );
+impl_single_tokenize_for_tuple!(21, A:0, B:1, C:2, D:3, E:4, F:5, G:6, H:7, I:8, J:9, K:10, L:11, M:12, N:13, O:14, P:15, Q: 16, R: 17, S:18, T: 19, U:20, );
 
 #[cfg(test)]
 mod tests {
