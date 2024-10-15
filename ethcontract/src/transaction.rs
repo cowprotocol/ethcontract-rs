@@ -14,7 +14,9 @@ pub use self::gas_price::GasPrice;
 pub use self::send::TransactionResult;
 use crate::errors::ExecutionError;
 use crate::secret::{Password, PrivateKey};
+use primitive_types::H256;
 use web3::api::Web3;
+use web3::signing::Signature;
 use web3::types::{AccessList, Address, Bytes, CallRequest, TransactionCondition, U256};
 use web3::Transport;
 
@@ -42,6 +44,35 @@ impl Account {
             Account::Offline(key, _) => key.public_address(),
             #[cfg(feature = "aws-kms")]
             Account::Kms(kms, _) => kms.public_address(),
+        }
+    }
+
+    /// Signs the given data
+    pub async fn sign<T: Transport>(&self, web3: Web3<T>, data: [u8; 32]) -> Option<Signature> {
+        match self {
+            Account::Local(_, _) => None,
+            Account::Locked(account, password, _) => {
+                let signature = web3
+                    .personal()
+                    .sign(Bytes::from(data), *account, password)
+                    .await.ok()?;
+                // Ethereum ECDSA's signature
+                Some(Signature {
+                    r: H256::from_slice(&signature[0..32]),  // First 32 bytes are R
+                    s: H256::from_slice(&signature[32..64]), // The next 32 bytes are S
+                    v: signature[64].into(),                  // The last byte is V
+                })
+            }
+            Account::Offline(key, _) => {
+                let signature = web3.accounts().sign(data, key);
+                Some(Signature {
+                    v: signature.v.into(),
+                    r: signature.r,
+                    s: signature.s,
+                })
+            }
+            #[cfg(feature = "aws-kms")]
+            Account::Kms(account, _) => account.sign(data).await.ok(),
         }
     }
 }
@@ -226,6 +257,7 @@ impl<T: Transport> TransactionBuilder<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use super::*;
     use crate::test::prelude::*;
     use hex_literal::hex;
@@ -417,5 +449,42 @@ mod tests {
         transport.assert_request("eth_blockNumber", &[]);
         transport.assert_request("eth_getTransactionReceipt", &[json!(tx_hash)]);
         transport.assert_no_more_requests();
+    }
+
+    #[tokio::test]
+    async fn sign_locked() {
+        let mut transport = TestTransport::new();
+        let web3 = Web3::new(transport.clone());
+        let from = addr!("0x9876543210987654321098765432109876543210");
+        let pw = "foobar";
+        let account =  Account::Locked(from, pw.into(), None);
+
+        // Data to sign
+        let data = [1; 32];
+
+        // Expected signature
+        let expected_signature = Signature {
+            r: H256::from_str("0x1f4b67e8a4d3b08f5b6a12c9f5d4e7aabc2f89c7d2e8b89e6713e23a7c5f1a29").unwrap(),
+            s: H256::from_str("0x4d3f67a2e8d5b6f3c2a1e4f9b8d3c7e7f6a2d4e3b6c7a89e4f12d6a8b5f9e7c3").unwrap(),
+            v: 28
+        };
+
+        // Add signature response to the web3 transport
+        let mut signature_bytes = Vec::new();
+        signature_bytes.extend_from_slice(expected_signature.r.as_bytes());
+        signature_bytes.extend_from_slice(expected_signature.s.as_bytes());
+        signature_bytes.extend_from_slice(&[expected_signature.v.try_into().unwrap()]);
+        transport.add_response(json!(format!("0x{}", hex::encode(signature_bytes))));
+
+        // Call signature function
+        let signature = account.sign(web3, data.clone()).await;
+
+        // Check the web3 transport layer was called successfully
+        transport.assert_request("personal_sign", &[json!(format!("0x{}", hex::encode(data))), json!(from), json!(pw)]);
+
+        // Check the signature validity
+        assert_eq!(signature.as_ref().unwrap().r, expected_signature.r);
+        assert_eq!(signature.as_ref().unwrap().s, expected_signature.s);
+        assert_eq!(signature.as_ref().unwrap().v, expected_signature.v);
     }
 }
