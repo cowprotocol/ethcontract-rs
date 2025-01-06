@@ -163,7 +163,7 @@ impl<'de> Deserialize<'de> for Bytecode {
 /// A serde visitor for deserializing bytecode.
 struct BytecodeVisitor;
 
-impl<'de> Visitor<'de> for BytecodeVisitor {
+impl Visitor<'_> for BytecodeVisitor {
     type Value = Bytecode;
 
     fn expecting(&self, f: &mut Formatter) -> FmtResult {
