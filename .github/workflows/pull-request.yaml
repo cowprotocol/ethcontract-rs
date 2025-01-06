@@ -36,6 +36,9 @@ jobs:
           default: true
       - uses: Swatinem/rust-cache@v1
       - uses: foundry-rs/foundry-toolchain@v1
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
       - run: cargo fmt -- --check
       - run: cd examples/truffle && yarn --frozen-lockfile && yarn build
       # Can't use --all-features here because web3 has mutually exclusive features.
