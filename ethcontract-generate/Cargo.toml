@@ -1,6 +1,6 @@
 [package]
 name = "ethcontract-generate"
-version = "0.25.7"
+version = "0.25.8"
 authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -18,7 +18,7 @@ http = ["curl"]
 [dependencies]
 anyhow = "1.0"
 curl = { version = "0.4", optional = true }
-ethcontract-common = { version = "0.25.7", path = "../ethcontract-common" }
+ethcontract-common = { version = "0.25.8", path = "../ethcontract-common" }
 Inflector = "0.11"
 proc-macro2 = "1.0"
 quote = "1.0"

@@ -86,8 +86,7 @@ impl Account {
             .signing_algorithm(SigningAlgorithmSpec::EcdsaSha256)
             .send()
             .await
-            .map_err(aws_sdk_kms::Error::from)
-            .unwrap();
+            .map_err(aws_sdk_kms::Error::from)?;
         let signature = secp256k1::ecdsa::Signature::from_der(
             output.signature().ok_or(Error::InvalidSignature)?.as_ref(),
         )

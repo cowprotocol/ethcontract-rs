@@ -149,7 +149,7 @@ pub struct InsertResult<'a> {
 /// but doesn't allow changing its name.
 pub struct ContractMut<'a>(&'a mut Contract);
 
-impl<'a> ContractMut<'a> {
+impl ContractMut<'_> {
     /// Returns mutable reference to contract's abi.
     pub fn abi_mut(&mut self) -> &mut Abi {
         &mut Arc::make_mut(&mut self.0.interface).abi
