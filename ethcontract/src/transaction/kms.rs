@@ -5,7 +5,6 @@
 //!
 //! It's quite hacky, however the hackiness does not leak outside this module.
 
-use aws_sdk_kms::operation::sign::SignOutput;
 use aws_sdk_kms::{
     primitives::Blob,
     types::{KeySpec, KeyUsageType, MessageType, SigningAlgorithmSpec},
