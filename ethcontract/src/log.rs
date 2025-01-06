@@ -15,6 +15,7 @@ use web3::Transport;
 /// The default poll interval to use for polling logs from the block chain.
 #[cfg(not(test))]
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(5);
+/// The default poll interval to be used in tests.
 #[cfg(test)]
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(0);
 
