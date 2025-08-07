@@ -41,7 +41,6 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '18'
-          cache: yarn
       - run: cargo fmt -- --check
       - run: cd examples/truffle && yarn --frozen-lockfile && yarn build
       # Can't use --all-features here because web3 has mutually exclusive features.
