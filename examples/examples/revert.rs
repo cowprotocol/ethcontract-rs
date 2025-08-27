@@ -29,7 +29,7 @@ async fn main() {
     let error = result_0.unwrap_err().inner;
     assert!(matches!(
         error,
-        ExecutionError::Revert(Some(reason)) if reason == "revert: reason"
+        ExecutionError::Revert(Some(reason)) if reason == "reason"
     ));
 
     let error = result_1.unwrap_err().inner;
