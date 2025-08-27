@@ -281,10 +281,10 @@ impl HardHatLoader {
             let chain_name = chain_path
                 .file_name()
                 .ok_or_else(|| {
-                    std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("unable to get directory name for path {:?}", chain_path),
-                    )
+                    std::io::Error::other(format!(
+                        "unable to get directory name for path {:?}",
+                        chain_path
+                    ))
                 })?
                 .to_string_lossy();
 
@@ -303,10 +303,10 @@ impl HardHatLoader {
                 let mut contract_name = contract_path
                     .file_name()
                     .ok_or_else(|| {
-                        std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            format!("unable to get file name for path {:?}", contract_path),
-                        )
+                        std::io::Error::other(format!(
+                            "unable to get file name for path {:?}",
+                            contract_path
+                        ))
                     })?
                     .to_string_lossy()
                     .into_owned();

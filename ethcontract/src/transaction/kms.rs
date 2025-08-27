@@ -75,6 +75,16 @@ impl Account {
         self.address
     }
 
+    /// Returns the underlying KMS client.
+    pub fn client(&self) -> &Client {
+        &self.client
+    }
+
+    /// Returns the KMS Key ID.
+    pub fn key_id(&self) -> &str {
+        &self.key_id
+    }
+
     /// Signs a message.
     pub async fn sign(&self, message: [u8; 32]) -> Result<Signature, Error> {
         let output = self
