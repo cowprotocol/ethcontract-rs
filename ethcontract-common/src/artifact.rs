@@ -86,7 +86,7 @@ impl Artifact {
     ///
     /// The returned handle does not allow renaming contract. For that,
     /// you'll need to remove it and add again.
-    pub fn get_mut(&mut self, name: &str) -> Option<ContractMut> {
+    pub fn get_mut(&mut self, name: &str) -> Option<ContractMut<'_>> {
         self.contracts.get_mut(name).map(ContractMut)
     }
 
@@ -94,7 +94,7 @@ impl Artifact {
     ///
     /// If contract with this name already exists, replaces it
     /// and returns the old contract.
-    pub fn insert(&mut self, contract: Contract) -> InsertResult {
+    pub fn insert(&mut self, contract: Contract) -> InsertResult<"_"> {
         match self.contracts.entry(contract.name.clone()) {
             Entry::Occupied(mut o) => {
                 let old_contract = o.insert(contract);
