@@ -876,7 +876,7 @@ impl I256 {
     /// of exponentiation can be computed even if the actual result is too large
     /// to fit in 256-bit signed integer.
     fn pow_sign(self, exp: u32) -> Sign {
-        let is_exp_odd = exp % 2 != 0;
+        let is_exp_odd = !exp.is_multiple_of(2);
         if is_exp_odd && self.is_negative() {
             Sign::Negative
         } else {
