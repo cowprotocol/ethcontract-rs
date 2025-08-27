@@ -25,7 +25,7 @@ impl Bytecode {
         }
 
         // Verify that the length is even
-        if s.len() % 2 != 0 {
+        if !s.len().is_multiple_of(2) {
             return Err(BytecodeError::InvalidLength);
         }
 
