@@ -94,7 +94,7 @@ impl Artifact {
     ///
     /// If contract with this name already exists, replaces it
     /// and returns the old contract.
-    pub fn insert(&mut self, contract: Contract) -> InsertResult<"_"> {
+    pub fn insert(&mut self, contract: Contract) -> InsertResult<'_> {
         match self.contracts.entry(contract.name.clone()) {
             Entry::Occupied(mut o) => {
                 let old_contract = o.insert(contract);
