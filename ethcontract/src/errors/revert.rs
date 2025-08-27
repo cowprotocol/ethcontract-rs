@@ -15,7 +15,7 @@ lazy_static! {
 /// These reasons are prefixed by a 4-byte error followed by an ABI encoded
 /// string.
 pub fn decode_reason(bytes: &[u8]) -> Option<String> {
-    if (!(bytes.len() + 28).is_multiple_of(32) || bytes[0..4] != ERROR_SELECTOR[..] {
+    if !(bytes.len() + 28).is_multiple_of(32) || bytes[0..4] != ERROR_SELECTOR[..] {
         // check to make sure that the length is of the form `4 + (n * 32)`
         // bytes and it starts with `keccak256("Error(string)")` which means
         // it is an encoded revert reason from Geth nodes.
