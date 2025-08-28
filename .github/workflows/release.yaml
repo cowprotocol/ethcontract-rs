@@ -13,4 +13,4 @@ jobs:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_TOKEN_NEW }}
     steps:
       - uses: actions/checkout@v2
-      - run: ci/deploy.sh --tag ${GITHUB_REF#refs/tags/}
+      - run: ci/deploy.sh --tag v0.25.9
