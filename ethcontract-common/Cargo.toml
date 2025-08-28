@@ -1,6 +1,6 @@
 [package]
 name = "ethcontract-common"
-version = "0.25.8"
+version = "0.25.9"
 authors = ["Gnosis developers <developers@gnosis.io>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
