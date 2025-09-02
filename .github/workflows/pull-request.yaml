@@ -36,7 +36,7 @@ jobs:
           default: true
       - uses: Swatinem/rust-cache@v1
       - uses: foundry-rs/foundry-toolchain@v1
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: '18'
       - run: cargo fmt -- --check
