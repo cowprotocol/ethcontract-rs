@@ -4,7 +4,7 @@
 use primitive_types::{H160, H256, U256};
 use serde::Serialize;
 use std::collections::HashMap;
-use web3::types::{U64, Bytes};
+use web3::types::{Bytes, U64};
 
 /// State overrides.
 pub type StateOverrides = HashMap<H160, StateOverride>;
