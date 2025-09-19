@@ -2,11 +2,13 @@
 //! intended to be used directly but to be used by a contract `Instance` with
 //! [Instance::method](ethcontract::contract::Instance::method).
 
+use crate::state_overrides::StateOverrides;
 use crate::transaction::{Account, GasPrice, TransactionBuilder, TransactionResult};
 use crate::{batch::CallBatch, errors::MethodError, tokens::Tokenize};
 use ethcontract_common::abi::{Function, Token};
 use std::marker::PhantomData;
-use web3::types::{AccessList, Address, BlockId, Bytes, CallRequest, U256};
+use web3::helpers::CallFuture;
+use web3::types::{AccessList, Address, BlockId, BlockNumber, Bytes, CallRequest, U256};
 use web3::Transport;
 use web3::{api::Web3, BatchTransport};
 
@@ -152,6 +154,14 @@ impl<T: Transport, R: Tokenize> MethodBuilder<T, R> {
     pub async fn call(self) -> Result<R, MethodError> {
         self.view().call().await
     }
+
+    /// Same as [`call`] but allows to also specify state overrides with the call.
+    pub async fn call_with_state_overrides(
+        self,
+        overrides: &StateOverrides,
+    ) -> Result<R, MethodError> {
+        self.view().call_with_state_overrides(overrides).await
+    }
 }
 
 /// Data used for building a contract method call. The view method builder can't
@@ -240,6 +250,20 @@ impl<T: Transport, R: Tokenize> ViewMethodBuilder<T, R> {
         let eth = &self.m.web3.eth();
         let (function, call, block) = self.decompose();
         let future = eth.call(call, block);
+        convert_response::<_, R>(future, function).await
+    }
+
+    /// Same as [`call`] but also allows to specify state overrides for the call.
+    pub async fn call_with_state_overrides(
+        self,
+        overrides: &StateOverrides,
+    ) -> Result<R, MethodError> {
+        let transport = &self.m.web3.transport().clone();
+        let (function, call, block) = self.decompose();
+        let req = web3::helpers::serialize(&call);
+        let block = web3::helpers::serialize(&block.unwrap_or_else(|| BlockNumber::Latest.into()));
+        let overrides = web3::helpers::serialize(overrides);
+        let future = CallFuture::new(transport.execute("eth_call", vec![req, block, overrides]));
         convert_response::<_, R>(future, function).await
     }
 
