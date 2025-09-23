@@ -23,7 +23,7 @@ use web3::{
 use crate::errors::ExecutionError;
 
 /// An AWS KMS account abstraction.
-#[derive( Debug)]
+#[derive(Clone)]
 pub struct Account {
     client: Client,
     key_id: String,
