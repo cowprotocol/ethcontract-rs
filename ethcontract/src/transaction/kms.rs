@@ -23,11 +23,21 @@ use web3::{
 use crate::errors::ExecutionError;
 
 /// An AWS KMS account abstraction.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Account {
     client: Client,
     key_id: String,
     address: Address,
+}
+
+impl std::fmt::Debug for Account {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Account")
+            .field("key_id", &self.key_id)
+            .field("address", &self.address)
+            // Skip the client field as it contains too verbose output
+            .finish()
+    }
 }
 
 impl Account {
